@@ -41,3 +41,19 @@ jobs:
             -e KAS_BUILD_DIR=/home/rsmith/yocto-cache/build \
             ecofleet-yocto:dev \
             bash -c "kas build kas/dev.yml"
+
+      - name: Upload Yocto artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: imx8mm-var-dart-fsl-image-qt6
+          path: |
+            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/imx-boot*
+            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/u-boot*.bin
+            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/u-boot-spl*.bin
+            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/Image.gz*
+            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/*.dtb
+            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/*.wic.zst
+            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/*.wic.bmap
+            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/*.manifest
+          if-no-files-found: error
+          retention-days: 14
