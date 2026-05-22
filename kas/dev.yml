@@ -5,7 +5,7 @@ machine: imx8mm-var-dart
 distro: fsl-imx-xwayland
 
 target:
-  - fsl-image-qt6
+  - cortex-image-barebones
 
 repos:
   poky:
@@ -14,6 +14,9 @@ repos:
     layers:
       meta:
       meta-poky:
+
+  meta-cortex:
+    path: meta-cortex
 
   meta-openembedded:
     url: https://github.com/openembedded/meta-openembedded
