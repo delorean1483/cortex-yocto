@@ -13,5 +13,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show Repo
-        run: ls -lah
+      - name: Install kas
+        run: |
+          pip3 install kas
+
+      - name: Verify kas
+        run: |
+          kas --version
