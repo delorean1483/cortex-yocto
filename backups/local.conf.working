@@ -1,0 +1,19 @@
+# cache
+DL_DIR = "${TOPDIR}/../downloads"
+SSTATE_DIR = "${TOPDIR}/../sstate-cache"
+
+# distro
+ACCEPT_FSL_EULA = "1"
+
+# performance
+BB_NUMBER_THREADS = "20"
+PARALLEL_MAKE = "-j20"
+PARALLEL_MAKEINST = "-j20"
+
+BB_PRESSURE_MAX_CPU = "50000"
+BB_PRESSURE_MAX_IO = "50000"
+BB_PRESSURE_MAX_MEMORY = "50000"
+
+MACHINE ??= "imx8mm-var-dart"
+DISTRO ??= "fsl-imx-xwayland"
+BBMULTICONFIG ?= ""

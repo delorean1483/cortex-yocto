@@ -1,0 +1,8 @@
+build/
+downloads/
+sstate-cache/
+tmp/
+*.wic
+*.wic.zst
+*.tar.zst
+*.spdx.tar.zst

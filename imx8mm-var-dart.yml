@@ -1,0 +1,136 @@
+header:
+  version: 14
+
+machine: imx8mm-var-dart
+distro: fsl-imx-xwayland
+
+target:
+  - fsl-image-qt6
+
+repos:
+  poky:
+    url: https://github.com/yoctoproject/poky
+    commit: a53cae3de9f45417b97efc4c46c42e4c8ebdb939
+    layers:
+      meta:
+      meta-poky:
+
+  meta-openembedded:
+    url: https://github.com/openembedded/meta-openembedded
+    commit: 5124ac4a658899158f4a7a2ddf1d2ca931ec7d0e
+    layers:
+      meta-oe:
+      meta-python:
+      meta-multimedia:
+      meta-networking:
+      meta-filesystems:
+      meta-gnome:
+
+  meta-imx:
+    url: https://github.com/nxp-imx/meta-imx
+    commit: e1ec1a20d573e3913f4ad90fa36546ed2bc87715
+    layers:
+      meta-imx-bsp:
+      meta-imx-sdk:
+      meta-imx-ml:
+      meta-imx-v2x:
+
+  meta-variscite-bsp-imx:
+    url: https://github.com/varigit/meta-variscite-bsp-imx
+    commit: 04c6a0b2ce5a05a5b1ee3589565a38b2a015a36a
+
+  meta-variscite-bsp-common:
+    url: https://github.com/varigit/meta-variscite-bsp-common
+    commit: 2a7c846763ef3a3686a6bd3125e9bb436d8fab2c
+
+  meta-variscite-sdk-imx:
+    url: https://github.com/varigit/meta-variscite-sdk-imx
+    commit: 85fd9db8392b706c6bd9a842a02d80c7aeffc39f
+
+  meta-variscite-sdk-common:
+    url: https://github.com/varigit/meta-variscite-sdk-common
+    commit: 7b45393620f4496b4dfac1b5a71245377a8ccbde
+
+  meta-variscite-hab:
+    url: https://github.com/varigit/meta-variscite-hab
+    commit: e9ba2f5099939df9bcbdf540192f21ecbea3de08
+
+  meta-freescale:
+    url: https://github.com/Freescale/meta-freescale
+    commit: 0c27c21cab57876474bb572e5d378b6707e41224
+
+  meta-freescale-3rdparty:
+    url: https://github.com/Freescale/meta-freescale-3rdparty
+    commit: ce10c065119c2d4e359235c77aae7e0d843533ef
+
+  meta-freescale-distro:
+    url: https://github.com/Freescale/meta-freescale-distro
+    commit: b9d6a5d9931922558046d230c1f5f4ef6ee72345
+
+  meta-browser:
+    url: https://github.com/OSSystems/meta-browser
+    commit: dc31889c0899971def535dc1c040edf18bc16691
+    layers:
+      meta-chromium:
+
+  meta-qt6:
+    url: https://github.com/YoeDistro/meta-qt6
+    commit: c58fdf7af5d92f5dc0a3446a9865580511ae8691
+
+  meta-clang:
+    url: https://github.com/kraj/meta-clang
+    commit: 5c602337ea1a80fb7217eeda04e396cf90587dca
+
+  meta-arm:
+    url: https://git.yoctoproject.org/meta-arm
+    commit: a81c19915b5b9e71ed394032e9a50fd06919e1cd
+    layers:
+      meta-arm:
+      meta-arm-toolchain:
+
+  meta-security:
+    url: https://git.yoctoproject.org/meta-security
+    commit: b13f1705d723650de61277670c8a76aadea4cfdd
+    layers:
+      meta-parsec:
+      meta-tpm:
+
+  meta-virtualization:
+    url: https://git.yoctoproject.org/meta-virtualization
+    commit: 8409bc0c8b9209327add72d8fa72571cdeb5521e
+
+  meta-swupdate:
+    url: https://github.com/sbabic/meta-swupdate
+    commit: 8c08983e9c4b47779bfe0f730b210366965afb9d
+
+  meta-nxp-demo-experience:
+    url: https://github.com/nxp-imx-support/meta-nxp-demo-experience
+    commit: e8e646e22b1f926aac83bb7ad522efa9cd8ccc45
+
+  meta-nxp-connectivity:
+    url: https://github.com/nxp-imx/meta-nxp-connectivity
+    commit: f58365ec75a5768ff3e8e8bcd64f237738c93160
+    layers:
+      meta-nxp-matter-baseline:
+      meta-nxp-openthread:
+
+  meta-timesys:
+    url: https://github.com/TimesysGit/meta-timesys
+    commit: 5ab49bb8ca5f1a782dbea115801f290fabbed551
+
+local_conf_header:
+  performance: |
+    BB_NUMBER_THREADS = "20"
+    PARALLEL_MAKE = "-j20"
+    PARALLEL_MAKEINST = "-j20"
+
+    BB_PRESSURE_MAX_CPU = "50000"
+    BB_PRESSURE_MAX_IO = "50000"
+    BB_PRESSURE_MAX_MEMORY = "50000"
+
+  distro: |
+    ACCEPT_FSL_EULA = "1"
+
+  cache: |
+    DL_DIR = "${TOPDIR}/../downloads"
+    SSTATE_DIR = "${TOPDIR}/../sstate-cache"

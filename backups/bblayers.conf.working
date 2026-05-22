@@ -1,0 +1,36 @@
+BBLAYERS ?= " \
+    ${TOPDIR}/../meta-arm/meta-arm \
+    ${TOPDIR}/../meta-arm/meta-arm-toolchain \
+    ${TOPDIR}/../meta-browser/meta-chromium \
+    ${TOPDIR}/../meta-clang \
+    ${TOPDIR}/../meta-freescale \
+    ${TOPDIR}/../meta-freescale-3rdparty \
+    ${TOPDIR}/../meta-freescale-distro \
+    ${TOPDIR}/../meta-imx/meta-imx-bsp \
+    ${TOPDIR}/../meta-imx/meta-imx-ml \
+    ${TOPDIR}/../meta-imx/meta-imx-sdk \
+    ${TOPDIR}/../meta-imx/meta-imx-v2x \
+    ${TOPDIR}/../meta-nxp-connectivity/meta-nxp-matter-baseline \
+    ${TOPDIR}/../meta-nxp-connectivity/meta-nxp-openthread \
+    ${TOPDIR}/../meta-nxp-demo-experience \
+    ${TOPDIR}/../meta-openembedded/meta-filesystems \
+    ${TOPDIR}/../meta-openembedded/meta-gnome \
+    ${TOPDIR}/../meta-openembedded/meta-multimedia \
+    ${TOPDIR}/../meta-openembedded/meta-networking \
+    ${TOPDIR}/../meta-openembedded/meta-oe \
+    ${TOPDIR}/../meta-openembedded/meta-python \
+    ${TOPDIR}/../meta-qt6 \
+    ${TOPDIR}/../meta-security/meta-parsec \
+    ${TOPDIR}/../meta-security/meta-tpm \
+    ${TOPDIR}/../meta-swupdate \
+    ${TOPDIR}/../meta-timesys \
+    ${TOPDIR}/../meta-variscite-bsp-common \
+    ${TOPDIR}/../meta-variscite-bsp-imx \
+    ${TOPDIR}/../meta-variscite-hab \
+    ${TOPDIR}/../meta-variscite-sdk-common \
+    ${TOPDIR}/../meta-variscite-sdk-imx \
+    ${TOPDIR}/../meta-virtualization \
+    ${TOPDIR}/../poky/meta \
+    ${TOPDIR}/../poky/meta-poky"
+BBPATH ?= "${TOPDIR}"
+BBFILES ??= ""
