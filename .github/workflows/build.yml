@@ -30,6 +30,7 @@ jobs:
       - name: Run Yocto build
         run: |
           docker run --rm \
+            --user "$(id -u):$(id -g)" \
             -v ${{ github.workspace }}:/work \
             -w /work \
             ecofleet-yocto:dev \
