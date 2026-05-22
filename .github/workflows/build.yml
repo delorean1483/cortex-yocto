@@ -34,4 +34,4 @@ jobs:
             -v ${{ github.workspace }}:/work \
             -w /work \
             ecofleet-yocto:dev \
-            bash -c "kas build kas/dev.yml"
+            bash -c "kas build --build-dir /home/rsmith/yocto-cache/build kas/dev.yml"

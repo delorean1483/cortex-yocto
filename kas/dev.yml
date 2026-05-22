@@ -132,5 +132,5 @@ local_conf_header:
     ACCEPT_FSL_EULA = "1"
 
   cache: |
-    DL_DIR = "${TOPDIR}/../downloads"
-    SSTATE_DIR = "${TOPDIR}/../sstate-cache"
+    DL_DIR = "/home/rsmith/yocto-cache/downloads"
+    SSTATE_DIR = "/home/rsmith/yocto-cache/sstate-cache"
