@@ -47,16 +47,26 @@ jobs:
             ecofleet-yocto:dev \
             bash -c "kas build kas/dev.yml"
 
+      - name: Stage release files
+        run: |
+          rm -rf /tmp/yocto-release
+          mkdir -p /tmp/yocto-release
+
+          DEPLOY=/home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart
+
+          cp -L "$DEPLOY/imx-boot" /tmp/yocto-release/
+          cp -L "$DEPLOY/u-boot.bin" /tmp/yocto-release/
+          cp -L "$DEPLOY/u-boot-spl.bin" /tmp/yocto-release/
+          cp -L "$DEPLOY/Image.gz" /tmp/yocto-release/
+          cp -L "$DEPLOY/imx8mm-var-dart-dt8mcustomboard.dtb" /tmp/yocto-release/
+          cp -L "$DEPLOY/fsl-image-qt6-imx8mm-var-dart.rootfs.wic.zst" /tmp/yocto-release/
+          cp -L "$DEPLOY/fsl-image-qt6-imx8mm-var-dart.rootfs.wic.bmap" /tmp/yocto-release/
+          cp -L "$DEPLOY/fsl-image-qt6-imx8mm-var-dart.rootfs.manifest" /tmp/yocto-release/
+
+          ls -lh /tmp/yocto-release
+
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: |
-            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/imx-boot*
-            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/u-boot*.bin
-            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/u-boot-spl*.bin
-            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/Image.gz*
-            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/*.dtb
-            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/*.wic.zst
-            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/*.wic.bmap
-            /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/*.manifest
+          files: /tmp/yocto-release/*
