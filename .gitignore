@@ -6,3 +6,26 @@ tmp/
 *.wic.zst
 *.tar.zst
 *.spdx.tar.zst
+
+# Yocto vendor layers managed by kas
+meta-arm/
+meta-browser/
+meta-clang/
+meta-freescale/
+meta-freescale-3rdparty/
+meta-freescale-distro/
+meta-imx/
+meta-nxp-connectivity/
+meta-nxp-demo-experience/
+meta-openembedded/
+meta-qt6/
+meta-security/
+meta-swupdate/
+meta-timesys/
+meta-variscite-bsp-common/
+meta-variscite-bsp-imx/
+meta-variscite-hab/
+meta-variscite-sdk-common/
+meta-variscite-sdk-imx/
+meta-virtualization/
+poky/
