@@ -6,15 +6,34 @@ on:
       - main
 
 jobs:
-  docker-smoke-test:
+  yocto-build:
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Yocto Docker image
+      - name: Build Docker image
         run: docker build -t ecofleet-yocto:dev ./docker
 
-      - name: Verify kas inside Docker
-        run: docker run --rm ecofleet-yocto:dev kas --version
+      - name: Prepare build config
+        run: |
+          mkdir -p build-docker/conf
+          cp backups/local.conf.working build-docker/conf/local.conf
+          cp backups/bblayers.conf.working build-docker/conf/bblayers.conf
+
+      - name: Fix layer paths
+        run: |
+          sed -i 's#/home/rsmith/cortex-yocto#/work#g' \
+            build-docker/conf/bblayers.conf
+
+      - name: Run Yocto build
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/work \
+            -w /work \
+            ecofleet-yocto:dev \
+            bash -c "
+              source poky/oe-init-build-env build-docker && \
+              bitbake ecofleet-image
+            "
