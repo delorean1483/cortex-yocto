@@ -6,17 +6,15 @@ on:
       - main
 
 jobs:
-  build:
+  docker-smoke-test:
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install kas
-        run: |
-          pip3 install kas
+      - name: Build Yocto Docker image
+        run: docker build -t ecofleet-yocto:dev ./docker
 
-      - name: Verify kas
-        run: |
-          kas --version
+      - name: Verify kas inside Docker
+        run: docker run --rm ecofleet-yocto:dev kas --version
