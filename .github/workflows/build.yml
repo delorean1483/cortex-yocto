@@ -28,10 +28,14 @@ jobs:
             build-docker/conf/bblayers.conf
 
       - name: Run Yocto build
+        env:
+          KAS_BUILD_DIR: /home/rsmith/yocto-cache/build
         run: |
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             -v ${{ github.workspace }}:/work \
+            -v /home/rsmith/yocto-cache:/home/rsmith/yocto-cache \
             -w /work \
+            -e KAS_BUILD_DIR=/home/rsmith/yocto-cache/build \
             ecofleet-yocto:dev \
-            bash -c "kas build --build-dir /home/rsmith/yocto-cache/build kas/dev.yml"
+            bash -c "kas build kas/dev.yml"
