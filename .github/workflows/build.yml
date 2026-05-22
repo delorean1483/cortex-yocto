@@ -9,6 +9,9 @@ on:
 
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   yocto-build:
     runs-on: [self-hosted, Linux, X64]
