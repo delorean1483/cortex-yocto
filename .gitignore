@@ -29,3 +29,4 @@ meta-variscite-sdk-common/
 meta-variscite-sdk-imx/
 meta-virtualization/
 poky/
+build-docker/
