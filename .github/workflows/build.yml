@@ -42,11 +42,11 @@ jobs:
             ecofleet-yocto:dev \
             bash -c "kas build kas/dev.yml"
 
-      - name: Upload Yocto artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: imx8mm-var-dart-fsl-image-qt6
-          path: |
+          files: |
             /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/imx-boot*
             /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/u-boot*.bin
             /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/u-boot-spl*.bin
@@ -55,5 +55,3 @@ jobs:
             /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/*.wic.zst
             /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/*.wic.bmap
             /home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart/*.manifest
-          if-no-files-found: error
-          retention-days: 14
