@@ -24,7 +24,7 @@ find_library(MOSQUITTO_LIB mosquitto REQUIRED)
 find_library(SQLITE3_LIB sqlite3 REQUIRED)
 find_library(CJSON_LIB   cjson  REQUIRED)
 
-find_path(MODBUS_INCLUDE_DIR   modbus.h        REQUIRED)
+find_path(MODBUS_INCLUDE_DIR   modbus.h        PATH_SUFFIXES modbus REQUIRED)
 find_path(MOSQUITTO_INCLUDE_DIR mosquitto.h     REQUIRED)
 find_path(SQLITE3_INCLUDE_DIR  sqlite3.h        REQUIRED)
 find_path(CJSON_INCLUDE_DIR    cjson/cJSON.h    REQUIRED)
