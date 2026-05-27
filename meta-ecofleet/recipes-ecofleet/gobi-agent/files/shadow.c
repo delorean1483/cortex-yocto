@@ -269,7 +269,8 @@ int shadow_publish_reported(struct mosquitto *mosq,
     pthread_mutex_lock(&s.config_mutex);
     int poll = s.config.poll_interval_s;
     char mode[16];
-    strncpy(mode, s.config.report_mode, sizeof(mode)-1);
+    strncpy(mode, s.config.report_mode, sizeof(mode));
+    mode[sizeof(mode)-1] = '\0';
     pthread_mutex_unlock(&s.config_mutex);
 
     /* Build JSON:

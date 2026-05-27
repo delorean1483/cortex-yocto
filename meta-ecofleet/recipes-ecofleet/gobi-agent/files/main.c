@@ -241,7 +241,7 @@ static void on_message(struct mosquitto *mosq, void *obj,
                        const struct mosquitto_message *msg)
 {
     (void)obj;
-    /* Shadow module handles all $aws/things/*/shadow/* topics */
+    // Shadow module handles all $aws/things/<thing>/shadow/<type> topics
     if (shadow_on_message(mosq, msg->topic, msg->payload, msg->payloadlen))
         return;
     /* No other inbound topics expected */
