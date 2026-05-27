@@ -145,4 +145,4 @@ local_conf_header:
   ecofleet: |
     IMAGE_INSTALL:append = " gobi-agent"
     IMAGE_INSTALL:append = " mosquitto sqlite3 libmodbus"
-    EXTRA_OECMAKE:pn-gobi-agent = "-DMQTT_ENDPOINT=aj2h2jnzpcr0z-ats.iot.us-east-1.amazonaws.com"
+    MQTT_ENDPOINT = "aj2h2jnzpcr0z-ats.iot.us-east-1.amazonaws.com"
