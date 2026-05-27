@@ -118,6 +118,13 @@ repos:
     url: https://github.com/TimesysGit/meta-timesys
     commit: 5ab49bb8ca5f1a782dbea115801f290fabbed551
 
+  # EcoFleet custom layer
+  meta-ecofleet:
+    url: https://github.com/delorean1483/cortex-yocto.git
+    branch: main
+    layers:
+      meta-ecofleet:
+
 local_conf_header:
   performance: |
     BB_NUMBER_THREADS = "20"
@@ -132,5 +139,10 @@ local_conf_header:
     ACCEPT_FSL_EULA = "1"
 
   cache: |
-    DL_DIR = "/home/rsmith/yocto-cache/downloads"
-    SSTATE_DIR = "/home/rsmith/yocto-cache/sstate-cache"
+    DL_DIR = "/var/cache/yocto/downloads"
+    SSTATE_DIR = "/var/cache/yocto/sstate"
+
+  ecofleet: |
+    IMAGE_INSTALL:append = " gobi-agent ecofleet-ui weston-ecofleet"
+    IMAGE_INSTALL:append = " mosquitto sqlite3 libmodbus"
+    EXTRA_OECMAKE:pn-gobi-agent = "-DMQTT_ENDPOINT=${MQTT_ENDPOINT}"

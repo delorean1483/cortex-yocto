@@ -1,0 +1,26 @@
+[Unit]
+Description=EcoFleet Gobi APU telemetry agent
+Documentation=https://github.com/your-org/ecofleet-firmware
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ecofleet
+Group=dialout
+ExecStart=/usr/sbin/gobi-agent
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gobi-agent
+
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/ecofleet
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
