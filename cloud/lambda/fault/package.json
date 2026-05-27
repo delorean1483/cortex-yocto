@@ -1,0 +1,11 @@
+{
+  "name": "ecofleet-fault-handler",
+  "version": "1.0.0",
+  "description": "EcoFleet fault handler — IoT → InfluxDB + SNS",
+  "main": "faults.js",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.540.0",
+    "@aws-sdk/client-sns": "^3.540.0",
+    "@influxdata/influxdb-client": "^1.33.2"
+  }
+}

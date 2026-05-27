@@ -24,22 +24,17 @@ BUILD_DIR="${SCRIPT_DIR}/../cloud/terraform/dist"
 
 TARGET="${1:-all}"
 
-declare -A FUNCTION_MAP=(
-  [ingest]="${PROJECT}-${ENV}-ingest"
-  [api]="${PROJECT}-${ENV}-api"
-  [fault]="${PROJECT}-${ENV}-fault-handler"
-)
-
-declare -A SOURCE_MAP=(
-  [ingest]="${LAMBDA_ROOT}/ingest"
-  [api]="${LAMBDA_ROOT}/api"
-  [fault]="${LAMBDA_ROOT}/fault"
-)
-
 deploy_function() {
   local key="$1"
-  local fn_name="${FUNCTION_MAP[$key]}"
-  local src_dir="${SOURCE_MAP[$key]}"
+  local fn_name src_dir
+
+  case "$key" in
+    ingest) fn_name="${PROJECT}-${ENV}-ingest";       src_dir="${LAMBDA_ROOT}/ingest" ;;
+    api)    fn_name="${PROJECT}-${ENV}-api";           src_dir="${LAMBDA_ROOT}/api"    ;;
+    fault)  fn_name="${PROJECT}-${ENV}-fault-handler"; src_dir="${LAMBDA_ROOT}/fault"  ;;
+    *) echo "Unknown function key: $key" >&2; return 1 ;;
+  esac
+
   local zip_path="${BUILD_DIR}/${key}.zip"
 
   echo ""
@@ -50,10 +45,15 @@ deploy_function() {
     return
   fi
 
-  # Install production deps
+  # Install production deps (npm ci if lock file exists, else npm install)
   if [[ -f "${src_dir}/package.json" ]]; then
-    echo "  npm ci --omit=dev"
-    (cd "$src_dir" && npm ci --omit=dev --silent)
+    if [[ -f "${src_dir}/package-lock.json" ]]; then
+      echo "  npm ci --omit=dev"
+      (cd "$src_dir" && npm ci --omit=dev --silent)
+    else
+      echo "  npm install --omit=dev"
+      (cd "$src_dir" && npm install --omit=dev --silent)
+    fi
   fi
 
   # Zip source

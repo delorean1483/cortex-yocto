@@ -1,0 +1,10 @@
+{
+  "name": "ecofleet-ingest",
+  "version": "1.0.0",
+  "description": "EcoFleet telemetry ingest — IoT → InfluxDB",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.540.0",
+    "@influxdata/influxdb-client": "^1.33.2"
+  }
+}

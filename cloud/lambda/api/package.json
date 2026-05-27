@@ -1,0 +1,13 @@
+{
+  "name": "ecofleet-api",
+  "version": "1.0.0",
+  "description": "EcoFleet fleet API — auth, telemetry, faults, shadow",
+  "main": "api.js",
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.540.0",
+    "@aws-sdk/client-iot-data-plane": "^3.540.0",
+    "@aws-sdk/client-secrets-manager": "^3.540.0",
+    "@influxdata/influxdb-client": "^1.33.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
