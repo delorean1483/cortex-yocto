@@ -118,12 +118,12 @@ repos:
     url: https://github.com/TimesysGit/meta-timesys
     commit: 5ab49bb8ca5f1a782dbea115801f290fabbed551
 
-  # EcoFleet custom layer
+  # EcoFleet custom layer — repo root is the layer, so path is "."
   meta-ecofleet:
     url: https://github.com/delorean1483/cortex-yocto.git
     branch: main
     layers:
-      meta-ecofleet:
+      .:
 
 local_conf_header:
   performance: |
