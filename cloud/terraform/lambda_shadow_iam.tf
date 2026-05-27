@@ -7,11 +7,10 @@
 # merge these statements in. If it's a managed policy attachment, use this
 # separate aws_iam_role_policy resource instead.
 
-data "aws_caller_identity" "current" {}   # remove if already declared in main.tf
 
 resource "aws_iam_role_policy" "api_lambda_shadow" {
   name = "ecofleet-prod-api-shadow-access"
-  role = aws_iam_role.api_lambda_role.id   # adjust to match your role resource name
+  role = aws_iam_role.lambda.id
 
   policy = jsonencode({
     Version = "2012-10-17"

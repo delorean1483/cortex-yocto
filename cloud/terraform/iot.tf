@@ -18,77 +18,51 @@ resource "aws_iot_thing_type" "apu" {
 resource "aws_iot_policy" "apu" {
   name = "${var.project}-${var.env}-apu-policy"
 
+  # Compacted to stay under the IoT Core 2048-byte policy document limit.
+  # Wildcards (*) on region/account are safe here because Thing/client names
+  # are still scoped to gobi-apu-* and ecofleet/* prefixes.
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      # ── Connect ──────────────────────────────────────────────────────────────
       {
-        Sid      = "AllowConnect"
         Effect   = "Allow"
         Action   = "iot:Connect"
-        Resource = "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:client/gobi-apu-*"
+        Resource = "arn:aws:iot:*:*:client/gobi-apu-*"
       },
-
-      # ── Telemetry + fault publish ─────────────────────────────────────────────
       {
-        Sid    = "AllowPublish"
         Effect = "Allow"
-        Action = "iot:Publish"
+        Action = ["iot:Publish", "iot:Receive"]
         Resource = [
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/ecofleet/*/telemetry",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/ecofleet/*/faults",
-          # Shadow: device requests current state on connect
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/$aws/things/gobi-apu-*/shadow/get",
-          # Shadow: device publishes reported state each telemetry cycle
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/$aws/things/gobi-apu-*/shadow/update",
+          "arn:aws:iot:*:*:topic/ecofleet/*/telemetry",
+          "arn:aws:iot:*:*:topic/ecofleet/*/faults",
+          "arn:aws:iot:*:*:topic/$aws/things/gobi-apu-*/shadow/get",
+          "arn:aws:iot:*:*:topic/$aws/things/gobi-apu-*/shadow/update",
+          "arn:aws:iot:*:*:topic/$aws/things/gobi-apu-*/shadow/get/accepted",
+          "arn:aws:iot:*:*:topic/$aws/things/gobi-apu-*/shadow/get/rejected",
+          "arn:aws:iot:*:*:topic/$aws/things/gobi-apu-*/shadow/update/delta",
+          "arn:aws:iot:*:*:topic/$aws/things/gobi-apu-*/shadow/update/accepted",
+          "arn:aws:iot:*:*:topic/$aws/things/gobi-apu-*/shadow/update/rejected",
         ]
       },
-
-      # ── Subscribe ─────────────────────────────────────────────────────────────
       {
-        Sid    = "AllowSubscribe"
         Effect = "Allow"
         Action = "iot:Subscribe"
         Resource = [
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/ecofleet/*/telemetry",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/ecofleet/*/faults",
-          # Shadow: response to get request
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/$aws/things/gobi-apu-*/shadow/get/accepted",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/$aws/things/gobi-apu-*/shadow/get/rejected",
-          # Shadow: delta pushed when desired != reported (queued while offline)
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/$aws/things/gobi-apu-*/shadow/update/delta",
-          # Shadow: ACK/NACK for reported updates
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/$aws/things/gobi-apu-*/shadow/update/accepted",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/$aws/things/gobi-apu-*/shadow/update/rejected",
+          "arn:aws:iot:*:*:topicfilter/ecofleet/*/telemetry",
+          "arn:aws:iot:*:*:topicfilter/ecofleet/*/faults",
+          "arn:aws:iot:*:*:topicfilter/$aws/things/gobi-apu-*/shadow/get/accepted",
+          "arn:aws:iot:*:*:topicfilter/$aws/things/gobi-apu-*/shadow/get/rejected",
+          "arn:aws:iot:*:*:topicfilter/$aws/things/gobi-apu-*/shadow/update/delta",
+          "arn:aws:iot:*:*:topicfilter/$aws/things/gobi-apu-*/shadow/update/accepted",
+          "arn:aws:iot:*:*:topicfilter/$aws/things/gobi-apu-*/shadow/update/rejected",
         ]
       },
-
-      # ── Receive ───────────────────────────────────────────────────────────────
       {
-        Sid    = "AllowReceive"
-        Effect = "Allow"
-        Action = "iot:Receive"
-        Resource = [
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/ecofleet/*/telemetry",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/ecofleet/*/faults",
-          # Shadow receive mirrors subscribe list
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/$aws/things/gobi-apu-*/shadow/get/accepted",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/$aws/things/gobi-apu-*/shadow/get/rejected",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/$aws/things/gobi-apu-*/shadow/update/delta",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/$aws/things/gobi-apu-*/shadow/update/accepted",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/$aws/things/gobi-apu-*/shadow/update/rejected",
-        ]
-      },
-
-      # ── Explicitly deny shadow delete ─────────────────────────────────────────
-      # Devices must not be able to wipe their own shadow document.
-      {
-        Sid    = "DenyShadowDelete"
         Effect = "Deny"
         Action = ["iot:Publish", "iot:Subscribe", "iot:Receive"]
         Resource = [
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topic/$aws/things/gobi-apu-*/shadow/delete",
-          "arn:aws:iot:${var.aws_region}:${data.aws_caller_identity.current.account_id}:topicfilter/$aws/things/gobi-apu-*/shadow/delete/*",
+          "arn:aws:iot:*:*:topic/$aws/things/gobi-apu-*/shadow/delete",
+          "arn:aws:iot:*:*:topicfilter/$aws/things/gobi-apu-*/shadow/delete/*",
         ]
       },
     ]
