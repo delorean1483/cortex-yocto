@@ -143,6 +143,6 @@ local_conf_header:
     SSTATE_DIR = "/var/cache/yocto/sstate"
 
   ecofleet: |
-    IMAGE_INSTALL:append = " gobi-agent ecofleet-ui weston-ecofleet"
+    IMAGE_INSTALL:append = " gobi-agent"
     IMAGE_INSTALL:append = " mosquitto sqlite3 libmodbus"
     EXTRA_OECMAKE:pn-gobi-agent = "-DMQTT_ENDPOINT=${MQTT_ENDPOINT}"
