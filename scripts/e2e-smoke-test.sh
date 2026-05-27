@@ -27,7 +27,11 @@ export AWS_PROFILE="${AWS_PROFILE:-ecofleet}"
 
 PASS=0
 FAIL=0
-report() { local st="$1" msg="$2"; echo "  [${st}] ${msg}"; [[ "$st" == "PASS" ]] && ((PASS++)) || ((FAIL++)); }
+report() {
+  local st="$1" msg="$2"
+  echo "  [${st}] ${msg}"
+  if [[ "$st" == "PASS" ]]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); fi
+}
 
 echo "═══════════════════════════════════════════════════════════════"
 echo " EcoFleet E2E Smoke Test — ${UNIT}"
@@ -73,6 +77,7 @@ JSON
 if aws iot-data publish \
     --topic "$TOPIC" \
     --payload "$PAYLOAD" \
+    --cli-binary-format raw-in-base64-out \
     --region "$REGION" &>/dev/null; then
   report PASS "Published to ${TOPIC}"
 else
@@ -111,7 +116,7 @@ echo "── Step 4: GET /fleet/units"
 UNITS_RESP=$(curl -sf -H "$AUTH_HEADER" "${API_ENDPOINT}/fleet/units" 2>/dev/null || true)
 if echo "$UNITS_RESP" | jq -e . &>/dev/null; then
   report PASS "/fleet/units returned valid JSON"
-  if echo "$UNITS_RESP" | python3 -c "import sys,json; units=json.load(sys.stdin); exit(0 if any(u.get('unit_id')==\"${UNIT}\" or u==\"${UNIT}\" for u in (units if isinstance(units,list) else [])) else 1)" &>/dev/null; then
+  if echo "$UNITS_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); units=d.get('units',d) if isinstance(d,dict) else d; exit(0 if '${UNIT}' in units else 1)" &>/dev/null; then
     report PASS "${UNIT} appears in fleet units list"
   else
     report FAIL "${UNIT} NOT found in /fleet/units response (may need a moment to index)"

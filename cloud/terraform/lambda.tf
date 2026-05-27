@@ -174,12 +174,13 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      INFLUX_SECRET_ARN   = aws_secretsmanager_secret.influx_token.arn
-      JWT_SECRET_ARN      = aws_secretsmanager_secret.jwt_secret.arn
-      INFLUX_PRIVATE_IP   = aws_instance.influxdb.private_ip
-      INFLUX_ORG          = "ecofleet"
+      INFLUX_SECRET_ARN    = aws_secretsmanager_secret.influx_token.arn
+      JWT_SECRET_ARN       = aws_secretsmanager_secret.jwt_secret.arn
+      INFLUX_PRIVATE_IP    = aws_instance.influxdb.private_ip
+      INFLUX_ORG           = "ecofleet"
       COGNITO_USER_POOL_ID = aws_cognito_user_pool.main.id
-      COGNITO_CLIENT_ID   = aws_cognito_user_pool_client.dashboard.id
+      COGNITO_CLIENT_ID    = aws_cognito_user_pool_client.dashboard.id
+      IOT_ENDPOINT_URL     = "https://aj2h2jnzpcr0z-ats.iot.us-east-1.amazonaws.com"
     }
   }
 

@@ -50,6 +50,18 @@ resource "aws_apigatewayv2_route" "fleet_faults" {
   target    = "integrations/${aws_apigatewayv2_integration.api.id}"
 }
 
+resource "aws_apigatewayv2_route" "fleet_shadow" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /fleet/shadow"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_config" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /fleet/config"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
 resource "aws_apigatewayv2_stage" "prod" {
   api_id      = aws_apigatewayv2_api.main.id
   name        = "$default"

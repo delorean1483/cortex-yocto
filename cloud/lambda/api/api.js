@@ -18,7 +18,12 @@ const JWT_EXPIRY   = '1h';
 // ── AWS clients ───────────────────────────────────────────────────────────────
 const sm      = new SecretsManagerClient({ region: REGION });
 const cognito = new CognitoIdentityProviderClient({ region: REGION });
-const iotdata = new IoTDataPlaneClient({ region: REGION });
+// IoT Data Plane requires the account-specific ATS endpoint, not the regional default.
+// IOT_ENDPOINT_URL is set in terraform (aws iot describe-endpoint --type iot:Data-ATS).
+const iotdata = new IoTDataPlaneClient({
+  region: REGION,
+  endpoint: process.env.IOT_ENDPOINT_URL || undefined,
+});
 
 // ── Secret cache (reused across warm invocations) ─────────────────────────────
 let _jwtSecret    = null;
