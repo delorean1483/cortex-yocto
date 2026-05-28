@@ -9,4 +9,9 @@ IMAGE_INSTALL:append = " \
     sqlite3 \
     libmodbus \
     cjson \
+    gobi-ui \
+    qtbase \
+    qtdeclarative \
+    qtshadertools \
+    qtwayland \
 "
