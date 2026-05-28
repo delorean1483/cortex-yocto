@@ -23,7 +23,11 @@ S = "${WORKDIR}"
 # ── Build deps ────────────────────────────────────────────────────────────────
 DEPENDS = "libmodbus mosquitto sqlite3 cjson"
 
-inherit cmake systemd
+inherit cmake systemd useradd
+
+# ── System user ───────────────────────────────────────────────────────────────
+USERADD_PACKAGES = "${PN}"
+USERADD_PARAM:${PN} = "-r -s /sbin/nologin -d /var/lib/ecofleet -G dialout ecofleet"
 
 # ── MQTT_ENDPOINT guard ───────────────────────────────────────────────────────
 # Fail the build if MQTT_ENDPOINT is not set in local.conf / kas yaml, or if
@@ -60,20 +64,20 @@ EXTRA_OECMAKE += "-DFIRMWARE_VERSION=${PV}"
 
 # ── Install files ─────────────────────────────────────────────────────────────
 do_install:append() {
-    # Runtime directories
-    install -d ${D}${sysconfdir}/ecofleet/certs
-    install -d ${D}/var/lib/ecofleet
+    # Runtime directories (owned by ecofleet user)
+    install -d -o ecofleet -g ecofleet ${D}${sysconfdir}/ecofleet/certs
+    install -d -o ecofleet -g ecofleet ${D}/var/lib/ecofleet
 
     # TLS certificates (private key must be 0600)
-    install -m 0644 ${WORKDIR}/AmazonRootCA1.pem  ${D}${sysconfdir}/ecofleet/certs/
-    install -m 0644 ${WORKDIR}/device.crt          ${D}${sysconfdir}/ecofleet/certs/
-    install -m 0600 ${WORKDIR}/device.key          ${D}${sysconfdir}/ecofleet/certs/
+    install -m 0644 -o ecofleet -g ecofleet ${WORKDIR}/AmazonRootCA1.pem  ${D}${sysconfdir}/ecofleet/certs/
+    install -m 0644 -o ecofleet -g ecofleet ${WORKDIR}/device.crt          ${D}${sysconfdir}/ecofleet/certs/
+    install -m 0600 -o ecofleet -g ecofleet ${WORKDIR}/device.key          ${D}${sysconfdir}/ecofleet/certs/
 
     # Unit serial
-    install -m 0644 ${WORKDIR}/unit-serial         ${D}${sysconfdir}/ecofleet/
+    install -m 0644 -o ecofleet -g ecofleet ${WORKDIR}/unit-serial         ${D}${sysconfdir}/ecofleet/
 
     # Agent config file
-    install -m 0644 ${WORKDIR}/gobi-agent.conf     ${D}${sysconfdir}/ecofleet/
+    install -m 0644 -o ecofleet -g ecofleet ${WORKDIR}/gobi-agent.conf     ${D}${sysconfdir}/ecofleet/
 
     # systemd service
     install -d ${D}${systemd_system_unitdir}
