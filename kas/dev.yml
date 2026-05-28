@@ -5,7 +5,7 @@ machine: imx8mm-var-dart
 distro: fsl-imx-xwayland
 
 target:
-  - fsl-image-qt6
+  - ecofleet-image
 
 repos:
   poky:
@@ -143,6 +143,4 @@ local_conf_header:
     SSTATE_DIR = "/var/cache/yocto/sstate"
 
   ecofleet: |
-    IMAGE_INSTALL:append = " gobi-agent"
-    IMAGE_INSTALL:append = " mosquitto sqlite3 libmodbus"
     MQTT_ENDPOINT = "aj2h2jnzpcr0z-ats.iot.us-east-1.amazonaws.com"

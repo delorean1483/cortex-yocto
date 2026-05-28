@@ -1,3 +1,12 @@
-require ../../../meta-variscite-sdk-imx/dynamic-layers/qt6-layer/recipes-fsl/images/fsl-image-qt6.bb
+SUMMARY = "EcoFleet minimal production image for Gobi APU telemetry"
+LICENSE = "MIT"
 
-IMAGE_INSTALL:append = " startup-banner"
+require recipes-fsl/images/fsl-image-validation-imx.bb
+
+IMAGE_INSTALL:append = " \
+    gobi-agent \
+    mosquitto \
+    sqlite3 \
+    libmodbus \
+    cjson \
+"
