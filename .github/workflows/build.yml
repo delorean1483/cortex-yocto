@@ -36,12 +36,16 @@ jobs:
           KAS_BUILD_DIR: /home/rsmith/yocto-cache/build
         run: |
           docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e GIT_CONFIG_COUNT=1 \
+            -e GIT_CONFIG_KEY_0=safe.directory \
+            -e "GIT_CONFIG_VALUE_0=*" \
             -v ${{ github.workspace }}:/work \
             -v /home/rsmith/yocto-cache:/home/rsmith/yocto-cache \
             -w /work \
             -e KAS_BUILD_DIR=/home/rsmith/yocto-cache/build \
             ecofleet-yocto:dev \
-            bash -c "git config --system --add safe.directory '*' && kas build kas/dev.yml"
+            bash -c "kas build kas/dev.yml"
 
       - name: Fix workspace ownership after build
         if: always()

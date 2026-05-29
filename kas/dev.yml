@@ -139,8 +139,8 @@ local_conf_header:
     ACCEPT_FSL_EULA = "1"
 
   cache: |
-    DL_DIR = "/var/cache/yocto/downloads"
-    SSTATE_DIR = "/var/cache/yocto/sstate"
+    DL_DIR = "/home/rsmith/yocto-cache/downloads"
+    SSTATE_DIR = "/home/rsmith/yocto-cache/sstate"
 
   ecofleet: |
     MQTT_ENDPOINT = "aj2h2jnzpcr0z-ats.iot.us-east-1.amazonaws.com"
