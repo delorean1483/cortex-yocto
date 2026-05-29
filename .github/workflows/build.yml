@@ -36,8 +36,8 @@ jobs:
           DEVICE_CRT: ${{ secrets.DEVICE_CRT }}
           DEVICE_KEY: ${{ secrets.DEVICE_KEY }}
         run: |
-          echo "$DEVICE_CRT" | base64 -d > meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.crt
-          echo "$DEVICE_KEY" | base64 -d > meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.key
+          echo "$DEVICE_CRT" > meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.crt
+          echo "$DEVICE_KEY" > meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.key
 
       - name: Run Yocto build
         env:
