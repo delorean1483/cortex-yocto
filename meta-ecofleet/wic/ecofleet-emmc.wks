@@ -1,0 +1,9 @@
+# EcoFleet eMMC layout for 4GB eMMC (imx8mm-var-dart)
+# Boot: imx-boot raw-copied at the SoC seek offset (no partition table entry)
+# Root: fixed 3500M ext4 — fits comfortably on 4GB eMMC (~3.7GiB usable)
+#       The var-resize-flash service expands this on first boot to fill the eMMC.
+
+part u-boot --source rawcopy --sourceparams="file=imx-boot" --ondisk mmcblk --no-table --align ${IMX_BOOT_SEEK}
+part / --source rootfs --ondisk mmcblk --fstype=ext4 --label root --align 8192 --fixed-size 3500M
+
+bootloader --ptable msdos
