@@ -14,7 +14,11 @@ SRC_URI = " \
 
 S = "${WORKDIR}"
 
-DEPENDS = "qtbase qtdeclarative qtshadertools qtwayland sqlite3"
+DEPENDS = "qtbase qtbase-native qtdeclarative qtdeclarative-native qtshadertools qtwayland sqlite3"
+
+# Qt6 CMake cross-compilation requires QT_HOST_PATH pointing at the native
+# (build-machine) Qt6 installation that provides moc, rcc, qmltyperegistrar, etc.
+EXTRA_OECMAKE += "-DQT_HOST_PATH=${STAGING_DIR_NATIVE}/usr"
 
 inherit cmake systemd
 
