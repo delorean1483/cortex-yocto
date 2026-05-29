@@ -38,7 +38,7 @@ jobs:
             -w /work \
             -e KAS_BUILD_DIR=/home/rsmith/yocto-cache/build \
             ecofleet-yocto:dev \
-            bash -c "kas build kas/dev.yml"
+            bash -c "git config --global --add safe.directory '*' && kas build kas/dev.yml"
 
       - name: Stage release files
         run: |
