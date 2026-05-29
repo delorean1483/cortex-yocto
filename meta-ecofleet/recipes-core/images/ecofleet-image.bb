@@ -3,6 +3,9 @@ LICENSE = "MIT"
 
 require recipes-fsl/images/fsl-image-validation-imx.bb
 
+# Allow root SSH login with empty password for dev/field access
+EXTRA_IMAGE_FEATURES += "debug-tweaks"
+
 IMAGE_INSTALL:append = " \
     gobi-agent \
     mosquitto \
