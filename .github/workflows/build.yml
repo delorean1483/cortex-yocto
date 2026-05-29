@@ -31,6 +31,14 @@ jobs:
           sed -i 's#/home/rsmith/cortex-yocto#/work#g' \
             build-docker/conf/bblayers.conf
 
+      - name: Inject device certificate
+        env:
+          DEVICE_CRT: ${{ secrets.DEVICE_CRT }}
+          DEVICE_KEY: ${{ secrets.DEVICE_KEY }}
+        run: |
+          echo "$DEVICE_CRT" | base64 -d > meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.crt
+          echo "$DEVICE_KEY" | base64 -d > meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.key
+
       - name: Run Yocto build
         env:
           KAS_BUILD_DIR: /home/rsmith/yocto-cache/build
