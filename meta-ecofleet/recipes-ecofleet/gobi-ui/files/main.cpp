@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("telemetry"), &model);
-    engine.load(QUrl(QStringLiteral("qrc:/qt/qml/GobiUI/main.qml")));
+    engine.load(QUrl::fromLocalFile(QStringLiteral("/usr/share/gobi-ui/qml/main.qml")));
 
     if (engine.rootObjects().isEmpty())
         return 1;

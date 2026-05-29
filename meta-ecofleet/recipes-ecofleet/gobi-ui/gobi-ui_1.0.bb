@@ -29,9 +29,17 @@ SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 do_install:append() {
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${WORKDIR}/gobi-ui.service ${D}${systemd_system_unitdir}/
+
+    install -d ${D}${datadir}/gobi-ui/qml
+    install -m 0644 ${WORKDIR}/qml/main.qml         ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/DashboardPage.qml ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/DiagnosticsPage.qml ${D}${datadir}/gobi-ui/qml/
 }
 
-FILES:${PN} += "${systemd_system_unitdir}/gobi-ui.service"
+FILES:${PN} += " \
+    ${systemd_system_unitdir}/gobi-ui.service \
+    ${datadir}/gobi-ui/ \
+"
 
 # ── Qt runtime plugins needed at runtime (not link-time deps) ─────────────────
 RDEPENDS:${PN} += "qtwayland qtbase-plugins"

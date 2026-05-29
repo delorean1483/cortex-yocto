@@ -17,15 +17,6 @@ qt_add_executable(gobi-ui
     TelemetryModel.cpp
 )
 
-qt_add_qml_module(gobi-ui
-    URI GobiUI
-    VERSION 1.0
-    QML_FILES
-        qml/main.qml
-        qml/DashboardPage.qml
-        qml/DiagnosticsPage.qml
-)
-
 target_include_directories(gobi-ui PRIVATE ${SQLITE3_INCLUDE_DIR})
 
 target_link_libraries(gobi-ui PRIVATE
