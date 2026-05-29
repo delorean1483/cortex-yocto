@@ -7,10 +7,10 @@ Wants=graphical.target
 Type=simple
 User=root
 Environment=QT_QPA_PLATFORM=wayland
-Environment=WAYLAND_DISPLAY=wayland-0
+Environment=WAYLAND_DISPLAY=wayland-1
 Environment=XDG_RUNTIME_DIR=/run/user/0
 # Wait for Weston socket before starting
-ExecStartPre=/bin/sh -c 'i=0; while [ ! -S "${XDG_RUNTIME_DIR}/wayland-0" ] && [ $i -lt 30 ]; do sleep 1; i=$((i+1)); done'
+ExecStartPre=/bin/sh -c 'i=0; while [ ! -S "${XDG_RUNTIME_DIR}/wayland-1" ] && [ $i -lt 30 ]; do sleep 1; i=$((i+1)); done'
 ExecStart=/usr/sbin/gobi-ui
 Restart=on-failure
 RestartSec=5
