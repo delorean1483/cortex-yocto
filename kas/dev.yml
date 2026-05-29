@@ -144,3 +144,5 @@ local_conf_header:
 
   ecofleet: |
     MQTT_ENDPOINT = "aj2h2jnzpcr0z-ats.iot.us-east-1.amazonaws.com"
+    IMAGE_OVERHEAD_FACTOR = "1.1"
+    IMAGE_ROOTFS_EXTRA_SPACE = "524288"
