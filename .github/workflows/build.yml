@@ -59,9 +59,9 @@ jobs:
           cp -L "$DEPLOY/u-boot-spl.bin" /tmp/yocto-release/
           cp -L "$DEPLOY/Image.gz" /tmp/yocto-release/
           cp -L "$DEPLOY/imx8mm-var-dart-dt8mcustomboard.dtb" /tmp/yocto-release/
-          cp -L "$DEPLOY/fsl-image-qt6-imx8mm-var-dart.rootfs.wic.zst" /tmp/yocto-release/
-          cp -L "$DEPLOY/fsl-image-qt6-imx8mm-var-dart.rootfs.wic.bmap" /tmp/yocto-release/
-          cp -L "$DEPLOY/fsl-image-qt6-imx8mm-var-dart.rootfs.manifest" /tmp/yocto-release/
+          cp -L "$DEPLOY/ecofleet-image-imx8mm-var-dart.rootfs.wic.zst" /tmp/yocto-release/
+          cp -L "$DEPLOY/ecofleet-image-imx8mm-var-dart.rootfs.wic.bmap" /tmp/yocto-release/
+          cp -L "$DEPLOY/ecofleet-image-imx8mm-var-dart.rootfs.manifest" /tmp/yocto-release/
 
           ls -lh /tmp/yocto-release
 
