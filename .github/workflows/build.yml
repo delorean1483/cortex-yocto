@@ -11,6 +11,9 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
+      - name: Fix workspace ownership from prior run
+        run: docker run --rm -v ${{ github.workspace }}:/work alpine sh -c "chown -R $(id -u):$(id -g) /work" 2>/dev/null || true
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -39,6 +42,10 @@ jobs:
             -e KAS_BUILD_DIR=/home/rsmith/yocto-cache/build \
             ecofleet-yocto:dev \
             bash -c "git config --global --add safe.directory '*' && kas build kas/dev.yml"
+
+      - name: Fix workspace ownership after build
+        if: always()
+        run: docker run --rm -v ${{ github.workspace }}:/work alpine sh -c "chown -R $(id -u):$(id -g) /work"
 
       - name: Stage release files
         run: |
