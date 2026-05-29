@@ -98,14 +98,10 @@ Page {
                     Text {
                         text: telemetry.runtimeHrs + " hrs"
                         color: "#C9D1D9"; font.pixelSize: 22; font.weight: Font.Medium
-                        horizontalAlignment: Text.AlignRight
-                        width: parent.width
                     }
                     Text {
                         text: "Runtime"
                         color: "#6E7681"; font.pixelSize: 12
-                        horizontalAlignment: Text.AlignRight
-                        width: parent.width
                     }
                 }
             }
