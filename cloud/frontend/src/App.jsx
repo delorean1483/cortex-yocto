@@ -7,6 +7,9 @@ import RemoteControlPage from './pages/RemoteControlPage.jsx'
 import AlertsPage from './pages/AlertsPage.jsx'
 import APUHistoryPage from './pages/APUHistoryPage.jsx'
 import FirmwarePage from './pages/FirmwarePage.jsx'
+import MaintenancePage from './pages/MaintenancePage.jsx'
+import UsersPage from './pages/UsersPage.jsx'
+import ReportsPage from './pages/ReportsPage.jsx'
 import StubPage from './pages/StubPage.jsx'
 
 function Protected({ children }) {
@@ -31,11 +34,11 @@ export default function App() {
                   <Route path="/alerts"      element={<AlertsPage />} />
                   <Route path="/history"     element={<APUHistoryPage />} />
                   <Route path="/firmware"    element={<FirmwarePage />} />
-                  <Route path="/maintenance" element={<StubPage page="maintenance" />} />
+                  <Route path="/maintenance" element={<MaintenancePage />} />
                   <Route path="/map"         element={<StubPage page="map" />} />
-                  <Route path="/users"       element={<StubPage page="users" />} />
+                  <Route path="/users"       element={<UsersPage />} />
                   <Route path="/config"      element={<StubPage page="config" />} />
-                  <Route path="/reports"     element={<StubPage page="reports" />} />
+                  <Route path="/reports"     element={<ReportsPage />} />
                   <Route path="*"            element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>

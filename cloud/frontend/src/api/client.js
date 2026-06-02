@@ -81,4 +81,28 @@ export const api = {
 
   setConfig: (unit, config) =>
     apiFetch('/fleet/config', { method: 'POST', body: JSON.stringify({ unit, config }) }),
+
+  getMaintenance: (unit, params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return apiFetch(`/fleet/units/${encodeURIComponent(unit)}/maintenance${qs ? '?' + qs : ''}`)
+  },
+
+  addMaintenance: (record) =>
+    apiFetch('/fleet/maintenance', { method: 'POST', body: JSON.stringify(record) }),
+
+  listUsers: () => apiFetch('/fleet/users'),
+
+  createUser: (user) =>
+    apiFetch('/fleet/users', { method: 'POST', body: JSON.stringify(user) }),
+
+  deleteUser: (email) =>
+    apiFetch(`/fleet/users/${encodeURIComponent(email)}`, { method: 'DELETE' }),
+
+  updateUser: (email, patch) =>
+    apiFetch(`/fleet/users/${encodeURIComponent(email)}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+
+  getReports: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return apiFetch(`/fleet/reports${qs ? '?' + qs : ''}`)
+  },
 }

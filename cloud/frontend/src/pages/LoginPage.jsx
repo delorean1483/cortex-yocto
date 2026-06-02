@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const data = await api.login(email, password)
-      login(data.token, data.refresh_token, email)
+      login(data.token, data.refresh_token)
       navigate('/', { replace: true })
     } catch (err) {
       setError(err.message)

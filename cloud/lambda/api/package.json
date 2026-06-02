@@ -5,8 +5,10 @@
   "main": "api.js",
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.540.0",
+    "@aws-sdk/client-dynamodb": "^3.1058.0",
     "@aws-sdk/client-iot-data-plane": "^3.540.0",
     "@aws-sdk/client-secrets-manager": "^3.540.0",
+    "@aws-sdk/lib-dynamodb": "^3.1058.0",
     "@influxdata/influxdb-client": "^1.33.2",
     "jsonwebtoken": "^9.0.2"
   }

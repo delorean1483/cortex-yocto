@@ -1,6 +1,11 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { setTokens, clearTokens, loadRefreshToken } from '../api/client.js'
 
+function parseJwtPayload(token) {
+  try { return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) }
+  catch { return null }
+}
+
 const AuthContext = createContext(null)
 
 // RBAC config mirrors the prototype
@@ -35,11 +40,18 @@ export function AuthProvider({ children }) {
     localStorage.setItem('eco_role', r)
   }
 
-  function login(token, refreshToken, email) {
+  function login(token, refreshToken) {
     setTokens(token, refreshToken)
+    const payload = parseJwtPayload(token)
+    const email   = payload?.email || ''
+    const jwtRole = payload?.role
     const u = { email }
     setUser(u)
     localStorage.setItem('eco_user', JSON.stringify(u))
+    if (jwtRole && ROLE_CFG[jwtRole]) {
+      setRoleState(jwtRole)
+      localStorage.setItem('eco_role', jwtRole)
+    }
   }
 
   function logout() {

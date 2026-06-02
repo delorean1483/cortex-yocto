@@ -1,33 +1,41 @@
 'use strict';
 
 const { SecretsManagerClient, GetSecretValueCommand }             = require('@aws-sdk/client-secrets-manager');
-const { CognitoIdentityProviderClient, InitiateAuthCommand }      = require('@aws-sdk/client-cognito-identity-provider');
+const { CognitoIdentityProviderClient, InitiateAuthCommand,
+        AdminCreateUserCommand, AdminDeleteUserCommand,
+        AdminSetUserPasswordCommand, ListUsersCommand }            = require('@aws-sdk/client-cognito-identity-provider');
 const { IoTDataPlaneClient, GetThingShadowCommand,
         UpdateThingShadowCommand }                                  = require('@aws-sdk/client-iot-data-plane');
+const { DynamoDBClient }                                           = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient, PutCommand, QueryCommand,
+        GetCommand, DeleteCommand, UpdateCommand, ScanCommand }    = require('@aws-sdk/lib-dynamodb');
 const { InfluxDB }                                                 = require('@influxdata/influxdb-client');
 const jwt                                                          = require('jsonwebtoken');
+const { randomUUID }                                               = require('crypto');
 
 // ── Environment ───────────────────────────────────────────────────────────────
-const REGION       = process.env.AWS_REGION || 'us-east-1';
-const INFLUX_URL   = `http://${process.env.INFLUX_PRIVATE_IP}:8086`;
-const INFLUX_ORG   = process.env.INFLUX_ORG || 'ecofleet';
-const POOL_ID      = process.env.COGNITO_USER_POOL_ID;
-const CLIENT_ID    = process.env.COGNITO_CLIENT_ID;
-const JWT_EXPIRY   = '1h';
+const REGION            = process.env.AWS_REGION || 'us-east-1';
+const INFLUX_URL        = `http://${process.env.INFLUX_PRIVATE_IP}:8086`;
+const INFLUX_ORG        = process.env.INFLUX_ORG || 'ecofleet';
+const POOL_ID           = process.env.COGNITO_USER_POOL_ID;
+const CLIENT_ID         = process.env.COGNITO_CLIENT_ID;
+const MAINTENANCE_TABLE = process.env.MAINTENANCE_TABLE || 'ecofleet-prod-maintenance';
+const USERS_TABLE       = process.env.USERS_TABLE       || 'ecofleet-prod-users';
+const JWT_EXPIRY        = '1h';
 
 // ── AWS clients ───────────────────────────────────────────────────────────────
 const sm      = new SecretsManagerClient({ region: REGION });
 const cognito = new CognitoIdentityProviderClient({ region: REGION });
-// IoT Data Plane requires the account-specific ATS endpoint, not the regional default.
-// IOT_ENDPOINT_URL is set in terraform (aws iot describe-endpoint --type iot:Data-ATS).
 const iotdata = new IoTDataPlaneClient({
   region: REGION,
   endpoint: process.env.IOT_ENDPOINT_URL || undefined,
 });
+const ddbRaw  = new DynamoDBClient({ region: REGION });
+const ddb     = DynamoDBDocumentClient.from(ddbRaw);
 
-// ── Secret cache (reused across warm invocations) ─────────────────────────────
-let _jwtSecret    = null;
-let _influxToken  = null;
+// ── Secret cache ──────────────────────────────────────────────────────────────
+let _jwtSecret   = null;
+let _influxToken = null;
 
 async function getJwtSecret() {
   if (_jwtSecret) return _jwtSecret;
@@ -65,17 +73,24 @@ async function authenticate(event) {
 
   const secret = await getJwtSecret();
   try {
-    return jwt.verify(token, secret);
+    return jwt.verify(token, secret); // returns { email, role, sub, iat, exp }
   } catch (e) {
     throw Object.assign(new Error('Invalid or expired token'), { statusCode: 401 });
+  }
+}
+
+function requireRole(claims, ...allowed) {
+  if (!allowed.includes(claims.role)) {
+    throw Object.assign(
+      new Error(`Role '${claims.role}' cannot perform this action`),
+      { statusCode: 403 }
+    );
   }
 }
 
 // ── Route handlers ────────────────────────────────────────────────────────────
 
 // POST /auth/login
-// Body: { email, password }
-// Returns: { token, refresh_token, expires_in }
 async function handleLogin(event) {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
@@ -102,8 +117,15 @@ async function handleLogin(event) {
     throw e;
   }
 
+  // Look up role from DynamoDB (defaults to 'eu' if not found)
+  let role = 'eu';
+  try {
+    const r = await ddb.send(new GetCommand({ TableName: USERS_TABLE, Key: { email } }));
+    if (r.Item?.role) role = r.Item.role;
+  } catch { /* non-fatal — default role applies */ }
+
   const secret = await getJwtSecret();
-  const token  = jwt.sign({ email, sub: email }, secret, { expiresIn: JWT_EXPIRY });
+  const token  = jwt.sign({ email, sub: email, role }, secret, { expiresIn: JWT_EXPIRY });
 
   return resp(200, {
     token,
@@ -113,8 +135,6 @@ async function handleLogin(event) {
 }
 
 // POST /auth/refresh
-// Body: { refresh_token }
-// Returns: { token, expires_in }
 async function handleRefresh(event) {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
@@ -136,21 +156,25 @@ async function handleRefresh(event) {
     throw e;
   }
 
-  // Decode email from Cognito ID token (we don't store it server-side)
   let email = 'unknown';
   try {
     const idPayload = JSON.parse(Buffer.from(cognitoResult.IdToken.split('.')[1], 'base64').toString());
     email = idPayload.email || idPayload['cognito:username'] || 'unknown';
   } catch { /* non-fatal */ }
 
+  let role = 'eu';
+  try {
+    const r = await ddb.send(new GetCommand({ TableName: USERS_TABLE, Key: { email } }));
+    if (r.Item?.role) role = r.Item.role;
+  } catch { /* non-fatal */ }
+
   const secret = await getJwtSecret();
-  const token  = jwt.sign({ email, sub: email }, secret, { expiresIn: JWT_EXPIRY });
+  const token  = jwt.sign({ email, sub: email, role }, secret, { expiresIn: JWT_EXPIRY });
 
   return resp(200, { token, expires_in: 3600 });
 }
 
 // GET /fleet/units
-// Returns list of distinct units that have sent telemetry in the last 30 days.
 async function handleListUnits() {
   await getInfluxToken();
   const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
@@ -165,7 +189,7 @@ async function handleListUnits() {
     )
   `;
 
-  const rows = await queryApi.collectRows(flux);
+  const rows  = await queryApi.collectRows(flux);
   const units = rows.map(r => r._value).filter(Boolean).sort();
   return resp(200, { units });
 }
@@ -232,7 +256,7 @@ async function handleGetFaults(event) {
       |> limit(n: ${limit})
   `;
 
-  const rows = await queryApi.collectRows(flux);
+  const rows   = await queryApi.collectRows(flux);
   const faults = rows.map(r => ({
     ts:          new Date(r._time).getTime(),
     fault:       r.fault,
@@ -292,7 +316,6 @@ async function handleGetShadow(event) {
 }
 
 // POST /fleet/config
-// Body: { unit, config: { poll_interval_s?, report_mode?, firmware_target?, reboot?, apu_command? } }
 const ALLOWED_CONFIG_KEYS = new Set(['poll_interval_s', 'report_mode', 'firmware_target', 'reboot', 'apu_command']);
 
 async function handleSetConfig(event) {
@@ -343,6 +366,223 @@ async function handleSetConfig(event) {
   }
 }
 
+// ── Maintenance ───────────────────────────────────────────────────────────────
+
+// GET /fleet/units/{unit}/maintenance?limit=20
+async function handleGetMaintenance(event) {
+  const unit  = (event.pathParameters || {}).unit;
+  const qs    = event.queryStringParameters || {};
+  const limit = Math.min(parseInt(qs.limit || '20', 10), 100);
+
+  if (!unit) return err(400, 'unit path parameter required');
+
+  const res = await ddb.send(new QueryCommand({
+    TableName:              MAINTENANCE_TABLE,
+    KeyConditionExpression: '#u = :unit',
+    ExpressionAttributeNames:  { '#u': 'unit' },
+    ExpressionAttributeValues: { ':unit': unit },
+    ScanIndexForward: false,
+    Limit: limit,
+  }));
+
+  return resp(200, { unit, count: res.Items.length, records: res.Items });
+}
+
+// POST /fleet/maintenance
+const MAINT_TYPES = ['oil_change', 'filter', 'inspection', 'repair', 'firmware', 'other'];
+
+async function handleAddMaintenance(event, claims) {
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
+
+  const { unit, type, notes, technician } = body;
+  if (!unit) return err(400, 'unit required');
+  if (!type) return err(400, 'type required');
+  if (!MAINT_TYPES.includes(type))
+    return err(400, `type must be one of: ${MAINT_TYPES.join(', ')}`);
+
+  const ts     = Date.now();
+  const record = {
+    unit,
+    ts,
+    id:         randomUUID(),
+    type,
+    notes:      notes       || '',
+    technician: technician  || claims.email,
+    created_by: claims.email,
+  };
+
+  await ddb.send(new PutCommand({ TableName: MAINTENANCE_TABLE, Item: record }));
+  return resp(201, { record });
+}
+
+// ── User management ───────────────────────────────────────────────────────────
+
+// GET /fleet/users  (admin, fm)
+async function handleListUsers(claims) {
+  requireRole(claims, 'admin', 'fm');
+
+  const cognitoRes = await cognito.send(new ListUsersCommand({
+    UserPoolId:      POOL_ID,
+    Limit:           60,
+    AttributesToGet: ['email'],
+  }));
+
+  const cognitoEmails = (cognitoRes.Users || []).map(u => {
+    const emailAttr = (u.Attributes || []).find(a => a.Name === 'email');
+    return { email: emailAttr?.Value || '', status: u.UserStatus, created: u.UserCreateDate };
+  }).filter(u => u.email);
+
+  const roleMap = {};
+  try {
+    const scanRes = await ddb.send(new ScanCommand({ TableName: USERS_TABLE }));
+    (scanRes.Items || []).forEach(item => { roleMap[item.email] = item.role; });
+  } catch { /* non-fatal */ }
+
+  const users = cognitoEmails.map(u => ({ ...u, role: roleMap[u.email] || 'eu' }));
+  return resp(200, { count: users.length, users });
+}
+
+// POST /fleet/users  (admin only)
+async function handleCreateUser(event, claims) {
+  requireRole(claims, 'admin');
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
+
+  const { email, role, password } = body;
+  if (!email)    return err(400, 'email required');
+  if (!password) return err(400, 'password required');
+  if (!['admin', 'fm', 'maint', 'eu'].includes(role || ''))
+    return err(400, 'role must be one of: admin, fm, maint, eu');
+
+  try {
+    await cognito.send(new AdminCreateUserCommand({
+      UserPoolId:        POOL_ID,
+      Username:          email,
+      TemporaryPassword: password,
+      MessageAction:     'SUPPRESS',
+      UserAttributes: [
+        { Name: 'email',          Value: email },
+        { Name: 'email_verified', Value: 'true' },
+      ],
+    }));
+  } catch (e) {
+    if (e.name === 'UsernameExistsException') return err(409, 'User already exists');
+    throw e;
+  }
+
+  // Make permanent so no FORCE_CHANGE_PASSWORD challenge on first login
+  await cognito.send(new AdminSetUserPasswordCommand({
+    UserPoolId: POOL_ID,
+    Username:   email,
+    Password:   password,
+    Permanent:  true,
+  }));
+
+  await ddb.send(new PutCommand({
+    TableName: USERS_TABLE,
+    Item: { email, role, created_by: claims.email, created_at: Date.now() },
+  }));
+
+  return resp(201, { email, role, message: 'User created.' });
+}
+
+// DELETE /fleet/users/{email}  (admin only)
+async function handleDeleteUser(event, claims) {
+  requireRole(claims, 'admin');
+
+  const email = decodeURIComponent((event.pathParameters || {}).email || '');
+  if (!email) return err(400, 'email path parameter required');
+  if (email === claims.email) return err(400, 'Cannot delete your own account');
+
+  try {
+    await cognito.send(new AdminDeleteUserCommand({ UserPoolId: POOL_ID, Username: email }));
+  } catch (e) {
+    if (e.name === 'UserNotFoundException') return err(404, 'User not found');
+    throw e;
+  }
+
+  await ddb.send(new DeleteCommand({ TableName: USERS_TABLE, Key: { email } }));
+  return resp(200, { email, message: 'User deleted.' });
+}
+
+// PATCH /fleet/users/{email}  (admin only)
+async function handleUpdateUser(event, claims) {
+  requireRole(claims, 'admin');
+
+  const email = decodeURIComponent((event.pathParameters || {}).email || '');
+  if (!email) return err(400, 'email path parameter required');
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
+
+  const { role } = body;
+  if (!['admin', 'fm', 'maint', 'eu'].includes(role || ''))
+    return err(400, 'role must be one of: admin, fm, maint, eu');
+
+  await ddb.send(new UpdateCommand({
+    TableName:                 USERS_TABLE,
+    Key:                       { email },
+    UpdateExpression:          'SET #r = :role',
+    ExpressionAttributeNames:  { '#r': 'role' },
+    ExpressionAttributeValues: { ':role': role },
+  }));
+
+  return resp(200, { email, role, message: 'Role updated.' });
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+// GET /fleet/reports?start=-7d
+async function handleGetReports(event) {
+  const qs        = event.queryStringParameters || {};
+  const start     = qs.start || '-7d';
+  const safeStart = start.replace(/[^-0-9a-z]/gi, '');
+
+  await getInfluxToken();
+  const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
+
+  const [avgRows, runtimeRows, faultRows] = await Promise.all([
+    queryApi.collectRows(`
+      from(bucket: "telemetry")
+        |> range(start: ${safeStart})
+        |> filter(fn: (r) => r._measurement == "telemetry" and
+           (r._field == "dc_v" or r._field == "batt_soc"))
+        |> group(columns: ["unit", "_field"])
+        |> mean()
+    `),
+    queryApi.collectRows(`
+      from(bucket: "telemetry")
+        |> range(start: ${safeStart})
+        |> filter(fn: (r) => r._measurement == "telemetry" and r._field == "runtime_hrs")
+        |> group(columns: ["unit"])
+        |> last()
+    `),
+    queryApi.collectRows(`
+      from(bucket: "faults")
+        |> range(start: ${safeStart})
+        |> filter(fn: (r) => r._measurement == "faults" and r._field == "fault")
+        |> group(columns: ["unit"])
+        |> count()
+    `),
+  ]);
+
+  const unitMap = {};
+  const ensure  = u => { if (!unitMap[u]) unitMap[u] = { unit: u }; return unitMap[u]; };
+
+  avgRows.forEach(r => {
+    const u = ensure(r.unit);
+    if (r._field === 'dc_v')     u.avg_dc_v    = r._value;
+    if (r._field === 'batt_soc') u.avg_batt_soc = r._value;
+  });
+  runtimeRows.forEach(r => { ensure(r.unit).runtime_hrs = r._value; });
+  faultRows.forEach(r =>   { ensure(r.unit).fault_count  = r._value; });
+
+  const units = Object.values(unitMap).sort((a, b) => a.unit.localeCompare(b.unit));
+  return resp(200, { start: safeStart, generated_at: Date.now(), units });
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 exports.handler = async (event) => {
   const method = event.requestContext?.http?.method || event.httpMethod || '';
@@ -353,14 +593,27 @@ exports.handler = async (event) => {
     if (method === 'POST' && path.endsWith('/auth/login'))   return await handleLogin(event);
     if (method === 'POST' && path.endsWith('/auth/refresh')) return await handleRefresh(event);
 
-    // Protected routes — authenticate first
-    await authenticate(event);
+    // Protected routes
+    const claims = await authenticate(event);
 
-    if (method === 'GET'  && path.endsWith('/fleet/units'))           return await handleListUnits();
-    if (method === 'GET'  && path.includes('/fleet/units/') && path.endsWith('/telemetry')) return await handleGetTelemetry(event);
-    if (method === 'GET'  && path.includes('/fleet/units/') && path.endsWith('/faults'))    return await handleGetFaults(event);
-    if (method === 'GET'  && path.endsWith('/fleet/shadow'))          return await handleGetShadow(event);
-    if (method === 'POST' && path.endsWith('/fleet/config'))          return await handleSetConfig(event);
+    if (method === 'GET'  && path.endsWith('/fleet/units'))    return await handleListUnits();
+    if (method === 'GET'  && path.endsWith('/fleet/shadow'))   return await handleGetShadow(event);
+    if (method === 'POST' && path.endsWith('/fleet/config'))   return await handleSetConfig(event);
+    if (method === 'POST' && path.endsWith('/fleet/maintenance')) return await handleAddMaintenance(event, claims);
+    if (method === 'GET'  && path.endsWith('/fleet/users'))    return await handleListUsers(claims);
+    if (method === 'POST' && path.endsWith('/fleet/users'))    return await handleCreateUser(event, claims);
+    if (method === 'GET'  && path.endsWith('/fleet/reports'))  return await handleGetReports(event);
+
+    if (path.includes('/fleet/units/')) {
+      if (path.endsWith('/telemetry'))    return await handleGetTelemetry(event);
+      if (path.endsWith('/faults'))       return await handleGetFaults(event);
+      if (path.endsWith('/maintenance'))  return await handleGetMaintenance(event);
+    }
+
+    if (path.includes('/fleet/users/')) {
+      if (method === 'DELETE') return await handleDeleteUser(event, claims);
+      if (method === 'PATCH')  return await handleUpdateUser(event, claims);
+    }
 
     return err(404, `No route for ${method} ${path}`);
 
