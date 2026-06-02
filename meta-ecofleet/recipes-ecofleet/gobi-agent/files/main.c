@@ -190,13 +190,35 @@ static int db_flush(const char *table, const char *topic)
 }
 
 /* ── Shadow config callback ──────────────────────────────────────────────── */
+/*
+ * Modbus coil address for APU start/stop command.
+ * Write 1 to start, 0 to stop. Adjust to match actual Gobi APU register map.
+ */
+#define APU_CMD_COIL 0
+
 static void on_shadow_config(const shadow_config_t *cfg, void *userdata)
 {
     (void)userdata;
     syslog(LOG_INFO,
-           "shadow config: poll=%ds mode=%s fw_target=%s reboot=%d",
+           "shadow config: poll=%ds mode=%s fw_target=%s reboot=%d apu_cmd=%s",
            cfg->poll_interval_s, cfg->report_mode,
-           cfg->firmware_target, cfg->reboot_requested);
+           cfg->firmware_target, cfg->reboot_requested, cfg->apu_command);
+
+    if (cfg->apu_command[0] != '\0') {
+        int coil_val = (strcmp(cfg->apu_command, "start") == 0) ? 1 : 0;
+        if (g_modbus) {
+            int rc = modbus_write_bit(g_modbus, APU_CMD_COIL, coil_val);
+            if (rc == 1)
+                syslog(LOG_INFO, "shadow: APU %s command sent via Modbus coil %d",
+                       cfg->apu_command, APU_CMD_COIL);
+            else
+                syslog(LOG_ERR, "shadow: APU %s Modbus write failed: %s",
+                       cfg->apu_command, modbus_strerror(errno));
+        } else {
+            syslog(LOG_WARNING, "shadow: APU %s command received but Modbus not connected",
+                   cfg->apu_command);
+        }
+    }
 
     if (cfg->reboot_requested) {
         syslog(LOG_WARNING, "shadow: reboot requested — rebooting in 3 s");
@@ -204,7 +226,6 @@ static void on_shadow_config(const shadow_config_t *cfg, void *userdata)
         system("systemctl reboot");
     }
     if (cfg->firmware_target[0] != '\0') {
-        /* TODO: trigger OTA. For now just log. */
         syslog(LOG_INFO, "shadow: firmware_target=%s (OTA not yet implemented)",
                cfg->firmware_target);
     }

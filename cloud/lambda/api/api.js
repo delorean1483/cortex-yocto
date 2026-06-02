@@ -292,8 +292,8 @@ async function handleGetShadow(event) {
 }
 
 // POST /fleet/config
-// Body: { unit, config: { poll_interval_s?, report_mode?, firmware_target?, reboot? } }
-const ALLOWED_CONFIG_KEYS = new Set(['poll_interval_s', 'report_mode', 'firmware_target', 'reboot']);
+// Body: { unit, config: { poll_interval_s?, report_mode?, firmware_target?, reboot?, apu_command? } }
+const ALLOWED_CONFIG_KEYS = new Set(['poll_interval_s', 'report_mode', 'firmware_target', 'reboot', 'apu_command']);
 
 async function handleSetConfig(event) {
   let body;
@@ -317,6 +317,8 @@ async function handleSetConfig(event) {
   }
   if (config.reboot !== undefined && typeof config.reboot !== 'boolean')
     return err(400, 'reboot must be a boolean');
+  if (config.apu_command !== undefined && !['start', 'stop'].includes(config.apu_command))
+    return err(400, 'apu_command must be "start" or "stop"');
 
   const thingName = `gobi-apu-${unit}`;
   const payload   = JSON.stringify({ state: { desired: config } });

@@ -28,6 +28,7 @@ typedef struct {
     char     report_mode[16];    /* "normal" | "eco" | "debug"                  */
     char     firmware_target[32];/* semver, e.g. "1.2.0" — signals OTA desired  */
     bool     reboot_requested;   /* set true to trigger controlled reboot        */
+    char     apu_command[8];     /* one-shot: "start" | "stop" | "" (consumed once) */
 } shadow_config_t;
 
 /* ── Reported telemetry fields included in shadow update ────────────────── */

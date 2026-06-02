@@ -49,6 +49,7 @@ static void set_default_config(shadow_config_t *cfg)
     cfg->reboot_requested = false;
     strncpy(cfg->report_mode,      "normal", sizeof(cfg->report_mode) - 1);
     strncpy(cfg->firmware_target,  "",       sizeof(cfg->firmware_target) - 1);
+    strncpy(cfg->apu_command,      "",       sizeof(cfg->apu_command) - 1);
 }
 
 /* ── Topic helpers ───────────────────────────────────────────────────────── */
@@ -112,6 +113,15 @@ static bool apply_desired(const cJSON *desired)
     v = cJSON_GetObjectItemCaseSensitive(desired, "reboot");
     if (cJSON_IsTrue(v))
         s.config.reboot_requested = true;
+
+    v = cJSON_GetObjectItemCaseSensitive(desired, "apu_command");
+    if (cJSON_IsString(v) && v->valuestring) {
+        const char *cmd = v->valuestring;
+        if (strcmp(cmd, "start") == 0 || strcmp(cmd, "stop") == 0)
+            strncpy(s.config.apu_command, cmd, sizeof(s.config.apu_command) - 1);
+        else
+            fprintf(stderr, "[shadow] unknown apu_command '%s' — ignored\n", cmd);
+    }
 
     bool changed = memcmp(&prev, &s.config, sizeof(shadow_config_t)) != 0;
     shadow_config_t snapshot = s.config;
@@ -302,13 +312,23 @@ int shadow_publish_reported(struct mosquitto *mosq,
     cJSON_AddStringToObject(rep, "fault",            reported->fault);
     cJSON_AddNumberToObject(rep, "last_seen_ts",     (double)reported->last_seen_ts);
 
-    /* Clear one-shot reboot flag now that we've reported */
+    /* Clear one-shot flags: include desired nulls so cloud shadow is also cleared */
     pthread_mutex_lock(&s.config_mutex);
-    if (s.config.reboot_requested) {
+    bool clear_reboot  = s.config.reboot_requested;
+    bool clear_apu_cmd = s.config.apu_command[0] != '\0';
+    if (clear_reboot) {
         cJSON_AddBoolToObject(rep, "reboot", false);
         s.config.reboot_requested = false;
     }
+    if (clear_apu_cmd)
+        s.config.apu_command[0] = '\0';
     pthread_mutex_unlock(&s.config_mutex);
+
+    if (clear_reboot || clear_apu_cmd) {
+        cJSON *des = cJSON_AddObjectToObject(state, "desired");
+        if (clear_reboot)  cJSON_AddNullToObject(des, "reboot");
+        if (clear_apu_cmd) cJSON_AddNullToObject(des, "apu_command");
+    }
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
