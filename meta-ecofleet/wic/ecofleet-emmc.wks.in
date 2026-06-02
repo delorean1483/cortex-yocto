@@ -1,9 +1,21 @@
-# EcoFleet eMMC layout for 4GB eMMC (imx8mm-var-dart)
-# Boot: imx-boot raw-copied at the SoC seek offset (no partition table entry)
-# Root: fixed 3500M ext4 — fits comfortably on 4GB eMMC (~3.7GiB usable)
-#       The var-resize-flash service expands this on first boot to fill the eMMC.
+# EcoFleet eMMC layout for 4GB eMMC (imx8mm-var-dart) — A/B OTA layout
+#
+# WARNING: Changing from the single-partition layout REQUIRES a full reflash of
+# existing boards (imx-usb-loader / uuu). There is no in-place migration path.
+#
+# Map (MSDOS, imx-boot raw-copied below the partition table):
+#   [0x0 .. seek]   imx-boot (SPL + u-boot proper, no partition entry)
+#   [8MB  gap]      u-boot env at 0x400000 (4MB) — fw_env.config points here
+#   p1  rootfs-a   1700M ext4  ← active slot on first boot
+#   p2  rootfs-b   1700M ext4  ← inactive slot, filled by OTA
+#   p3  data         64M ext4  ← persistent /data mount (certs, db, logs)
+#
+# Total: ~3464M < 3.7GiB usable — fits comfortably.
+# Remove var-resize-flash: it assumes a single rootfs and would corrupt p2.
 
 part u-boot --source rawcopy --sourceparams="file=imx-boot" --ondisk mmcblk --no-table --align ${IMX_BOOT_SEEK}
-part / --source rootfs --ondisk mmcblk --fstype=ext4 --label root --align 8192 --fixed-size 3500M
+part /      --source rootfs  --ondisk mmcblk --fstype=ext4 --label rootfs-a --align 8192 --fixed-size 1700M
+part        --ondisk mmcblk --fstype=ext4 --label rootfs-b --align 8192 --fixed-size 1700M
+part /data  --ondisk mmcblk --fstype=ext4 --label data     --align 8192 --fixed-size 64M
 
 bootloader --ptable msdos

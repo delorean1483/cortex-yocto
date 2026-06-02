@@ -42,6 +42,16 @@ jobs:
           echo "$DEVICE_CRT" > meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.crt
           echo "$DEVICE_KEY" > meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.key
 
+      - name: Inject OTA signing key
+        env:
+          SWUPDATE_SIGN_KEY: ${{ secrets.SWUPDATE_SIGN_KEY }}
+        run: |
+          # Only available when the secret is set; skip gracefully on dev builds
+          if [ -n "$SWUPDATE_SIGN_KEY" ]; then
+            mkdir -p /tmp/ota-keys
+            echo "$SWUPDATE_SIGN_KEY" > /tmp/ota-keys/sign.key
+          fi
+
       - name: Run Yocto build
         env:
           KAS_BUILD_DIR: /home/rsmith/yocto-cache/build
@@ -78,7 +88,29 @@ jobs:
           cp -L "$DEPLOY/ecofleet-image-imx8mm-var-dart.rootfs.wic.bmap" /tmp/yocto-release/
           cp -L "$DEPLOY/ecofleet-image-imx8mm-var-dart.rootfs.manifest" /tmp/yocto-release/
 
-          ls -lh /tmp/yocto-release
+      - name: Build SWUpdate bundle
+        run: |
+          DEPLOY=/home/rsmith/yocto-cache/build/tmp/deploy/images/imx8mm-var-dart
+          VERSION="${{ github.ref_name }}"
+          # Strip leading 'v' from tag (v1.2.0 -> 1.2.0)
+          VERSION="${VERSION#v}"
+          # Fall back to short SHA for non-tag builds
+          if [ -z "$VERSION" ] || [ "$VERSION" = "${{ github.sha }}" ]; then
+            VERSION="${{ github.sha }}"
+            VERSION="${VERSION:0:8}"
+          fi
+
+          SIGN_OPT=""
+          if [ -f /tmp/ota-keys/sign.key ]; then
+            SIGN_OPT="SWUPDATE_SIGN_KEY=/tmp/ota-keys/sign.key"
+          fi
+
+          env $SIGN_OPT \
+            bash scripts/make-swu.sh "$DEPLOY" "$VERSION" \
+            "/tmp/yocto-release/ecofleet-${VERSION}.swu"
+
+      - name: List release artifacts
+        run: ls -lh /tmp/yocto-release
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2

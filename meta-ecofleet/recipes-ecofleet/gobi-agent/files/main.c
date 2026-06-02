@@ -22,6 +22,7 @@
 #include <time.h>
 #include <errno.h>
 #include <syslog.h>
+#include <sys/wait.h>
 
 #include <modbus.h>
 #include <mosquitto.h>
@@ -189,6 +190,81 @@ static int db_flush(const char *table, const char *topic)
     return flushed;
 }
 
+/* ── OTA update ──────────────────────────────────────────────────────────── */
+/*
+ * S3 base URL for .swu bundles.  Bundles are named ecofleet-<version>.swu and
+ * hosted at OTA_BUNDLE_BASE_URL/<version>/ecofleet-<version>.swu.
+ * Override at build time via config.h or OTA_BUNDLE_BASE_URL env.
+ */
+#ifndef OTA_BUNDLE_BASE_URL
+#define OTA_BUNDLE_BASE_URL "https://ecofleet-ota.s3.amazonaws.com/releases"
+#endif
+
+/* Download and apply an OTA bundle in a forked child process so the main
+ * telemetry loop keeps running.  The child:
+ *   1. curl downloads the .swu to /tmp/
+ *   2. Runs swupdate -i <file>
+ *   3. Reboots on success (swupdate exits 0)
+ * SIGCHLD is set to SIG_IGN in main() so zombies are auto-reaped. */
+static void ota_trigger(const char *version)
+{
+    pid_t pid = fork();
+    if (pid < 0) {
+        syslog(LOG_ERR, "ota: fork failed: %s", strerror(errno));
+        return;
+    }
+    if (pid > 0) {
+        syslog(LOG_INFO, "ota: download child pid=%d", (int)pid);
+        return;  /* parent returns immediately */
+    }
+
+    /* ── Child ── */
+    char url[256], local[64];
+    snprintf(url,   sizeof(url),   "%s/%s/ecofleet-%s.swu",
+             OTA_BUNDLE_BASE_URL, version, version);
+    snprintf(local, sizeof(local), "/tmp/ecofleet-%s.swu", version);
+
+    syslog(LOG_INFO, "ota: downloading %s -> %s", url, local);
+
+    /* curl: silent, fail on HTTP errors, follow redirects, 5-min timeout */
+    const char *curl_argv[] = {
+        "curl", "-fsSL", "--max-time", "300",
+        "-o", local, url, NULL
+    };
+    pid_t curl_pid = fork();
+    if (curl_pid == 0) {
+        execvp("curl", (char *const *)curl_argv);
+        _exit(127);
+    }
+    int status = 0;
+    waitpid(curl_pid, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        syslog(LOG_ERR, "ota: curl failed (exit %d) — aborting", WEXITSTATUS(status));
+        _exit(1);
+    }
+
+    syslog(LOG_INFO, "ota: download complete, running swupdate");
+
+    /* swupdate -i <file> : applies the bundle, writes inactive slot, flips env */
+    const char *swu_argv[] = { "swupdate", "-i", local, NULL };
+    pid_t swu_pid = fork();
+    if (swu_pid == 0) {
+        execvp("swupdate", (char *const *)swu_argv);
+        _exit(127);
+    }
+    waitpid(swu_pid, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        syslog(LOG_ERR, "ota: swupdate failed (exit %d)", WEXITSTATUS(status));
+        unlink(local);
+        _exit(1);
+    }
+
+    syslog(LOG_INFO, "ota: update applied — rebooting");
+    unlink(local);
+    execl("/sbin/reboot", "reboot", NULL);
+    _exit(0);
+}
+
 /* ── Shadow config callback ──────────────────────────────────────────────── */
 /*
  * Modbus coil address for APU start/stop command.
@@ -226,8 +302,9 @@ static void on_shadow_config(const shadow_config_t *cfg, void *userdata)
         system("systemctl reboot");
     }
     if (cfg->firmware_target[0] != '\0') {
-        syslog(LOG_INFO, "shadow: firmware_target=%s (OTA not yet implemented)",
+        syslog(LOG_INFO, "shadow: OTA requested, target=%s — spawning download",
                cfg->firmware_target);
+        ota_trigger(cfg->firmware_target);
     }
 }
 
@@ -369,6 +446,7 @@ int main(void)
 
     signal(SIGTERM, handle_signal);
     signal(SIGINT,  handle_signal);
+    signal(SIGCHLD, SIG_IGN);   /* auto-reap OTA child processes */
 
     /* ── 1. Read unit serial ─────────────────────────────────────────────── */
     if (read_unit_serial(g_unit_serial, sizeof(g_unit_serial)) != 0)

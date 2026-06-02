@@ -1,0 +1,3 @@
+-----BEGIN CERTIFICATE-----
+PLACEHOLDER — run scripts/gen-ota-keys.sh and replace this file with ota-keys/sign.crt
+-----END CERTIFICATE-----

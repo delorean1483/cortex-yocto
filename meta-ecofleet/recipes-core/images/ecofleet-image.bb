@@ -8,6 +8,9 @@ WKS_FILE:mx8-nxp-bsp = "ecofleet-emmc.wks.in"
 # Allow root SSH login with empty password for dev/field access
 EXTRA_IMAGE_FEATURES += "debug-tweaks"
 
+# var-resize-flash assumes a single rootfs partition and would corrupt rootfs-b.
+BAD_RECOMMENDATIONS += "var-resize-flash"
+
 IMAGE_INSTALL:append = " \
     gobi-agent \
     mosquitto \
@@ -19,4 +22,9 @@ IMAGE_INSTALL:append = " \
     qtdeclarative \
     qtshadertools \
     qtwayland \
+    swupdate \
+    libubootenv \
+    libubootenv-bin \
+    ecofleet-bootscript \
+    swupdate-keys \
 "

@@ -1,0 +1,30 @@
+software =
+{
+    version = "0.1.0";
+    name    = "ecofleet-firmware";
+
+    hardware-compatibility = ["imx8mm-var-dart"];
+
+    images: (
+        {
+            filename = "rootfs.ext4.gz";
+            type     = "raw";
+            device   = "/dev/swupdate-inactive";   /* symlink set by pre-install.sh */
+            compressed = "zlib";
+            sha256   = "@rootfs.ext4.gz";
+        }
+    );
+
+    scripts: (
+        {
+            filename = "pre-install.sh";
+            type     = "shellscript";
+            properties: { execute-before-update = ["true"]; };
+        },
+        {
+            filename = "post-install.sh";
+            type     = "shellscript";
+            properties: { execute-after-update = ["true"]; };
+        }
+    );
+};

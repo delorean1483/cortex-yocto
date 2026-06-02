@@ -48,6 +48,10 @@ cloud/terraform/sessionmanager-bundle.zip
 meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.crt
 meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.key
 
+# OTA signing private key — NEVER commit; add to CI as SWUPDATE_SIGN_KEY secret
+ota-keys/sign.key
+/tmp/ota-keys/
+
 # Lambda build artifacts
 cloud/lambda/**/node_modules/
 cloud/lambda/**/*.zip
