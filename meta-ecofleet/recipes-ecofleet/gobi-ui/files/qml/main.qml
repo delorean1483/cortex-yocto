@@ -21,6 +21,7 @@ ApplicationWindow {
 
         DashboardPage  {}
         DiagnosticsPage {}
+        DevicePage {}
     }
 
     // ── Tab bar ───────────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ ApplicationWindow {
             anchors.fill: parent
 
             Repeater {
-                model: ["Dashboard", "Diagnostics"]
+                model: ["Dashboard", "Diagnostics", "Device"]
 
                 Item {
                     width: root.width / 2

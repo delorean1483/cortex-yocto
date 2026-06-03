@@ -6,15 +6,18 @@ SRC_URI = " \
     file://main.cpp \
     file://TelemetryModel.h \
     file://TelemetryModel.cpp \
+    file://DeviceInfoModel.h \
+    file://DeviceInfoModel.cpp \
     file://qml/main.qml \
     file://qml/DashboardPage.qml \
     file://qml/DiagnosticsPage.qml \
+    file://qml/DevicePage.qml \
     file://gobi-ui.service \
 "
 
 S = "${WORKDIR}"
 
-DEPENDS = "qtbase qtbase-native qtdeclarative qtdeclarative-native qtshadertools qtwayland sqlite3"
+DEPENDS = "qtbase qtbase-native qtdeclarative qtdeclarative-native qtshadertools qtwayland qtnetwork sqlite3"
 
 # Qt6 CMake cross-compilation requires QT_HOST_PATH pointing at the native
 # (build-machine) Qt6 installation that provides moc, rcc, qmltyperegistrar, etc.
@@ -31,9 +34,10 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/gobi-ui.service ${D}${systemd_system_unitdir}/
 
     install -d ${D}${datadir}/gobi-ui/qml
-    install -m 0644 ${WORKDIR}/qml/main.qml         ${D}${datadir}/gobi-ui/qml/
-    install -m 0644 ${WORKDIR}/qml/DashboardPage.qml ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/main.qml            ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/DashboardPage.qml   ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/DiagnosticsPage.qml ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/DevicePage.qml      ${D}${datadir}/gobi-ui/qml/
 }
 
 FILES:${PN} += " \
@@ -42,4 +46,4 @@ FILES:${PN} += " \
 "
 
 # ── Qt runtime plugins needed at runtime (not link-time deps) ─────────────────
-RDEPENDS:${PN} += "qtwayland qtbase-plugins"
+RDEPENDS:${PN} += "qtwayland qtbase-plugins qtnetwork"

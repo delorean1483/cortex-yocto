@@ -1,6 +1,6 @@
 [Unit]
 Description=EcoFleet Gobi Dashboard
-After=graphical.target gobi-agent.service
+After=graphical.target
 Wants=graphical.target
 
 [Service]

@@ -3,6 +3,7 @@
 #include <QQmlContext>
 
 #include "TelemetryModel.h"
+#include "DeviceInfoModel.h"
 
 int main(int argc, char *argv[])
 {
@@ -10,10 +11,12 @@ int main(int argc, char *argv[])
     app.setApplicationName(QStringLiteral("gobi-ui"));
     app.setOrganizationName(QStringLiteral("EcoFleet"));
 
-    TelemetryModel model;
+    TelemetryModel  telemetry;
+    DeviceInfoModel devinfo;
 
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty(QStringLiteral("telemetry"), &model);
+    engine.rootContext()->setContextProperty(QStringLiteral("telemetry"), &telemetry);
+    engine.rootContext()->setContextProperty(QStringLiteral("devinfo"),   &devinfo);
     engine.load(QUrl::fromLocalFile(QStringLiteral("/usr/share/gobi-ui/qml/main.qml")));
 
     if (engine.rootObjects().isEmpty())
