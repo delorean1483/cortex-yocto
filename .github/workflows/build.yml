@@ -34,9 +34,10 @@ jobs:
           sed -i 's#/home/rsmith/cortex-yocto#/work#g' \
             build-docker/conf/bblayers.conf
 
-      - name: Pin meta-ecofleet to workspace checkout
+      - name: Clear gobi-ui sstate cache to force rebuild from source
         run: |
-          printf 'header:\n  version: 14\nrepos:\n  meta-ecofleet:\n    path: /work\n    layers:\n      meta-ecofleet:\n' > kas-workspace.yml
+          find /home/rsmith/yocto-cache/sstate -name "*gobi-ui*" -delete 2>/dev/null || true
+          echo "Cleared gobi-ui sstate entries"
 
       - name: Set firmware version
         run: |
@@ -79,7 +80,7 @@ jobs:
             -w /work \
             -e KAS_BUILD_DIR=/home/rsmith/yocto-cache/build \
             ecofleet-yocto:dev \
-            bash -c "chmod +x /work/scripts/kas-build.sh && /work/scripts/kas-build.sh"
+            bash -c "kas build kas/dev.yml:kas-version.yml"
 
       - name: Fix workspace ownership after build
         if: always()
