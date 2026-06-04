@@ -45,14 +45,5 @@ echo "=== Cleaning gobi-ui and ecofleet-image artifacts ==="
 bitbake -c cleansstate gobi-ui ecofleet-image
 echo "=== cleansstate done ==="
 
-# Step 5: Build gobi-ui first so we can inspect the actual RPM produced
-bitbake gobi-ui
-echo "=== gobi-ui RPMs in deploy dir ==="
-find /home/rsmith/yocto-cache/build/tmp/deploy -name "*gobi*" -ls 2>/dev/null || echo "(none found)"
-echo "=== local.conf PKGR/PR settings ==="
-grep -E "^PR|PKGR|PRSERV" /home/rsmith/yocto-cache/build/conf/local.conf || echo "(none)"
-echo "=== gobi-ui.service in WORKDIR ==="
-find /home/rsmith/yocto-cache/build/tmp/work -path "*gobi-ui*gobi-ui.service" -exec head -5 {} \; -print 2>/dev/null | head -20 || echo "(not found)"
-
-# Step 6: Build the full image
+# Step 5: Build
 bitbake ecofleet-image
