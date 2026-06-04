@@ -34,12 +34,13 @@ jobs:
           sed -i 's#/home/rsmith/cortex-yocto#/work#g' \
             build-docker/conf/bblayers.conf
 
-      - name: Clear gobi-ui sstate cache to force rebuild from source
+      - name: Clear gobi-ui and image sstate to force rebuild from source
         run: |
           find /home/rsmith/yocto-cache/sstate -name "*gobi-ui*" -delete 2>/dev/null || true
+          find /home/rsmith/yocto-cache/sstate -name "*ecofleet-image*" -delete 2>/dev/null || true
           find /home/rsmith/yocto-cache/build/tmp/deploy/rpm -name "*gobi-ui*" -delete 2>/dev/null || true
           find /home/rsmith/yocto-cache/build/tmp/stamps -path "*gobi-ui*" -delete 2>/dev/null || true
-          echo "Cleared gobi-ui sstate, stamps, and deployed RPMs"
+          echo "Cleared gobi-ui and ecofleet-image sstate, stamps, and deployed RPMs"
 
       - name: Set firmware version
         run: |
