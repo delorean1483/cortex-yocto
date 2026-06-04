@@ -79,6 +79,7 @@ jobs:
             -v /home/rsmith/yocto-cache:/home/rsmith/yocto-cache \
             -w /work \
             -e KAS_BUILD_DIR=/home/rsmith/yocto-cache/build \
+            -e KAS_WORK_DIR=/home/rsmith/yocto-cache \
             ecofleet-yocto:dev \
             bash -c "kas build kas/dev.yml:kas-version.yml"
 
