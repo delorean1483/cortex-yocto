@@ -9,6 +9,9 @@ require recipes-fsl/images/imx-image-core.bb
 
 IMAGE_BASENAME = "${PN}"
 
+# SWUpdate bundles are built from the raw ext4 rootfs; ensure it's produced.
+IMAGE_FSTYPES:append = " ext4"
+
 WKS_FILE:mx8-nxp-bsp = "ecofleet-emmc.wks.in"
 
 # Allow root SSH login with empty password for dev/field access
