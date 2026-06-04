@@ -27,6 +27,12 @@ OUTPUT="${3:-ecofleet-${VERSION}.swu}"
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
+# Resolve OUTPUT to absolute so the cd into TMPDIR doesn't corrupt the path
+case "$OUTPUT" in
+    /*) ;;
+    *)  OUTPUT="$(pwd)/$OUTPUT" ;;
+esac
+
 # ── 1. Locate rootfs image ────────────────────────────────────────────────────
 ROOTFS_EXT4=$(find "$DEPLOY_DIR" -maxdepth 1 -name '*.rootfs.ext4' | head -1)
 if [ -z "$ROOTFS_EXT4" ]; then
@@ -71,7 +77,7 @@ echo "==> packing $OUTPUT"
     [ -f sw-description.sig ] && FILES="$FILES sw-description.sig"
     FILES="$FILES rootfs.ext4.gz pre-install.sh post-install.sh"
     # shellcheck disable=SC2086
-    echo $FILES | tr ' ' '\n' | cpio -o -H newc > "$OLDPWD/$OUTPUT"
+    echo $FILES | tr ' ' '\n' | cpio -o -H newc > "$OUTPUT"
 )
 
 SIZE=$(du -sh "$OUTPUT" | awk '{print $1}')
