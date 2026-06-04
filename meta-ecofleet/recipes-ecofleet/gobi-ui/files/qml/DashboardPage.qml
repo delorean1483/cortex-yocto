@@ -27,49 +27,6 @@ Page {
         anchors.margins: 20
         spacing: 14
 
-        // ── Header ────────────────────────────────────────────────────────────
-        RowLayout {
-            Layout.fillWidth: true
-            height: 40
-            spacing: 12
-
-            Text {
-                text: "EcoFleet Gobi APU"
-                color: "#C9D1D9"
-                font.pixelSize: 18
-                font.weight: Font.SemiBold
-            }
-
-            Item { Layout.fillWidth: true }
-
-            // No-data badge
-            Rectangle {
-                visible: telemetry.stale
-                width: noDataRow.width + 20; height: 28; radius: 14
-                color: "#2D1B1B"; border.color: "#F85149"; border.width: 1
-                Row {
-                    id: noDataRow
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Rectangle { width: 6; height: 6; radius: 3; color: "#F85149"; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: "NO DATA"; color: "#F85149"; font.pixelSize: 11; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
-                }
-            }
-
-            // Fault badge
-            Rectangle {
-                visible: telemetry.hasFault
-                width: faultTxt.width + 20; height: 28; radius: 14
-                color: "#2D1014"; border.color: "#F85149"; border.width: 1
-                Text {
-                    id: faultTxt
-                    anchors.centerIn: parent
-                    text: "FAULT " + telemetry.fault
-                    color: "#F85149"; font.pixelSize: 11; font.weight: Font.Bold
-                }
-            }
-        }
-
         // ── APU State card ────────────────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true
