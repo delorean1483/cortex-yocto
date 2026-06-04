@@ -38,5 +38,11 @@ echo "=== workspace meta-ecofleet OK ($(head -1 /work/meta-ecofleet/conf/layer.c
 # Step 3: Source OE environment (poky at KAS_WORK_DIR/poky/)
 source /home/rsmith/yocto-cache/poky/oe-init-build-env /home/rsmith/yocto-cache/build
 
-# Step 4: Build
+# Step 4: Purge all gobi-ui artifacts so do_rootfs can only use the freshly
+# built package. cleansstate removes sstate, stamps, and deployed RPMs.
+echo "=== Cleaning gobi-ui artifacts ==="
+bitbake -c cleansstate gobi-ui
+echo "=== gobi-ui cleansstate done ==="
+
+# Step 5: Build
 bitbake ecofleet-image
