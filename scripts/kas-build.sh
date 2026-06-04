@@ -1,29 +1,41 @@
 #!/bin/bash
 set -e
 
-# KAS_WORK_DIR=/home/rsmith/yocto-cache means repos are cloned to:
-#   /home/rsmith/yocto-cache/meta-ecofleet/   (cortex-yocto clone)
-#   /home/rsmith/yocto-cache/poky/            (poky clone)
-#   etc.
-# The meta-ecofleet Yocto layer is the meta-ecofleet/ subdirectory inside that clone.
+# KAS_WORK_DIR=/home/rsmith/yocto-cache — repos cloned to persistent cache.
+# However, KAS does not reliably fetch the latest commit when branch: main
+# is specified. We override the meta-ecofleet path in bblayers.conf to use
+# /work/meta-ecofleet (the workspace, checked out at the correct tag) instead
+# of the potentially stale KAS-managed clone.
+# Device certs are already in /work/meta-ecofleet/ (injected before this script).
 
-KAS_LAYER=/home/rsmith/yocto-cache/meta-ecofleet/meta-ecofleet
-KAS_GOBI_AGENT_FILES=$KAS_LAYER/recipes-ecofleet/gobi-agent/files
-
-# Step 1: KAS checkout — clones/updates all repos, generates bblayers.conf + local.conf
+# Step 1: KAS checkout — sets up all BSP/BSP-vendor/poky repos, generates
+# bblayers.conf and local.conf. meta-ecofleet will point to KAS clone (stale)
+# but we replace that path in step 2.
 kas checkout kas/dev.yml:kas-version.yml
 
-# Step 2: Inject device certificates into the KAS-managed clone
-# (The workflow already injected them into /work, but Yocto reads from the KAS clone)
-if [ -f /work/meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.crt ]; then
-    cp /work/meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.crt "$KAS_GOBI_AGENT_FILES/device.crt"
-    cp /work/meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.key "$KAS_GOBI_AGENT_FILES/device.key"
-    echo "=== device certs injected into KAS clone ==="
+# Step 2: Replace meta-ecofleet layer path with workspace
+BBLAYERS=/home/rsmith/yocto-cache/build/conf/bblayers.conf
+echo "=== bblayers.conf before patch ==="
+grep -i ecofleet "$BBLAYERS" || echo "(not found)"
+
+if grep -q 'meta-ecofleet' "$BBLAYERS" 2>/dev/null; then
+    sed -i 's|^\( *\)[^ ]*meta-ecofleet[^ ]*|\1/work/meta-ecofleet|g' "$BBLAYERS"
 else
-    echo "WARNING: device.crt not found in workspace — gobi-agent build may fail"
+    # meta-ecofleet not present — append before closing quote
+    sed -i 's|^\(BBLAYERS.*\)"$|\1\n    /work/meta-ecofleet \\"|' "$BBLAYERS"
 fi
 
-# Step 3: Source OE environment (poky is at KAS_WORK_DIR/poky/)
+echo "=== bblayers.conf after patch ==="
+grep -i ecofleet "$BBLAYERS" || echo "WARNING: meta-ecofleet still not found"
+
+# Verify the workspace layer exists
+if [ ! -f /work/meta-ecofleet/conf/layer.conf ]; then
+    echo "ERROR: /work/meta-ecofleet/conf/layer.conf not found"
+    exit 1
+fi
+echo "=== workspace meta-ecofleet OK ($(head -1 /work/meta-ecofleet/conf/layer.conf)) ==="
+
+# Step 3: Source OE environment (poky at KAS_WORK_DIR/poky/)
 source /home/rsmith/yocto-cache/poky/oe-init-build-env /home/rsmith/yocto-cache/build
 
 # Step 4: Build
