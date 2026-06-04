@@ -30,8 +30,8 @@ ApplicationWindow {
             anchors.left: parent.left
             anchors.leftMargin: 14
             anchors.verticalCenter: parent.verticalCenter
-            source: "/usr/share/gobi-ui/ecofleet_logo.png"
-            height: 24
+            source: "/usr/share/gobi-ui/ecofleet_logo_topbar.png"
+            height: 28
             fillMode: Image.PreserveAspectFit
         }
 

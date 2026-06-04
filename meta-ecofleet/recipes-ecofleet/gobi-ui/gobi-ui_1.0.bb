@@ -14,6 +14,7 @@ SRC_URI = " \
     file://qml/DevicePage.qml \
     file://gobi-ui.service \
     file://ecofleet_logo.png \
+    file://ecofleet_logo_topbar.png \
 "
 
 S = "${WORKDIR}"
@@ -39,7 +40,8 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/qml/DashboardPage.qml   ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/DiagnosticsPage.qml ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/DevicePage.qml      ${D}${datadir}/gobi-ui/qml/
-    install -m 0644 ${WORKDIR}/ecofleet_logo.png       ${D}${datadir}/gobi-ui/
+    install -m 0644 ${WORKDIR}/ecofleet_logo.png        ${D}${datadir}/gobi-ui/
+    install -m 0644 ${WORKDIR}/ecofleet_logo_topbar.png ${D}${datadir}/gobi-ui/
 }
 
 FILES:${PN} += " \
