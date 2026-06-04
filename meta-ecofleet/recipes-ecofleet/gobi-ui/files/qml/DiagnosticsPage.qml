@@ -24,8 +24,8 @@ Page {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 20
-        spacing: 14
+        anchors.margins: 12
+        spacing: 10
 
         Text {
             text: "Live Diagnostics"
@@ -43,8 +43,8 @@ Page {
                 anchors.left: parent.left
                 width: parent.width
                 columns: 3
-                rowSpacing: 12
-                columnSpacing: 12
+                rowSpacing: 8
+                columnSpacing: 10
 
                 property real cellW: (width - columnSpacing * (columns - 1)) / columns
 
@@ -53,7 +53,7 @@ Page {
 
                     Rectangle {
                         width: grid.cellW
-                        height: 80
+                        height: 68
                         radius: 10
                         color: "#161B22"
 
