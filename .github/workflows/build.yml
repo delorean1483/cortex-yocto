@@ -36,11 +36,15 @@ jobs:
 
       - name: Clear gobi-ui and image sstate to force rebuild from source
         run: |
-          find /home/rsmith/yocto-cache/sstate -name "*gobi-ui*" -delete 2>/dev/null || true
-          find /home/rsmith/yocto-cache/sstate -name "*ecofleet-image*" -delete 2>/dev/null || true
-          find /home/rsmith/yocto-cache/build/tmp/deploy/rpm -name "*gobi-ui*" -delete 2>/dev/null || true
-          find /home/rsmith/yocto-cache/build/tmp/stamps -path "*gobi-ui*" -delete 2>/dev/null || true
-          echo "Cleared gobi-ui and ecofleet-image sstate, stamps, and deployed RPMs"
+          docker run --rm \
+            -v /home/rsmith/yocto-cache:/home/rsmith/yocto-cache \
+            alpine sh -c "
+              find /home/rsmith/yocto-cache/sstate -name '*gobi-ui*' -delete 2>/dev/null || true
+              find /home/rsmith/yocto-cache/sstate -name '*ecofleet-image*' -delete 2>/dev/null || true
+              find /home/rsmith/yocto-cache/build/tmp/deploy -name '*gobi-ui*' -delete 2>/dev/null || true
+              find /home/rsmith/yocto-cache/build/tmp/stamps -path '*gobi-ui*' -delete 2>/dev/null || true
+              echo 'Cleared gobi-ui and ecofleet-image sstate, stamps, and deployed RPMs'
+            "
 
       - name: Set firmware version
         run: |
