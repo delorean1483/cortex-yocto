@@ -1,29 +1,30 @@
 #!/bin/bash
 set -e
 
-# Step 1: KAS checkout — clones/updates all repos, generates bblayers.conf
-# and local.conf. Does NOT run bitbake, so we can patch bblayers.conf first.
+# KAS_WORK_DIR=/home/rsmith/yocto-cache means repos are cloned to:
+#   /home/rsmith/yocto-cache/meta-ecofleet/   (cortex-yocto clone)
+#   /home/rsmith/yocto-cache/poky/            (poky clone)
+#   etc.
+# The meta-ecofleet Yocto layer is the meta-ecofleet/ subdirectory inside that clone.
+
+KAS_LAYER=/home/rsmith/yocto-cache/meta-ecofleet/meta-ecofleet
+KAS_GOBI_AGENT_FILES=$KAS_LAYER/recipes-ecofleet/gobi-agent/files
+
+# Step 1: KAS checkout — clones/updates all repos, generates bblayers.conf + local.conf
 kas checkout kas/dev.yml:kas-version.yml
 
-# Step 2: Force meta-ecofleet to the workspace checkout.
-# The runner has a stale permanent clone; the sed replaces whatever path KAS
-# wrote with /work/meta-ecofleet (the checked-out tag from the workflow).
-BBLAYERS=/home/rsmith/yocto-cache/build/conf/bblayers.conf
-
-if grep -q 'meta-ecofleet' "$BBLAYERS" 2>/dev/null; then
-    sed -i 's|^\( *\)[^ ]*meta-ecofleet[^ ]*|\1/work/meta-ecofleet|g' "$BBLAYERS"
-    echo "=== patched meta-ecofleet path ==="
-    grep 'meta-ecofleet' "$BBLAYERS"
+# Step 2: Inject device certificates into the KAS-managed clone
+# (The workflow already injected them into /work, but Yocto reads from the KAS clone)
+if [ -f /work/meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.crt ]; then
+    cp /work/meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.crt "$KAS_GOBI_AGENT_FILES/device.crt"
+    cp /work/meta-ecofleet/recipes-ecofleet/gobi-agent/files/device.key "$KAS_GOBI_AGENT_FILES/device.key"
+    echo "=== device certs injected into KAS clone ==="
 else
-    echo "=== meta-ecofleet not in bblayers.conf — appending ==="
-    sed -i 's|^BBLAYERS ?= "\(.*\)"|BBLAYERS ?= "\1\n    /work/meta-ecofleet \\"|' "$BBLAYERS"
-    grep 'meta-ecofleet' "$BBLAYERS" || echo "WARNING: append failed"
+    echo "WARNING: device.crt not found in workspace — gobi-agent build may fail"
 fi
 
-# Step 3: Source OE environment (sets PATH for bitbake, sets BUILDDIR, cds in)
-POKY_INIT=$(find /home/rsmith/yocto-cache -maxdepth 3 -name 'oe-init-build-env' | head -1)
-echo "=== OE init: $POKY_INIT ==="
-source "$POKY_INIT" /home/rsmith/yocto-cache/build
+# Step 3: Source OE environment (poky is at KAS_WORK_DIR/poky/)
+source /home/rsmith/yocto-cache/poky/oe-init-build-env /home/rsmith/yocto-cache/build
 
 # Step 4: Build
 bitbake ecofleet-image
