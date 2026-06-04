@@ -1,9 +1,11 @@
 # EcoFleet A/B slot boot script
-# Compiled to boot.scr by mkimage; picked up by Variscite distro_bootcmd.
+# Compiled to boot.scr by mkimage; picked up by Variscite BSP bootcmd.
 #
 # u-boot env var: slot_active = "a" | "b"  (default "a" on first boot)
-# devnum is set by distro_bootcmd to whichever MMC device U-Boot found this
-# script on — works for both eMMC (mmc 2) and SD card (mmc 1) without changes.
+# devnum: standard distro_bootcmd sets this; Variscite BSP uses mmcdev instead.
+# Fall back through both and default to 1 (SD card) if neither is set.
+if test -z "${devnum}"; then setenv devnum "${mmcdev}"; fi
+if test -z "${devnum}"; then setenv devnum 1; fi
 
 if test -z "${slot_active}"; then
     setenv slot_active a
