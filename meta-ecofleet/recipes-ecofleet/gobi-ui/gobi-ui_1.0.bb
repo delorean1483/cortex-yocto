@@ -1,5 +1,6 @@
 SUMMARY = "EcoFleet Gobi APU touchscreen dashboard"
 LICENSE = "CLOSED"
+PR = "r1"
 
 SRC_URI = " \
     file://CMakeLists.txt \
