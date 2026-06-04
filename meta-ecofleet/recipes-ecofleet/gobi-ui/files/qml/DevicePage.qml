@@ -13,7 +13,7 @@ Page {
 
         Text {
             text: "Device Info"
-            color: "#C9D1D9"; font.pixelSize: 18; font.weight: Font.SemiBold
+            color: "#C9D1D9"; font.pixelSize: 18; font.weight: Font.DemiBold
         }
 
         // ── Identity card ─────────────────────────────────────────────────────

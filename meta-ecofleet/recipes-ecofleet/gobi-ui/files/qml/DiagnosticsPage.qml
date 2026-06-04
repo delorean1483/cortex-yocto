@@ -29,7 +29,7 @@ Page {
 
         Text {
             text: "Live Diagnostics"
-            color: "#C9D1D9"; font.pixelSize: 18; font.weight: Font.SemiBold
+            color: "#C9D1D9"; font.pixelSize: 18; font.weight: Font.DemiBold
         }
 
         // 3-column grid via a Flow
@@ -70,7 +70,7 @@ Page {
                                 text: modelData[1]
                                 color: modelData[0] === "Fault Word" && telemetry.hasFault
                                        ? "#F85149" : "#C9D1D9"
-                                font.pixelSize: 20; font.weight: Font.SemiBold
+                                font.pixelSize: 20; font.weight: Font.DemiBold
                             }
                         }
                     }

@@ -134,7 +134,7 @@ Page {
 
                     Text {
                         text: telemetry.watts + " W"
-                        color: "#00C49A"; font.pixelSize: 26; font.weight: Font.SemiBold
+                        color: "#00C49A"; font.pixelSize: 26; font.weight: Font.DemiBold
                     }
                     Text { text: "Power Output"; color: "#6E7681"; font.pixelSize: 12 }
                 }
