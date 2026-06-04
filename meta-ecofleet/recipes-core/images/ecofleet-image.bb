@@ -7,6 +7,8 @@ LICENSE = "MIT"
 # explicitly marked "NOT suitable for production" in the NXP layer.
 require recipes-fsl/images/imx-image-core.bb
 
+IMAGE_BASENAME = "${PN}"
+
 WKS_FILE:mx8-nxp-bsp = "ecofleet-emmc.wks.in"
 
 # Allow root SSH login with empty password for dev/field access
