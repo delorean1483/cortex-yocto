@@ -39,7 +39,7 @@ ApplicationWindow {
                 model: ["Dashboard", "Diagnostics", "Device"]
 
                 Item {
-                    width: root.width / 2
+                    width: root.width / 3
                     height: tabBar.height
 
                     Rectangle {

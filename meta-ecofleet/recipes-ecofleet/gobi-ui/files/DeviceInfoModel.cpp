@@ -8,8 +8,9 @@
 #include <unistd.h>  /* gethostname */
 
 static constexpr int  NETWORK_POLL_MS   = 5000;
-static constexpr const char *SERIAL_FILE = "/etc/ecofleet/unit-serial";
-static constexpr const char *OS_RELEASE  = "/etc/os-release";
+static constexpr const char *SERIAL_FILE  = "/etc/ecofleet/unit-serial";
+static constexpr const char *FW_VERSION   = "/etc/ecofleet/firmware-version";
+static constexpr const char *OS_RELEASE   = "/etc/os-release";
 
 DeviceInfoModel::DeviceInfoModel(QObject *parent) : QObject(parent)
 {
@@ -26,9 +27,9 @@ DeviceInfoModel::DeviceInfoModel(QObject *parent) : QObject(parent)
         m_hostname = QStringLiteral("Unknown");
 
     /* ── Firmware version ── */
-    m_fw = parseOsRelease(QStringLiteral("VERSION_ID"));
+    m_fw = readFirstLine(QString::fromLatin1(FW_VERSION));
     if (m_fw.isEmpty())
-        m_fw = parseOsRelease(QStringLiteral("VERSION"));
+        m_fw = parseOsRelease(QStringLiteral("VERSION_ID"));
     if (m_fw.isEmpty())
         m_fw = QStringLiteral("Unknown");
 

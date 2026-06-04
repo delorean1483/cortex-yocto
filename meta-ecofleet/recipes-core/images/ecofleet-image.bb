@@ -26,6 +26,14 @@ IMAGE_INSTALL:remove = "docker imx-test firmwared packagegroup-imx-core-tools pa
 # var-resize-flash assumes a single rootfs partition and would corrupt rootfs-b.
 BAD_RECOMMENDATIONS += "var-resize-flash"
 
+ECOFLEET_FW_VERSION ?= "dev"
+
+write_ecofleet_version() {
+    install -d ${IMAGE_ROOTFS}/etc/ecofleet
+    echo "${ECOFLEET_FW_VERSION}" > ${IMAGE_ROOTFS}/etc/ecofleet/firmware-version
+}
+ROOTFS_POSTPROCESS_COMMAND:append = " write_ecofleet_version;"
+
 IMAGE_INSTALL:append = " \
     gobi-agent \
     mosquitto \
