@@ -17,7 +17,7 @@ SRC_URI = " \
 
 S = "${WORKDIR}"
 
-DEPENDS = "qtbase qtbase-native qtdeclarative qtdeclarative-native qtshadertools qtwayland qtnetwork sqlite3"
+DEPENDS = "qtbase qtbase-native qtdeclarative qtdeclarative-native qtshadertools qtwayland sqlite3"
 
 # Qt6 CMake cross-compilation requires QT_HOST_PATH pointing at the native
 # (build-machine) Qt6 installation that provides moc, rcc, qmltyperegistrar, etc.
@@ -46,4 +46,4 @@ FILES:${PN} += " \
 "
 
 # ── Qt runtime plugins needed at runtime (not link-time deps) ─────────────────
-RDEPENDS:${PN} += "qtwayland qtbase-plugins qtnetwork"
+RDEPENDS:${PN} += "qtwayland qtbase-plugins"
