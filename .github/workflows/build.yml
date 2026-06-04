@@ -41,7 +41,7 @@ jobs:
             VERSION="${{ github.sha }}"
             VERSION="${VERSION:0:8}"
           fi
-          echo "ECOFLEET_FW_VERSION = \"${VERSION}\"" >> build-docker/conf/local.conf
+          printf 'header:\n  version: 14\nlocal_conf_header:\n  version: |\n    ECOFLEET_FW_VERSION = "%s"\n' "$VERSION" > kas-version.yml
 
       - name: Inject device certificate
         env:
@@ -75,7 +75,7 @@ jobs:
             -w /work \
             -e KAS_BUILD_DIR=/home/rsmith/yocto-cache/build \
             ecofleet-yocto:dev \
-            bash -c "kas build kas/dev.yml"
+            bash -c "kas build kas/dev.yml:kas-version.yml"
 
       - name: Fix workspace ownership after build
         if: always()
