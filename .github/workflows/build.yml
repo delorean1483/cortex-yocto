@@ -79,7 +79,7 @@ jobs:
             -w /work \
             -e KAS_BUILD_DIR=/home/rsmith/yocto-cache/build \
             ecofleet-yocto:dev \
-            bash -c "chmod +x /work/scripts/kas-build.sh && kas shell kas/dev.yml:kas-version.yml -- /work/scripts/kas-build.sh"
+            bash -c "chmod +x /work/scripts/kas-build.sh && /work/scripts/kas-build.sh"
 
       - name: Fix workspace ownership after build
         if: always()
