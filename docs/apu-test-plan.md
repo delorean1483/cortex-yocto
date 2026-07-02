@@ -53,14 +53,19 @@ Register-8 bitmask; multiple bits may be set at once.
 | `0x04` | Low battery voltage | `0x40` | Engine overspeed |
 | `0x08` | Modbus comm failure | `0x80` | Starter failure |
 
-Fault events publish to `ecofleet/<unit>/faults` **only on change and only when
-non-zero** (`main.c:540-552`).
+Fault events publish to `ecofleet/<unit>/faults` **on every change, including the
+clearing transition to `0x0000`**, so the cloud can resolve open faults.
+_Fixed on this branch — previously non-zero-only (G1)._
 
 ### 1.5 Command path — start/stop  (`main.c:275-297`, `shadow.c:117-123`)
 Cloud sets shadow desired `apu_command` = `"start"` | `"stop"` → device receives
-delta → writes **Modbus coil 0** (`APU_CMD_COIL`): start→1, stop→0
-(`modbus_write_bit`). Command is **one-shot** (cleared after consumption). If
-Modbus is disconnected the command is logged and **dropped, not retried**.
+delta → **the telemetry loop** writes **Modbus coil 0** (`APU_CMD_COIL`): start→1,
+stop→0 (`modbus_write_bit`). The write is **retried each poll cycle until it
+lands**, so a command issued while the serial link is down is not lost, and it
+never races the poll read on the libmodbus context. Cleared only after a
+successful write (`shadow_peek_apu_command` / `shadow_ack_apu_command`).
+_Fixed on this branch (G2) — previously applied on the MQTT thread and dropped on
+failure._
 
 ### 1.6 Data flow & offline buffering
 Telemetry → `ecofleet/<unit>/telemetry` (QoS 1) every cycle; faults on change;
@@ -80,33 +85,46 @@ Sign-off: ☐ = not run · ✅ = pass · ❌ = fail.
 | 2 | State machine incl. out-of-range → `unknown` | `sim/apu_test.py` | ✅ yes | | ☐ |
 | 3 | Start/stop round-trip: coil 0 → state change | `sim/apu_test.py` | ✅ yes | | ☐ |
 | 4 | Fault raise: single + multi-bit words | `sim/apu_test.py` | ✅ yes | | ☐ |
-| 5 | **Fault clear → cloud/UI stops showing fault** | manual + cloud | ⚠️ gap | | ☐ |
-| 6 | Command dropped when Modbus down | HIL, pull pty | ✏️ manual | | ☐ |
+| 5 | Fault clear → cloud resolves fault, no false alarm | firmware + `faults.js`; verify on-device | ✅ fixed † | | ☐ |
+| 6 | Command retried (not lost) when Modbus down | HIL, pull pty | ✅ fixed † | | ☐ |
 | 7 | Modbus disconnect → reconnect after 2 s | HIL, pull pty | ✏️ manual | | ☐ |
 | 8 | Offline buffer + reconnect flush order + cap | kill MQTT | ✏️ manual | | ☐ |
 | 9 | Poll interval clamp to 5–60 s | shadow out-of-range | ✏️ manual | | ☐ |
 | 10 | Full pipeline (telemetry only) | `scripts/e2e-smoke-test.sh` | ✅ exists | | ☐ |
 | 11 | Command round-trip via cloud (shadow→coil) | shadow-tools + HIL sim | ✏️ manual | | ☐ |
+| 12 | Fault-word decode, all 8 bits | `sim/apu_test.py` + `faults.test.js` | ✅ yes | | ☐ |
 
-Rows 1–4 run today against the simulator — see §4.
+Rows 1–4 and 12 run today (simulator + Lambda) — see §4.
+**†** Code fixed on this branch (G1/G2); needs on-device + cloud verification before sign-off.
 
 ---
 
-## 3. Known gaps / risks (decide dispositions)
+## 3. Known gaps / risks
 
-1. **Fault-cleared event not published** (`main.c:548-550`). Device logs "Fault
-   cleared" but sends no event, so cloud/UI can show a stale fault until the next
-   fault change. → fix firmware, or document as expected? **Decision:** ___
-2. **Command lost when Modbus disconnected** (`main.c:293-295`). `apu_command` is
-   one-shot and dropped with only a warning — no retry once the port is back.
-   **Decision:** ___
-3. **Register/coil map is assumed** — `main.c:271` and `config.h:44` carry
-   "adjust to match actual Gobi APU" notes; 32-bit word order (`hi<<16|lo`) is
-   unverified against the real device. **Owner to confirm with vendor:** ___
-4. **Poll-interval clamping** — `shadow.h:27` documents 5–60 s; confirm the
-   firmware actually clamps out-of-range shadow values. **Decision:** ___
-5. **`apu_command` via the API** — unclear whether `/fleet/config` accepts
-   `apu_command`; `scripts/shadow-tools.sh` has no helper for it. **Decision:** ___
+### Fixed on the `apu-test-harness` branch (verify on-device before closing)
+
+- **G1 — fault-cleared event now published.** Firmware publishes the transition
+  back to `0x0000` (`main.c` fault block); `faults.js` records `active=false` in
+  InfluxDB and sends a "Recovered" notice instead of a false "No fault" alarm.
+- **G2 — start/stop command no longer lost, and thread race fixed.** The coil
+  write moved out of the MQTT callback into the telemetry loop; it retries each
+  cycle until it lands (survives a down serial link) and no longer touches the
+  libmodbus context concurrently with the poll read. New API
+  `shadow_peek_apu_command` / `shadow_ack_apu_command`.
+- **G6 — fault decoder was mis-masking bits ≥ `0x10`** (found while fixing G1).
+  `faults.js` masked with `parseInt(bit, 16)` on decimal object keys, so e.g.
+  `0x0080` decoded to "Unknown fault" and `0x0004` gained spurious labels. Fixed
+  to `Number(bit)`; locked in by `cloud/lambda/fault/faults.test.js` (8/8 pass).
+
+### Open — decide disposition in the meeting
+
+- **G3 — register/coil map is assumed.** `main.c` and `config.h:44` carry
+  "adjust to match actual Gobi APU" notes; 32-bit word order (`hi<<16|lo`) is
+  unverified against the real device. **Owner to confirm with vendor:** ___
+- **G4 — poll-interval clamping.** `apply_desired` (`shadow.c:91-97`) does reject
+  values outside 5–60 s — confirm that matches intent and add a test. **Decision:** ___
+- **G5 — `apu_command` via the API.** Unclear whether `/fleet/config` accepts
+  `apu_command`; `scripts/shadow-tools.sh` has no helper for it. **Decision:** ___
 
 ---
 
@@ -118,6 +136,9 @@ Dependency-free (Python 3 stdlib). Full detail in `sim/README.md`.
 # bench: simulator + test matrix rows 1–4
 python3 sim/apu_sim.py --tcp --port 5020 &
 python3 sim/apu_test.py --port 5020        # STATUS: ALL PASS, exit 0 on success
+
+# cloud: fault decoder regression test (matrix row 12, guards G6)
+node cloud/lambda/fault/faults.test.js     # 8/8 passed
 
 # HIL: point the real gobi-agent at a simulated APU over RTU
 socat -d -d pty,raw,echo=0 pty,raw,echo=0  # note the two pty paths
