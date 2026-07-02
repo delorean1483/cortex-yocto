@@ -91,7 +91,7 @@ Sign-off: ☐ = not run · ✅ = pass · ❌ = fail.
 | 8 | Offline buffer + reconnect flush order + cap | kill MQTT | ✏️ manual | | ☐ |
 | 9 | Poll interval clamp to 5–60 s | shadow out-of-range | ✏️ manual | | ☐ |
 | 10 | Full pipeline (telemetry only) | `scripts/e2e-smoke-test.sh` | ✅ exists | | ☐ |
-| 11 | Command round-trip via cloud (shadow→coil) | shadow-tools + HIL sim | ✏️ manual | | ☐ |
+| 11 | Command round-trip via cloud (shadow→coil) | `scripts/apu-command-e2e.sh` (live device) | 🔧 scripted | | ☐ |
 | 12 | Fault-word decode, all 8 bits | `sim/apu_test.py` + `faults.test.js` | ✅ yes | | ☐ |
 
 Rows 1–4 and 12 run today (simulator + Lambda) — see §4.
@@ -130,7 +130,9 @@ Rows 1–4 and 12 run today (simulator + Lambda) — see §4.
 
 ## 4. How to run the automated tests
 
-Dependency-free (Python 3 stdlib). Full detail in `sim/README.md`.
+Dependency-free (Python 3 stdlib). Full detail in `sim/README.md`. Rows 1–4, 12
+and the fault decoder also run automatically in CI on every push/PR —
+`.github/workflows/apu-tests.yml`.
 
 ```bash
 # bench: simulator + test matrix rows 1–4
@@ -147,6 +149,9 @@ python3 sim/apu_sim.py --rtu /dev/pts/5 --spin-time 8
 
 # existing full-pipeline smoke test (telemetry path)
 scripts/e2e-smoke-test.sh TRUCK-001
+
+# cloud command round-trip (row 11) — needs a live agent bound to the sim/APU
+scripts/apu-command-e2e.sh TRUCK-001
 ```
 
 ---
@@ -158,4 +163,5 @@ scripts/e2e-smoke-test.sh TRUCK-001
 - [ ] Disposition of gaps #1–#5 above (fix now / backlog / accept).
 - [ ] Which rows block release vs. which are nice-to-have.
 - [ ] Owner + target date per matrix row.
-- [ ] Do we add `sim/apu_test.py` (+ smoke test) to CI as a release gate?
+- [ ] CI now runs the APU sim matrix + fault decoder on every push/PR
+      (`apu-tests.yml`) — make it a **required** check before merge?

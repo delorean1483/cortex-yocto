@@ -183,10 +183,19 @@ def main(argv=None):
     print(f" EcoFleet APU Simulator Test — {args.host}:{args.port}")
     print("═══════════════════════════════════════════════════════════════")
 
-    try:
-        cli = ModbusClient(args.host, args.port, unit=args.unit)
-    except OSError as e:
-        print(f"\nCannot reach simulator at {args.host}:{args.port} — {e}")
+    # Retry the initial connect so a just-backgrounded simulator (e.g. in CI)
+    # isn't a race.
+    cli = None
+    last_err = None
+    for _ in range(20):
+        try:
+            cli = ModbusClient(args.host, args.port, unit=args.unit)
+            break
+        except OSError as e:
+            last_err = e
+            time.sleep(0.25)
+    if cli is None:
+        print(f"\nCannot reach simulator at {args.host}:{args.port} — {last_err}")
         print("Start it first:  python3 sim/apu_sim.py --tcp "
               f"--port {args.port} --quiet &")
         return 2

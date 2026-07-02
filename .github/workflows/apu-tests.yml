@@ -1,0 +1,43 @@
+name: APU Tests
+
+# Fast, hardware-free tests for the APU logic. Runs on every push/PR on a
+# standard runner — distinct from the heavy self-hosted Yocto build (build.yml).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  fault-decoder:
+    name: Fault decoder (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install fault Lambda deps
+        working-directory: cloud/lambda/fault
+        run: npm ci
+      - name: Fault decoder regression test
+        working-directory: cloud/lambda/fault
+        run: node faults.test.js
+
+  apu-simulator:
+    name: APU simulator matrix (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: APU simulator test matrix
+        run: |
+          python3 sim/apu_sim.py --tcp --port 5020 --spin-time 0.3 --quiet &
+          SIM_PID=$!
+          python3 sim/apu_test.py --port 5020
+          RC=$?
+          kill "$SIM_PID" 2>/dev/null || true
+          exit $RC
