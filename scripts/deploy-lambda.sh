@@ -62,20 +62,31 @@ deploy_function() {
   echo "  zipping → ${zip_path}"
   (cd "$src_dir" && zip -qr "$zip_path" . --exclude "*.test.js" --exclude ".env*")
 
-  # Deploy
+  # Deploy — wait for any in-flight update to settle, push ONCE, wait again.
+  # (A previous version had a `|| aws lambda update-function-code ...` fallback
+  # that re-invoked the update; the second call would race the first and fail
+  # with ResourceConflictException even though the deploy had succeeded.)
   echo "  aws lambda update-function-code"
+  aws lambda wait function-updated \
+    --function-name "$fn_name" --region "$REGION" 2>/dev/null || true
+
   aws lambda update-function-code \
     --function-name "$fn_name" \
     --zip-file "fileb://${zip_path}" \
     --region "$REGION" \
+    --output text --query 'LastUpdateStatus' >/dev/null
+
+  # Block until the update finishes so failures surface here, not silently later.
+  aws lambda wait function-updated \
+    --function-name "$fn_name" --region "$REGION"
+
+  aws lambda get-function-configuration \
+    --function-name "$fn_name" \
+    --region "$REGION" \
+    --query '{fn:FunctionName,status:LastUpdateStatus,sha:CodeSha256,size:CodeSize}' \
     --output json \
-    | jq -r '"  deployed: " + .FunctionName + "  v" + (.Version // "latest") + "  (" + .CodeSize + " bytes)"' 2>/dev/null \
-    || aws lambda update-function-code \
-         --function-name "$fn_name" \
-         --zip-file "fileb://${zip_path}" \
-         --region "$REGION" \
-         --output text --query 'FunctionName' \
-         | xargs -I{} echo "  deployed: {}"
+    | jq -r '"  deployed: " + .fn + "  (" + (.status // "?") + ", sha " + (.sha // "?") + ", " + (.size|tostring) + " bytes)"' 2>/dev/null \
+    || echo "  deployed: ${fn_name}"
 }
 
 case "$TARGET" in
