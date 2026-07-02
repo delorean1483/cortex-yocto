@@ -38,6 +38,10 @@ static struct {
     shadow_config_t config;
     pthread_mutex_t config_mutex;
 
+    /* Set once an APU command has been applied to the hardware, so the next
+     * reported update nulls it in the cloud desired state. Protected by mutex. */
+    bool clear_apu_cmd_desired;
+
     bool initialised;
 } s = {0};
 
@@ -312,16 +316,19 @@ int shadow_publish_reported(struct mosquitto *mosq,
     cJSON_AddStringToObject(rep, "fault",            reported->fault);
     cJSON_AddNumberToObject(rep, "last_seen_ts",     (double)reported->last_seen_ts);
 
-    /* Clear one-shot flags: include desired nulls so cloud shadow is also cleared */
+    /* Clear one-shot flags: include desired nulls so the cloud shadow is also
+     * cleared. The APU command is nulled only once it has actually been applied
+     * to the hardware (shadow_ack_apu_command), so a command is never lost while
+     * a Modbus write is still pending or retrying. */
     pthread_mutex_lock(&s.config_mutex);
     bool clear_reboot  = s.config.reboot_requested;
-    bool clear_apu_cmd = s.config.apu_command[0] != '\0';
+    bool clear_apu_cmd = s.clear_apu_cmd_desired;
     if (clear_reboot) {
         cJSON_AddBoolToObject(rep, "reboot", false);
         s.config.reboot_requested = false;
     }
     if (clear_apu_cmd)
-        s.config.apu_command[0] = '\0';
+        s.clear_apu_cmd_desired = false;
     pthread_mutex_unlock(&s.config_mutex);
 
     if (clear_reboot || clear_apu_cmd) {
@@ -350,6 +357,30 @@ const shadow_config_t *shadow_get_config(void)
      * reading in the main telemetry loop since shadow_config_t fields
      * are written atomically under the mutex. */
     return &s.config;
+}
+
+bool shadow_peek_apu_command(char *out, size_t out_len)
+{
+    if (!s.initialised || !out || out_len == 0) return false;
+
+    pthread_mutex_lock(&s.config_mutex);
+    bool pending = s.config.apu_command[0] != '\0';
+    if (pending) {
+        strncpy(out, s.config.apu_command, out_len - 1);
+        out[out_len - 1] = '\0';
+    }
+    pthread_mutex_unlock(&s.config_mutex);
+    return pending;
+}
+
+void shadow_ack_apu_command(void)
+{
+    if (!s.initialised) return;
+
+    pthread_mutex_lock(&s.config_mutex);
+    s.config.apu_command[0]   = '\0';
+    s.clear_apu_cmd_desired   = true;
+    pthread_mutex_unlock(&s.config_mutex);
 }
 
 void shadow_cleanup(void)

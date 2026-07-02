@@ -267,8 +267,14 @@ static void ota_trigger(const char *version)
 
 /* ── Shadow config callback ──────────────────────────────────────────────── */
 /*
- * Modbus coil address for APU start/stop command.
- * Write 1 to start, 0 to stop. Adjust to match actual Gobi APU register map.
+ * Modbus coil address for APU start/stop command (write 1 to start, 0 to stop).
+ * Adjust to match the actual Gobi APU register map.
+ *
+ * NB: the coil write itself is performed by the telemetry loop in main(), NOT
+ * in this callback. This callback runs on the mosquitto network thread, and the
+ * libmodbus context is not safe to touch from two threads at once. Applying the
+ * command in the poll loop also lets us retry it until it lands, so a command
+ * issued while the serial link is down is not silently lost.
  */
 #define APU_CMD_COIL 0
 
@@ -280,21 +286,10 @@ static void on_shadow_config(const shadow_config_t *cfg, void *userdata)
            cfg->poll_interval_s, cfg->report_mode,
            cfg->firmware_target, cfg->reboot_requested, cfg->apu_command);
 
-    if (cfg->apu_command[0] != '\0') {
-        int coil_val = (strcmp(cfg->apu_command, "start") == 0) ? 1 : 0;
-        if (g_modbus) {
-            int rc = modbus_write_bit(g_modbus, APU_CMD_COIL, coil_val);
-            if (rc == 1)
-                syslog(LOG_INFO, "shadow: APU %s command sent via Modbus coil %d",
-                       cfg->apu_command, APU_CMD_COIL);
-            else
-                syslog(LOG_ERR, "shadow: APU %s Modbus write failed: %s",
-                       cfg->apu_command, modbus_strerror(errno));
-        } else {
-            syslog(LOG_WARNING, "shadow: APU %s command received but Modbus not connected",
-                   cfg->apu_command);
-        }
-    }
+    if (cfg->apu_command[0] != '\0')
+        syslog(LOG_INFO,
+               "shadow: APU '%s' command queued — applied by the telemetry loop "
+               "on the next successful Modbus cycle", cfg->apu_command);
 
     if (cfg->reboot_requested) {
         syslog(LOG_WARNING, "shadow: reboot requested — rebooting in 3 s");
@@ -529,6 +524,25 @@ int main(void)
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
 
+            /* ── Apply pending one-shot APU command ──────────────────────── */
+            /* Done here in the telemetry thread so we never touch the Modbus
+             * context concurrently with the shadow callback. The command stays
+             * pending (and is retried each cycle) until a write succeeds, so a
+             * command issued while the serial link was down is not lost. */
+            char apu_cmd[8];
+            if (shadow_peek_apu_command(apu_cmd, sizeof(apu_cmd))) {
+                int coil_val = (strcmp(apu_cmd, "start") == 0) ? 1 : 0;
+                if (modbus_write_bit(g_modbus, APU_CMD_COIL, coil_val) == 1) {
+                    syslog(LOG_INFO, "APU %s command sent via Modbus coil %d",
+                           apu_cmd, APU_CMD_COIL);
+                    shadow_ack_apu_command();
+                } else {
+                    syslog(LOG_WARNING,
+                           "APU %s Modbus write failed: %s — will retry next cycle",
+                           apu_cmd, modbus_strerror(errno));
+                }
+            }
+
             /* ── Telemetry publish ───────────────────────────────────────── */
             char *telem_json = build_telemetry_json(&t);
             if (telem_json) {
@@ -536,18 +550,20 @@ int main(void)
                 free(telem_json);
             }
 
-            /* ── Fault publish (only on change) ─────────────────────────── */
+            /* ── Fault publish (on every change, including clear) ────────── */
+            /* Publishing the transition back to 0x0000 lets the cloud resolve
+             * open faults and stop alerting; without it a cleared fault looks
+             * stuck until the next change. See cloud/lambda/fault/faults.js. */
             if (t.fault_word != prev_fault) {
-                if (t.fault_word != 0) {
-                    char *fault_json = build_fault_json(&t);
-                    if (fault_json) {
-                        publish_or_buffer(g_topic_faults, "faults", t.ts_ms, fault_json);
-                        free(fault_json);
-                    }
-                    syslog(LOG_WARNING, "Fault detected: 0x%04X", t.fault_word);
-                } else {
-                    syslog(LOG_INFO, "Fault cleared");
+                char *fault_json = build_fault_json(&t);
+                if (fault_json) {
+                    publish_or_buffer(g_topic_faults, "faults", t.ts_ms, fault_json);
+                    free(fault_json);
                 }
+                if (t.fault_word != 0)
+                    syslog(LOG_WARNING, "Fault detected: 0x%04X", t.fault_word);
+                else
+                    syslog(LOG_INFO, "Fault cleared");
                 prev_fault = t.fault_word;
             }
 

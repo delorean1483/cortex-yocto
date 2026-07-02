@@ -19,6 +19,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <mosquitto.h>
 
@@ -28,7 +29,9 @@ typedef struct {
     char     report_mode[16];    /* "normal" | "eco" | "debug"                  */
     char     firmware_target[32];/* semver, e.g. "1.2.0" — signals OTA desired  */
     bool     reboot_requested;   /* set true to trigger controlled reboot        */
-    char     apu_command[8];     /* one-shot: "start" | "stop" | "" (consumed once) */
+    char     apu_command[8];     /* one-shot: "start" | "stop" | "" — applied by the
+                                  * telemetry loop, then cleared via
+                                  * shadow_ack_apu_command() once it lands */
 } shadow_config_t;
 
 /* ── Reported telemetry fields included in shadow update ────────────────── */
@@ -83,6 +86,24 @@ int  shadow_publish_reported(struct mosquitto *mosq,
 /* Returns a pointer to the current live config (read-only).
  * Thread-safe: protected by an internal mutex. */
 const shadow_config_t *shadow_get_config(void);
+
+/* ── One-shot APU start/stop command ────────────────────────────────────────
+ * The command arrives via the shadow "desired" state but MUST be applied to the
+ * Modbus hardware from the telemetry thread — never the MQTT callback thread —
+ * because the libmodbus context is not safe for concurrent access.
+ *
+ * Each poll cycle the main loop calls shadow_peek_apu_command(); if a command
+ * is pending it performs the Modbus write and, only on success, calls
+ * shadow_ack_apu_command() to clear it and null the cloud desired state. If the
+ * write fails the command stays pending and is retried on the next cycle. */
+
+/* Copy any pending command ("start"/"stop") into `out` (NUL-terminated) without
+ * clearing it. Returns true if a command is pending. Thread-safe. */
+bool shadow_peek_apu_command(char *out, size_t out_len);
+
+/* Mark the pending APU command as applied: clear it and schedule a
+ * desired=null update so the cloud shadow is cleared too. Thread-safe. */
+void shadow_ack_apu_command(void);
 
 /* Cleanup. */
 void shadow_cleanup(void);
