@@ -374,7 +374,7 @@ static void test_blank_is_invalid(void) {
 static void test_corrupt_payload_fails_crc(void) {
     uint8_t in[NVM_PARAM_SIZE]; fill(in, 1);
     nvm_record_write(&be, 0, 5u, in);
-    fake_nor_raw()[NVM_HEADER_SIZE + 3] &= 0x7F;             /* clear a bit in payload (NOR can only clear) */
+    fake_nor_raw()[NVM_HEADER_SIZE + 128] &= 0x7F;          /* clear bit7 of payload[128]=0x81 — a genuine change (payload[3]=0x04 has no bit7, so +3 would be a no-op) */
     uint32_t seq; uint8_t out[NVM_PARAM_SIZE];
     TEST_ASSERT_FALSE(nvm_record_read(&be, 0, &seq, out));
 }
