@@ -612,6 +612,16 @@ git commit -m "feat(g0b1-apu): FC-0x03 read-holding response builder with except
 
 ---
 
+### Task 6 — Amendment (2026-08-12, applied)
+
+During review, `mb_build_read_holding` as written above was found to overflow its local `data[256]` when `count > 128` (buffer sized independently of `count`; ASan-confirmed). Hardened in commit `6367da1`:
+1. Reject out-of-range quantity — `if (count < 1u || count > 125u) return build_exception(resp, addr, 0x03u, 0x03u);` (exception `0x03` ILLEGAL DATA VALUE) before the loop.
+2. Drop the `data[256]` staging buffer; write register bytes directly into `resp[3 + 2*i]` (hi) / `resp[3 + 2*i + 1]` (lo), so the only size ceiling is the caller's `resp` buffer.
+3. Document the caller contract in `modbus_read.h`: `resp` must hold `≥ 5 + 2*count` bytes (≤ 255 for the max valid count of 125).
+4. Add tests `test_count_over_max_exception` (count=200 → 0x83/0x03) and `test_count_zero_exception` (count=0 → 0x83/0x03).
+
+Full suite 5/5 green after the fix. Future re-runs of this plan should apply the hardened version, not the `data[256]` version shown in Step 4.
+
 ## Milestone Exit Criteria
 
 - Target: CubeIDE project builds and flashes; TP45 heartbeat at 1 Hz; all relay outputs low at boot; IWDG refreshed.
