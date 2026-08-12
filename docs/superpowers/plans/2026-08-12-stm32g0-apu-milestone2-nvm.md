@@ -526,7 +526,7 @@ static void test_torn_last_record_recovers_previous(void) {
     nvm_write_word(EE_CLIMATE_TEMP_SETTING, 62u); nvm_commit(); /* seq4 @ slot3 (newest) */
     /* Simulate a torn write of the newest record: clear a payload bit at slot 3 so its
        CRC no longer matches. slot3 = 3*NVM_RECORD_SIZE, still within sector 0 (15 slots/sector). */
-    fake_nor_raw()[3u * NVM_RECORD_SIZE + NVM_HEADER_SIZE + 10u] &= 0x7F;
+    fake_nor_raw()[3u * NVM_RECORD_SIZE + NVM_HEADER_SIZE] &= 0x7F;   /* corrupt payload byte 0 (vref low = 250 = 0xFA, bit7 set → genuine change; byte 10 = 0x00 would be a no-op) */
     nvm_init(&be);                                              /* slot3 invalid → falls back to slot2 (61) */
     TEST_ASSERT_EQUAL_UINT16(61u, nvm_read_word(EE_CLIMATE_TEMP_SETTING));
 }
