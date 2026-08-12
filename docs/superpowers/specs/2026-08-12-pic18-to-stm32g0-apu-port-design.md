@@ -142,7 +142,7 @@ Generated `Core/`/`Drivers/` stay regenerable from the `.ioc`; all hand-written 
 | Heat mode | RD4 | PB4 `Heat_Reverser` = **reverse fan direction** (OI-1 resolved) |
 | Cool mode | RC4 | *(no separate output — PB4 de-energized; cooling = compressor + evap)* (OI-1 resolved) |
 | Evap fan (on/off) | RC3 | PC10 `Evap_Fan` |
-| Condenser fan | (RD1, unused) | PB9 `Condenser_Fan` + PC5 PWM — **new; follows compressor clutch** (OI-2) |
+| Condenser fan | (RD1, unused) | PB9 `Condenser_Fan` (enable) + PC5/TIM2_CH2 PWM — **new: while compressor engaged, PWM duty ramps with head pressure `AN_Freon_HiPss`** (OI-2 resolved) |
 | Evap fan speed (was bit-banged PWM) | RC2 | PC4/TIM2_CH1 `EvapFan_PWM` |
 | Spare out | RB3 | *(Battery-Monitor-mode indicator LED → RGBW LED, future; unmapped now)* (OI-3 resolved) |
 
@@ -293,7 +293,7 @@ Layers 2–3 compile on host against a **mock BSP**:
 | ID | Item | Resolution / proposed default | Status |
 |---|---|---|---|
 | **OI-1** | Cool/Heat mapping: PIC had independent `COOL_MODE` (RC4) + `HEAT_MODE` (RD4) relays (old board: CONN5-Heat / CONN6-Cool via ULN2003); new board has one `Heat_Reverser` (PB4) | **RESOLVED (2026-08-12):** no reversing valve for now — heat vs cool = reversing fan direction. `Heat_Mode → PB4 energized` (reverse fan for heat); no separate cool output — cooling = PB4 de-energized + compressor clutch + evap fan | ✅ resolved (initial approach) |
-| **OI-2** | Condenser fan (PB9 relay + PC5 PWM): new. Old firmware never drove it (`Condensor_PWM`/RD1 defined but unused → external/always-on) | Proposed: condenser fan runs whenever compressor clutch engaged | ⏳ needs confirm: on/off vs PWM ramp (duty driven by head pressure `AN_Freon_HiPss`?) |
+| **OI-2** | Condenser fan (PB9 relay + PC5 PWM): new. Old firmware never drove it (`Condensor_PWM`/RD1 defined but unused → external/always-on) | **RESOLVED (2026-08-12):** while compressor clutch engaged, enable relay PB9 and modulate PC5/TIM2_CH2 PWM duty by A/C head pressure (`AN_Freon_HiPss`) — more airflow as head pressure rises; off when compressor disengaged. Ramp curve/thresholds bench-tuned (see OI-7) | ✅ resolved (curve tuning on bench) |
 | **OI-3** | `Spare_Out` (PIC RB3 → old CONN13-Spare-Out via ULN2003) | **RESOLVED (2026-08-12):** RB3 was a "Battery-Monitor mode" indicator LED (`main.c BackGroundTasks`: ON only in `BATTERY_MONITOR_STATE`). Maps to the RGBW status LED (out of scope now); unmapped/no-op for the core port | ✅ resolved |
 | **OI-4** | RPM sensing: BJT-buffered pulse on PA6 (ADC- & timer-capable) | timer input-capture (TIM3_CH1); verify PA6 AF | confirm tach electrical behavior from hardware |
 | **OI-5** | A/C pressure register encoding: PIC emitted raw 10-bit counts | emulate old count encoding, OR move firmware+display to PSI | confirm what the display does with pressure regs |
