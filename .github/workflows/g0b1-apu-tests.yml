@@ -1,0 +1,16 @@
+# .github/workflows/g0b1-apu-tests.yml
+name: g0b1-apu host tests
+on:
+  push: { paths: ["firmware/g0b1-apu/**", ".github/workflows/g0b1-apu-tests.yml"] }
+  pull_request: { paths: ["firmware/g0b1-apu/**"] }
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S firmware/g0b1-apu/Tests -B firmware/g0b1-apu/Tests/build
+      - name: Build
+        run: cmake --build firmware/g0b1-apu/Tests/build
+      - name: Test
+        run: ctest --test-dir firmware/g0b1-apu/Tests/build --output-on-failure
