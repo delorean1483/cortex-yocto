@@ -139,12 +139,12 @@ Generated `Core/`/`Drivers/` stay regenerable from the `.ioc`; all hand-written 
 | Starter | RD2 | PC11 `Sttr_Snoid` |
 | Glow plug | RD5 | PB8 `Glow_Plug` |
 | Compressor clutch | RD3 | PB5 `Cmprssr_Clutch` |
-| Heat mode | RD4 | PB4 `Heat_Reverser` (see Open Item OI-1) |
-| Cool mode | RC4 | *(no direct net — see OI-1)* |
+| Heat mode | RD4 | PB4 `Heat_Reverser` = **reverse fan direction** (OI-1 resolved) |
+| Cool mode | RC4 | *(no separate output — PB4 de-energized; cooling = compressor + evap)* (OI-1 resolved) |
 | Evap fan (on/off) | RC3 | PC10 `Evap_Fan` |
-| Condenser fan | (RD1, unused) | PB9 `Condenser_Fan` (see OI-2) |
+| Condenser fan | (RD1, unused) | PB9 `Condenser_Fan` + PC5 PWM — **new; follows compressor clutch** (OI-2) |
 | Evap fan speed (was bit-banged PWM) | RC2 | PC4/TIM2_CH1 `EvapFan_PWM` |
-| Spare out | RB3 | *(no equivalent — see OI-3)* |
+| Spare out | RB3 | *(Battery-Monitor-mode indicator LED → RGBW LED, future; unmapped now)* (OI-3 resolved) |
 
 **PIC → STM32 input mapping**
 
@@ -290,11 +290,11 @@ Layers 2–3 compile on host against a **mock BSP**:
 
 ## 10. Open Items (to resolve during implementation)
 
-| ID | Item | Proposed default | Needs |
+| ID | Item | Resolution / proposed default | Status |
 |---|---|---|---|
-| **OI-1** | Cool/Heat mapping: PIC has independent `COOL_MODE` (RC4) + `HEAT_MODE` (RD4); board has one `Heat_Reverser` (PB4) | `Heat_Reverser` energized = heat; cooling = reverser de-energized + compressor + evap | confirm reversing-valve plumbing |
-| **OI-2** | Condenser fan (PB9 relay + PC5 PWM): new; PIC never drove it | condenser fan follows compressor-clutch engagement | confirm on/off vs PWM ramp vs always-on-while-cooling |
-| **OI-3** | `Spare_Out` (PIC RB3, "spare/LED"): no board equivalent | leave unmapped (no-op); status later via RGBW LED | confirm, or assign a `GPIOX` pin |
+| **OI-1** | Cool/Heat mapping: PIC had independent `COOL_MODE` (RC4) + `HEAT_MODE` (RD4) relays (old board: CONN5-Heat / CONN6-Cool via ULN2003); new board has one `Heat_Reverser` (PB4) | **RESOLVED (2026-08-12):** no reversing valve for now — heat vs cool = reversing fan direction. `Heat_Mode → PB4 energized` (reverse fan for heat); no separate cool output — cooling = PB4 de-energized + compressor clutch + evap fan | ✅ resolved (initial approach) |
+| **OI-2** | Condenser fan (PB9 relay + PC5 PWM): new. Old firmware never drove it (`Condensor_PWM`/RD1 defined but unused → external/always-on) | Proposed: condenser fan runs whenever compressor clutch engaged | ⏳ needs confirm: on/off vs PWM ramp (duty driven by head pressure `AN_Freon_HiPss`?) |
+| **OI-3** | `Spare_Out` (PIC RB3 → old CONN13-Spare-Out via ULN2003) | **RESOLVED (2026-08-12):** RB3 was a "Battery-Monitor mode" indicator LED (`main.c BackGroundTasks`: ON only in `BATTERY_MONITOR_STATE`). Maps to the RGBW status LED (out of scope now); unmapped/no-op for the core port | ✅ resolved |
 | **OI-4** | RPM sensing: BJT-buffered pulse on PA6 (ADC- & timer-capable) | timer input-capture (TIM3_CH1); verify PA6 AF | confirm tach electrical behavior from hardware |
 | **OI-5** | A/C pressure register encoding: PIC emitted raw 10-bit counts | emulate old count encoding, OR move firmware+display to PSI | confirm what the display does with pressure regs |
 | **OI-6** | Cold-Storage mode: commented out of PIC's active enum | exclude from port | confirm genuinely unused |
