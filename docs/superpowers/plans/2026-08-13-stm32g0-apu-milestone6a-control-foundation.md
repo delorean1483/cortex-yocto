@@ -936,6 +936,8 @@ git commit -m "feat(g0b1-apu): control — app wiring + scheduler slot + end-to-
 
 - **POWER_UP settle = 1 s** (PIC literal, despite the stale "5 seconds" comment) — confirm intended duration at bench.
 - The `apu_ctx_t` output/status fields cover POWER_UP+OFF; M6b/c/d may add `flag2`-equivalent booleans (e.g. `no_rpm_tmr_start`, `clmt_low_batt_tmr`) to the ctx as their logic needs them.
+- **`control_error_t` extension (M6d):** M6a defines the faithful 0–6 prefix (`ERR_NONE`…`ERR_STARTING_FAILURE`); the PIC `error_message_state_list` has codes **7–10** (STANDBY, ENGINE_STALLED, NO_RPM_DETECTED, HIGH_AC_PRESSURE_ERROR) — add them to the enum when reg-17's producers (engine-start/climate faults) come online. `error_state` is a `uint8_t` ctx field, so the extension is ABI-safe.
+- **Oil/ignition debounce = 500 ms** (`CONTROL_INPUT_DEBOUNCE_TIME=50`, PIC-faithful; corrected from the initial 100 ms in the M6a final-review fix wave). M6b/M6d build low-oil / start-fault logic on this window.
 
 ---
 
