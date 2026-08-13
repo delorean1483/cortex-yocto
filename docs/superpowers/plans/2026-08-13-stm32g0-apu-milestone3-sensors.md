@@ -808,7 +808,7 @@ git commit -m "feat(g0b1-apu): rpm — pluggable source interface + engine-statu
 
 ## Deferred to hardware bring-up / later milestones
 
-- **`bsp_adc` HAL driver** (ADC1 + scan + circular DMA + HW oversampling over IN0–IN5, free-running non-blocking). Feeds `sensors_add_sample()` each sample slot. On-target only; not host-testable.
+- **`bsp_adc` HAL driver** (ADC1 + scan + circular DMA + HW oversampling over IN0–IN5, free-running non-blocking). Feeds `sensors_add_sample()` each sample slot. On-target only; not host-testable. **When this lands, add a guard at the top of `sensors_add_sample`: `if ((unsigned)ch >= SENS_CH_COUNT || s_chan[ch].window == 0) return;`** — closes the out-of-range channel index (OOB write) and the pre-`sensors_init` divide-by-zero (SIGFPE if the DMA callback is enabled before `sensors_init`), both flagged in the M3 final review; land it with a test that reflects the real driver ordering.
 - **Real RPM capture** — `bsp_rpm` implementing `rpm_source_t.get_rpm` via TIM3_CH1 input-capture (default) or ADC IN6 (`RPM_SOURCE_*`). Confirm PA6 tach electrical behavior (OI-4).
 - **Engine-coolant temp (reg 2) + A/C pressures (regs 4, 5)** — the raw-count sensors deferred by design decision. When un-deferred: engine coolant reuses the same NTC-divider treatment (U8B: 10k pull-up to 3.3 V, off-board thermistor); pressures need the 0.5–4.5 V→op-amp transfer and the OI-5 encoding decision (raw-count-equivalent vs PSI).
 - **Modbus register binding** — wiring these accessors to the reg 1/3/6/38/51 dispatch belongs to the `params` register-model milestone (spec §7.3).
