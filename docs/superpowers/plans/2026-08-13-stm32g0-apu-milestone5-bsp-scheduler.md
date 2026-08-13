@@ -1001,6 +1001,7 @@ git commit -m "test(g0b1-apu): BSP/scheduler end-to-end — debounced input → 
 - **Drivers**: `drv_s25fl064` (→ `nvm_backend`, page-split program), `drv_mcp7940n` (→ `i2c_backend`), `drv_modbus_uart` (USART1 + DE PB3 + DMA + RTO → `mb_engine_process`).
 - **`main()` superloop + `.ioc`**: init (HAL → BSP → services → load NVM/factory-init → start ADC-DMA/RTC/Modbus), register the M6 control routines into the scheduler slots, superloop = `sched_service(bsp_now_ms delta)` + `sched_run()` + `iwdg_kick()`. Pairs with M1 Task 1 (USER-OWNED).
 - **Large-`elapsed_ms` guard**: `sched_service` loops per-millisecond; on target `elapsed_ms` is ~1 (SysTick), so this is bounded. If a future caller can pass a very large delta, add a cap.
+- **`sched` `s_ms` wraparound (from M5 final review):** the monotonic `uint32_t s_ms` wraps after ~49.7 days of continuous uptime; at the wrap instant `s_ms` becomes 0 and all six `% ==0` slot flags fire simultaneously once (one out-of-cadence dispatch, plus one short minute period). Behavior is defined and bounded but not ideal for a long-uptime APU. **Fix belongs on the `bsp_now_ms`/SysTick bring-up task:** either reset/re-phase `s_ms` on the target, or redesign `sched_service` to per-slot accumulators (reset each period) instead of modulo-on-monotonic. This is an explicit checklist item for wiring the real tick source.
 - **Debounce reconciliation** (carry-forward): confirm the integrator against the original PIC `ServiceSwitch` if it surfaces.
 
 ## Carry-forward items to confirm
