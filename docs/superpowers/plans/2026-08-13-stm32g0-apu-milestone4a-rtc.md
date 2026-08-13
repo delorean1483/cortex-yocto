@@ -32,6 +32,7 @@
 - ⚠️ **Verify MCP7940N register bit positions** vs datasheet (Task 2).
 - **12h/AM-PM vs 24h** for the live RTCC hour — default 24h here; confirm the display's expectation.
 - **reg 52 part difference** — PIC MCP79410 EEPROM vs new MCP7940N SRAM; mapped to SRAM offset 0.
+- **RTCC stage-seeding seam (for M4b):** `rtcc_commit()` writes all 7 fields from the persistent `s_rtcc_stage` buffer. M4b's Modbus write-handler must either require a full 7-field RTCC write before calling `rtcc_commit()`, OR seed the stage from `rtc_get_time()` before a partial edit — otherwise an un-staged sibling field commits stale/zero (e.g. month=0/date=0). Also: RTCC setters do no range validation (M4b validates before staging); RTCC getters/`rtc_reg52_read` cannot surface an I²C read error (mandated `uint16_t`/`uint8_t` return) — M4b's read path owns fault reporting if needed. (M4a final-review carry-forwards.)
 
 ---
 
