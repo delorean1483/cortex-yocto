@@ -931,6 +931,8 @@ git commit -m "feat(g0b1-apu): control — register OP_BATTERY + OP_ERROR_SHUTDO
 ## Deferred to later milestones / bench
 
 - **M6e (oil-change + runtime hours):** the 1-minute routine (`engine_run_timer`/`engine_oil_timer` accumulation, NVM every 60 min), the 500/580/700 hr oil-change warnings with 20 hr/5 hr re-warn, and the PIC long-term NVM counter chain (`inc_long_term_counter`/multi-word accumulators). Needs a `control_1min_slot`.
+- **`OP_COLD_STORAGE` / PIC `ColdStorageMode` (~main.c:1941) — intentionally descoped (OI-6), NOT ported.** After M6d, **6 of the 7 `op_state`s have handlers** (POWER_UP/OFF/ENGINE_START/CLIMATE/BATTERY/ERROR_SHUTDOWN); `OP_COLD_STORAGE` (enum slot 5) is deliberately left unregistered. It is runtime-unreachable — `apply_mode_request` maps only OFF/CLIMATE/BATTERY and `mode_request` has no cold-storage value — and the `control_tick` NULL-guard turns any (currently impossible) cold-storage dispatch into a safe no-op, so that guard is load-bearing and must stay. Revisit if OI-6 resolves cold-storage as in-scope for this variant.
+- **Standby-override auto-reset (Minor, bench):** the PIC clears `stand_by_overide_flag` when the truck engine turns off (`BatteryMonitorMode` #else, ~main.c:1933-1937). The port's `standby_override` (reg 32) stays latched until externally cleared — the recovery path (`!in_truck_ignition`) still works, but the override won't self-re-arm on the next truck-off→on cycle. Likely bench/HMI-managed.
 - **Bench:** A/C low/high override-resume (+ override registers); ERR_ENGINE_STALLED/NO_RPM/HIGH_AC triggering (RPM reg 9 + stall detection in running modes); `engine_temp_ok` derivation; oil-pressure switch polarity; reg 41 production test.
 
 ## Carry-forward items to confirm
