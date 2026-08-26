@@ -55,15 +55,15 @@ ApplicationWindow {
                 }
             }
 
-            // Fault badge
+            // Error badge
             Rectangle {
-                visible: telemetry.hasFault
+                visible: telemetry.hasError
                 width: faultTxt.width + 20; height: 24; radius: 12
                 color: "#2D1014"; border.color: "#F85149"; border.width: 1
                 Text {
                     id: faultTxt
                     anchors.centerIn: parent
-                    text: "FAULT " + telemetry.fault
+                    text: "ERROR " + telemetry.error.toUpperCase()
                     color: "#F85149"; font.pixelSize: 11; font.weight: Font.Bold
                 }
             }

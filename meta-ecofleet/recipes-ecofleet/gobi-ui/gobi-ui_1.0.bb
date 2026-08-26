@@ -1,6 +1,6 @@
 SUMMARY = "EcoFleet Gobi APU touchscreen dashboard"
 LICENSE = "CLOSED"
-PR = "r1"
+PR = "r2"
 
 SRC_URI = " \
     file://CMakeLists.txt \
@@ -20,7 +20,7 @@ SRC_URI = " \
 
 S = "${WORKDIR}"
 
-DEPENDS = "qtbase qtbase-native qtdeclarative qtdeclarative-native qtshadertools qtwayland sqlite3"
+DEPENDS = "qtbase qtbase-native qtdeclarative qtdeclarative-native qtshadertools qtwayland"
 
 # Qt6 CMake cross-compilation requires QT_HOST_PATH pointing at the native
 # (build-machine) Qt6 installation that provides moc, rcc, qmltyperegistrar, etc.

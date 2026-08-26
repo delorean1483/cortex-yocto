@@ -478,6 +478,24 @@ static char *build_fault_json(const telemetry_t *t)
     return json;
 }
 
+/* ── Live snapshot for the local display ─────────────────────────────────────
+ * Write the latest telemetry JSON to LATEST_JSON_PATH atomically (temp + rename)
+ * every cycle, whether or not it was published to MQTT. gobi-ui reads this file
+ * so the on-screen values are live even while the device is online (the SQLite
+ * buffer only holds rows when offline). Best-effort: a failed write never
+ * disrupts telemetry. */
+static void write_latest_snapshot(const char *payload)
+{
+    char tmp[80];
+    snprintf(tmp, sizeof(tmp), "%s.tmp", LATEST_JSON_PATH);
+    FILE *f = fopen(tmp, "w");
+    if (!f) return;
+    fputs(payload, f);
+    fclose(f);
+    if (rename(tmp, LATEST_JSON_PATH) != 0)
+        unlink(tmp);
+}
+
 /* ── Publish or buffer ───────────────────────────────────────────────────── */
 static void publish_or_buffer(const char *topic, const char *table,
                                uint64_t ts_ms, const char *payload)
@@ -590,6 +608,7 @@ int main(void)
             /* ── Telemetry publish ───────────────────────────────────────── */
             char *telem_json = build_telemetry_json(&t);
             if (telem_json) {
+                write_latest_snapshot(telem_json);   /* live source for gobi-ui */
                 publish_or_buffer(g_topic_telemetry, "telemetry", t.ts_ms, telem_json);
                 free(telem_json);
             }
