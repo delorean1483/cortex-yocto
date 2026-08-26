@@ -6,20 +6,14 @@ Page {
     id: page
     background: Rectangle { color: "#0D1117" }
 
-    // ── State color map ───────────────────────────────────────────────────────
-    function stateColor(s) {
-        if (s === "running")  return "#3FB950"
-        if (s === "starting") return "#E3B341"
-        if (s === "stopping") return "#E3B341"
-        if (s === "fault")    return "#F85149"
+    // ── Control-status color map (climate APU) ────────────────────────────────
+    function statusColor(s) {
+        if (s === "running")                     return "#3FB950"  // green
+        if (s === "cooling" || s === "chillin")  return "#2F81F7"  // blue
+        if (s === "defrost")                     return "#58A6FF"
+        if (s === "charging")                    return "#00C49A"  // teal
+        if (s === "warming_up" || s === "starting") return "#E3B341" // amber
         return "#8B949E"  // off / unknown
-    }
-
-    // ── Battery bar color ─────────────────────────────────────────────────────
-    function socColor(soc) {
-        if (soc >= 50) return "#3FB950"
-        if (soc >= 20) return "#E3B341"
-        return "#F85149"
     }
 
     ColumnLayout {
@@ -27,25 +21,32 @@ Page {
         anchors.margins: 20
         spacing: 14
 
-        // ── APU State card ────────────────────────────────────────────────────
+        // ── Status card ───────────────────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true
             height: 90
             radius: 12; color: "#161B22"
-            border.color: page.stateColor(telemetry.apuState); border.width: 2
+            border.color: page.statusColor(telemetry.controlStatus); border.width: 2
 
             RowLayout {
                 anchors.fill: parent; anchors.margins: 18; spacing: 14
 
                 Rectangle {
                     width: 14; height: 14; radius: 7
-                    color: page.stateColor(telemetry.apuState)
+                    color: page.statusColor(telemetry.controlStatus)
                 }
 
-                Text {
-                    text: telemetry.apuState.toUpperCase()
-                    color: page.stateColor(telemetry.apuState)
-                    font.pixelSize: 32; font.weight: Font.Bold
+                Column {
+                    spacing: 0
+                    Text {
+                        text: telemetry.controlStatus.toUpperCase().replace("_", " ")
+                        color: page.statusColor(telemetry.controlStatus)
+                        font.pixelSize: 30; font.weight: Font.Bold
+                    }
+                    Text {
+                        text: "Mode: " + telemetry.mode.toUpperCase()
+                        color: "#6E7681"; font.pixelSize: 13
+                    }
                 }
 
                 Item { Layout.fillWidth: true }
@@ -53,13 +54,10 @@ Page {
                 Column {
                     spacing: 2
                     Text {
-                        text: telemetry.runtimeHrs + " hrs"
+                        text: telemetry.engineHrs + " hrs"
                         color: "#C9D1D9"; font.pixelSize: 22; font.weight: Font.Medium
                     }
-                    Text {
-                        text: "Runtime"
-                        color: "#6E7681"; font.pixelSize: 12
-                    }
+                    Text { text: "Engine Runtime"; color: "#6E7681"; font.pixelSize: 12 }
                 }
             }
         }
@@ -69,41 +67,7 @@ Page {
             Layout.fillWidth: true
             spacing: 14
 
-            // Battery SOC
-            Rectangle {
-                Layout.fillWidth: true; Layout.fillHeight: true
-                radius: 12; color: "#161B22"
-
-                ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 18; spacing: 6
-
-                    Text { text: "Battery"; color: "#8B949E"; font.pixelSize: 12 }
-
-                    Text {
-                        text: telemetry.battSoc.toFixed(0) + "%"
-                        color: page.socColor(telemetry.battSoc)
-                        font.pixelSize: 46; font.weight: Font.Bold
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true; height: 10; radius: 5; color: "#21262D"
-                        Rectangle {
-                            width: Math.max(parent.radius * 2, parent.width * (telemetry.battSoc / 100))
-                            height: parent.height; radius: parent.radius
-                            color: page.socColor(telemetry.battSoc)
-                        }
-                    }
-
-                    Item { Layout.fillHeight: true }
-
-                    Text {
-                        text: telemetry.battV.toFixed(1) + " V   " + telemetry.battT.toFixed(1) + " °C"
-                        color: "#6E7681"; font.pixelSize: 13
-                    }
-                }
-            }
-
-            // DC Bus
+            // Cabin temperature + setpoint
             Rectangle {
                 Layout.fillWidth: true; Layout.fillHeight: true
                 radius: 12; color: "#161B22"
@@ -111,32 +75,58 @@ Page {
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 18; spacing: 4
 
-                    Text { text: "DC Bus"; color: "#8B949E"; font.pixelSize: 12 }
+                    Text { text: "Cabin Temp"; color: "#8B949E"; font.pixelSize: 12 }
 
                     RowLayout {
                         spacing: 6
                         Text {
-                            text: telemetry.dcV.toFixed(1)
-                            color: "#C9D1D9"; font.pixelSize: 42; font.weight: Font.Bold
+                            text: telemetry.cabinTempF.toFixed(0)
+                            color: "#C9D1D9"; font.pixelSize: 46; font.weight: Font.Bold
                         }
                         Text {
-                            text: "V"; color: "#8B949E"; font.pixelSize: 22
-                            Layout.alignment: Qt.AlignBottom; bottomPadding: 8
+                            text: "°F"; color: "#8B949E"; font.pixelSize: 22
+                            Layout.alignment: Qt.AlignBottom; bottomPadding: 10
                         }
-                    }
-
-                    Text {
-                        text: telemetry.dcA.toFixed(1) + " A"
-                        color: "#8B949E"; font.pixelSize: 18
                     }
 
                     Item { Layout.fillHeight: true }
 
                     Text {
-                        text: telemetry.watts + " W"
-                        color: "#00C49A"; font.pixelSize: 26; font.weight: Font.DemiBold
+                        text: "Setpoint " + telemetry.clmtSetpointF.toFixed(0) + " °F"
+                        color: "#6E7681"; font.pixelSize: 14
                     }
-                    Text { text: "Power Output"; color: "#6E7681"; font.pixelSize: 12 }
+                }
+            }
+
+            // Battery + external temp
+            Rectangle {
+                Layout.fillWidth: true; Layout.fillHeight: true
+                radius: 12; color: "#161B22"
+
+                ColumnLayout {
+                    anchors.fill: parent; anchors.margins: 18; spacing: 4
+
+                    Text { text: "Battery"; color: "#8B949E"; font.pixelSize: 12 }
+
+                    RowLayout {
+                        spacing: 6
+                        Text {
+                            text: telemetry.battV.toFixed(1)
+                            color: telemetry.battV > 0 && telemetry.battV < 11.8 ? "#F85149" : "#C9D1D9"
+                            font.pixelSize: 46; font.weight: Font.Bold
+                        }
+                        Text {
+                            text: "V"; color: "#8B949E"; font.pixelSize: 22
+                            Layout.alignment: Qt.AlignBottom; bottomPadding: 10
+                        }
+                    }
+
+                    Item { Layout.fillHeight: true }
+
+                    Text {
+                        text: "External " + telemetry.extTempF.toFixed(0) + " °F"
+                        color: "#6E7681"; font.pixelSize: 14
+                    }
                 }
             }
 
@@ -154,22 +144,25 @@ Page {
                         spacing: 6
                         Text {
                             text: telemetry.rpm
-                            color: "#C9D1D9"; font.pixelSize: 42; font.weight: Font.Bold
+                            color: "#C9D1D9"; font.pixelSize: 46; font.weight: Font.Bold
                         }
                         Text {
                             text: "RPM"; color: "#8B949E"; font.pixelSize: 18
-                            Layout.alignment: Qt.AlignBottom; bottomPadding: 10
+                            Layout.alignment: Qt.AlignBottom; bottomPadding: 12
                         }
                     }
 
                     Item { Layout.fillHeight: true }
 
                     Text {
-                        text: telemetry.oilPsi.toFixed(1) + " PSI"
-                        color: telemetry.oilPsi > 0 && telemetry.oilPsi < 20 ? "#F85149" : "#8B949E"
-                        font.pixelSize: 18
+                        text: "Oil Pressure  " + (telemetry.oilOk ? "OK" : "LOW")
+                        color: telemetry.oilOk ? "#3FB950" : "#F85149"
+                        font.pixelSize: 16; font.weight: Font.DemiBold
                     }
-                    Text { text: "Oil Pressure"; color: "#6E7681"; font.pixelSize: 12 }
+                    Text {
+                        text: "Ignition " + (telemetry.ignition ? "On" : "Off")
+                        color: "#6E7681"; font.pixelSize: 13
+                    }
                 }
             }
         }

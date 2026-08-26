@@ -8,18 +8,21 @@ Page {
 
     // Evaluated every time telemetry emits dataChanged
     property var items: [
-        ["APU State",       telemetry.apuState],
-        ["DC Voltage",      telemetry.dcV.toFixed(2) + " V"],
-        ["DC Current",      telemetry.dcA.toFixed(2) + " A"],
-        ["Power Output",    telemetry.watts + " W"],
+        ["Mode",            telemetry.mode],
+        ["Control Status",  telemetry.controlStatus],
+        ["Engine Status",   telemetry.engineStatus],
+        ["Cabin Temp",      telemetry.cabinTempF.toFixed(0) + " °F"],
+        ["Setpoint",        telemetry.clmtSetpointF.toFixed(0) + " °F"],
+        ["External Temp",   telemetry.extTempF.toFixed(0) + " °F"],
+        ["Battery",         telemetry.battV.toFixed(2) + " V"],
         ["Engine RPM",      telemetry.rpm + ""],
-        ["Battery Voltage", telemetry.battV.toFixed(2) + " V"],
-        ["Battery SOC",     telemetry.battSoc.toFixed(1) + " %"],
-        ["Battery Temp",    telemetry.battT.toFixed(1) + " °C"],
-        ["Oil Pressure",    telemetry.oilPsi.toFixed(1) + " PSI"],
-        ["Coolant Temp",    telemetry.coolantT.toFixed(1) + " °C"],
-        ["Runtime",         telemetry.runtimeHrs + " hrs"],
-        ["Fault Word",      telemetry.fault],
+        ["Fan Speed",       telemetry.fanSpeed + ""],
+        ["Oil Pressure",    telemetry.oilOk ? "OK" : "LOW"],
+        ["Ignition",        telemetry.ignition ? "On" : "Off"],
+        ["Error",           telemetry.error],
+        ["Oil Change",      telemetry.oilChange],
+        ["Engine Hrs",      telemetry.engineHrs + " hrs"],
+        ["Machine Hrs",     telemetry.machineHrs + " hrs"],
     ]
 
     ColumnLayout {
@@ -68,7 +71,8 @@ Page {
                             }
                             Text {
                                 text: modelData[1]
-                                color: modelData[0] === "Fault Word" && telemetry.hasFault
+                                color: (modelData[0] === "Error" && telemetry.hasError) ||
+                                       (modelData[0] === "Oil Pressure" && !telemetry.oilOk)
                                        ? "#F85149" : "#C9D1D9"
                                 font.pixelSize: 20; font.weight: Font.DemiBold
                             }

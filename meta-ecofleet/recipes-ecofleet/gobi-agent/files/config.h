@@ -67,6 +67,10 @@
 
 /* ── SQLite offline buffer ───────────────────────────────────────────────── */
 #define SQLITE_DB_PATH      "/var/lib/ecofleet/telemetry.db"
+/* Always-current telemetry snapshot for the local display (gobi-ui), written
+ * every cycle regardless of MQTT connectivity — the SQLite buffer only holds
+ * rows while offline, so the live UI reads this instead. */
+#define LATEST_JSON_PATH    "/var/lib/ecofleet/latest.json"
 #define SQLITE_MAX_ROWS     8640    /* ~12 h at 5 s poll — then oldest is dropped */
 #define SQLITE_FLUSH_BATCH  50      /* rows to flush per MQTT reconnect cycle     */
 
