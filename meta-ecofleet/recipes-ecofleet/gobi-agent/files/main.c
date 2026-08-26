@@ -29,26 +29,69 @@
 #include <sqlite3.h>
 #include <cjson/cJSON.h>
 
-/* ── APU state names ─────────────────────────────────────────────────────── */
-static const char *apu_state_name(uint16_t v)
+/* ── EF-G0B1R enum → label helpers ───────────────────────────────────────── */
+/* Mirror the firmware enums in App/services/control.h. */
+static const char *mode_name(uint16_t v)      /* op_mode_t (reg 10) */
 {
     switch (v) {
         case 0: return "off";
-        case 1: return "starting";
-        case 2: return "running";
-        case 3: return "stopping";
-        case 4: return "fault";
+        case 1: return "climate";
+        case 2: return "battery";
         default: return "unknown";
     }
 }
 
-/* ── Telemetry struct ────────────────────────────────────────────────────── */
+static const char *status_name(uint16_t v)    /* control_status_t (reg 22/23) */
+{
+    switch (v) {
+        case 0: return "off";        case 1: return "warming_up";
+        case 2: return "starting";   case 3: return "running";
+        case 4: return "defrost";    case 5: return "charging";
+        case 6: return "cooling";    case 7: return "chillin";
+        default: return "unknown";
+    }
+}
+
+static const char *error_name(uint16_t v)     /* control_error_t (reg 17) */
+{
+    switch (v) {
+        case 0:  return "none";               case 1:  return "low_oil";
+        case 2:  return "high_engine_temp";   case 3:  return "low_battery";
+        case 4:  return "ac_low_pressure";    case 5:  return "ac_high_pressure";
+        case 6:  return "starting_failure";   case 7:  return "standby";
+        case 8:  return "engine_stalled";     case 9:  return "no_rpm";
+        case 10: return "high_ac_pressure";   default: return "unknown";
+    }
+}
+
+static const char *oil_change_name(uint16_t v)/* oil_state_t (reg 18) */
+{
+    switch (v) {
+        case 0: return "good";           case 1: return "change_soon";
+        case 2: return "change_needed";  case 3: return "past_due";
+        case 4: return "dismissed";      default: return "unknown";
+    }
+}
+
+/* ── Telemetry struct (EF-G0B1R climate-APU register map) ────────────────── */
 typedef struct {
-    double   dc_v, dc_a, batt_v, batt_soc, batt_t;
-    double   oil_psi, coolant_t;
-    uint32_t runtime_hrs, watts, rpm;
-    uint16_t fault_word;
-    char     apu_state[16];
+    double   cabin_temp_f;   /* reg 1  */
+    double   ext_temp_f;     /* reg 51 */
+    double   batt_v;         /* reg 6  (centivolts / 100) */
+    double   batt_set_v;     /* reg 13 (centivolts / 100) */
+    uint16_t rpm;            /* reg 38 */
+    uint16_t engine_hrs;     /* reg 11 */
+    uint16_t oil_hrs;        /* reg 20 */
+    uint16_t machine_hrs;    /* reg 21 */
+    uint16_t clmt_set_f;     /* reg 14 */
+    uint8_t  oil_ok;         /* reg 7  */
+    uint8_t  ignition;       /* reg 8  */
+    uint8_t  mode;           /* reg 10 */
+    uint8_t  error;          /* reg 17 */
+    uint8_t  engine_status;  /* reg 22 */
+    uint8_t  control_status; /* reg 23 */
+    uint8_t  oil_change;     /* reg 18 */
+    uint8_t  fan_speed;      /* reg 12 */
     uint64_t ts_ms;
 } telemetry_t;
 
@@ -266,17 +309,11 @@ static void ota_trigger(const char *version)
 }
 
 /* ── Shadow config callback ──────────────────────────────────────────────── */
-/*
- * Modbus coil address for APU start/stop command (write 1 to start, 0 to stop).
- * Adjust to match the actual Gobi APU register map.
- *
- * NB: the coil write itself is performed by the telemetry loop in main(), NOT
- * in this callback. This callback runs on the mosquitto network thread, and the
- * libmodbus context is not safe to touch from two threads at once. Applying the
- * command in the poll loop also lets us retry it until it lands, so a command
- * issued while the serial link is down is not silently lost.
- */
-#define APU_CMD_COIL 0
+/* Remote APU start/stop is intentionally NOT wired in this telemetry-only
+ * build. The EF-G0B1R exposes no Modbus coils; commanding it means writing the
+ * mode register (reg 10: 0=Off 1=Climate 2=Battery), which actuates real
+ * relays/the engine. That control path is deferred to a later, deliberate
+ * change, so any queued shadow command is logged and ignored here. */
 
 static void on_shadow_config(const shadow_config_t *cfg, void *userdata)
 {
@@ -288,8 +325,8 @@ static void on_shadow_config(const shadow_config_t *cfg, void *userdata)
 
     if (cfg->apu_command[0] != '\0')
         syslog(LOG_INFO,
-               "shadow: APU '%s' command queued — applied by the telemetry loop "
-               "on the next successful Modbus cycle", cfg->apu_command);
+               "shadow: APU '%s' command received — remote control is deferred "
+               "in this telemetry-only build; ignoring", cfg->apu_command);
 
     if (cfg->reboot_requested) {
         syslog(LOG_WARNING, "shadow: reboot requested — rebooting in 3 s");
@@ -347,31 +384,43 @@ static void on_log(struct mosquitto *mosq, void *obj, int level, const char *str
 }
 
 /* ── Modbus read ─────────────────────────────────────────────────────────── */
+/* The EF-G0B1R register map is sparse across regs 1..52 and the firmware
+ * rejects a block read that spans an unbound register (exception 0x02), so we
+ * read each bound register individually. The first failed read is treated as a
+ * link error and returns -1, which drives the reconnect path in main(). */
 static int modbus_read_telemetry(telemetry_t *t)
 {
-    uint16_t regs[REG_COUNT];
-    int rc = modbus_read_registers(g_modbus, 0, REG_COUNT, regs);
-    if (rc != REG_COUNT) {
-        syslog(LOG_WARNING, "modbus_read_registers: only got %d/%d regs: %s",
-               rc, REG_COUNT, modbus_strerror(errno));
-        return -1;
-    }
+    uint16_t v;
 
-    t->dc_v        = regs[REG_DC_V]     / 10.0;
-    t->dc_a        = regs[REG_DC_A]     / 10.0;
-    t->batt_v      = regs[REG_BATT_V]   / 10.0;
-    t->batt_soc    = regs[REG_BATT_SOC];
-    t->batt_t      = regs[REG_BATT_T]   / 10.0;
-    t->runtime_hrs = ((uint32_t)regs[REG_RUNTIME_HI] << 16) | regs[REG_RUNTIME_LO];
-    t->fault_word  = regs[REG_FAULT];
-    t->watts       = ((uint32_t)regs[REG_WATTS_HI]   << 16) | regs[REG_WATTS_LO];
-    t->rpm         = regs[REG_RPM];
-    t->oil_psi     = regs[REG_OIL_PSI]     / 10.0;
-    t->coolant_t   = regs[REG_COOLANT_T]   / 10.0;
-    strncpy(t->apu_state, apu_state_name(regs[REG_APU_STATE]),
-            sizeof(t->apu_state) - 1);
+    #define RD(addr) do {                                                       \
+        if (modbus_read_registers(g_modbus, (addr), 1, &v) != 1) {              \
+            syslog(LOG_WARNING, "modbus read reg (wire %d) failed: %s",         \
+                   (addr), modbus_strerror(errno));                            \
+            return -1;                                                          \
+        }                                                                       \
+    } while (0)
+
+    RD(REG_CABIN_TEMP_F);    t->cabin_temp_f  = (int16_t)v;   /* signed degF */
+    RD(REG_EXT_TEMP_F);      t->ext_temp_f    = (int16_t)v;   /* signed degF */
+    RD(REG_BATT_CV);         t->batt_v        = v / 100.0;
+    RD(REG_BATT_SET_CV);     t->batt_set_v    = v / 100.0;
+    RD(REG_RPM);             t->rpm           = v;
+    RD(REG_ENGINE_HRS);      t->engine_hrs    = v;
+    RD(REG_OIL_HRS);         t->oil_hrs       = v;
+    RD(REG_MACHINE_HRS);     t->machine_hrs   = v;
+    RD(REG_CLMT_SET_F);      t->clmt_set_f    = v;
+    RD(REG_OIL_OK);          t->oil_ok        = (uint8_t)v;
+    RD(REG_IGNITION);        t->ignition      = (uint8_t)v;
+    RD(REG_MODE);            t->mode          = (uint8_t)v;
+    RD(REG_ERROR);           t->error         = (uint8_t)v;
+    RD(REG_ENGINE_STATUS);   t->engine_status = (uint8_t)v;
+    RD(REG_CONTROL_STATUS);  t->control_status= (uint8_t)v;
+    RD(REG_OIL_CHANGE);      t->oil_change    = (uint8_t)v;
+    RD(REG_FAN_SPEED);       t->fan_speed     = (uint8_t)v;
+
+    #undef RD
+
     t->ts_ms = (uint64_t)time(NULL) * 1000ULL;
-
     return 0;
 }
 
@@ -379,23 +428,36 @@ static int modbus_read_telemetry(telemetry_t *t)
 static char *build_telemetry_json(const telemetry_t *t)
 {
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "unit",        g_unit_serial);
-    cJSON_AddNumberToObject(root, "ts",          (double)t->ts_ms);
-    cJSON_AddNumberToObject(root, "dc_v",        t->dc_v);
-    cJSON_AddNumberToObject(root, "dc_a",        t->dc_a);
-    cJSON_AddNumberToObject(root, "batt_v",      t->batt_v);
-    cJSON_AddNumberToObject(root, "batt_soc",    t->batt_soc);
-    cJSON_AddNumberToObject(root, "batt_t",      t->batt_t);
-    cJSON_AddStringToObject(root, "apu_state",   t->apu_state);
-    cJSON_AddNumberToObject(root, "runtime_hrs", t->runtime_hrs);
-    cJSON_AddNumberToObject(root, "watts",       t->watts);
-    cJSON_AddNumberToObject(root, "rpm",         t->rpm);
-    cJSON_AddNumberToObject(root, "oil_psi",     t->oil_psi);
-    cJSON_AddNumberToObject(root, "coolant_t",   t->coolant_t);
+    cJSON_AddStringToObject(root, "unit",             g_unit_serial);
+    cJSON_AddNumberToObject(root, "ts",               (double)t->ts_ms);
 
-    char fault_hex[10];
-    snprintf(fault_hex, sizeof(fault_hex), "0x%04X", t->fault_word);
-    cJSON_AddStringToObject(root, "fault", fault_hex);
+    /* live sensors */
+    cJSON_AddNumberToObject(root, "cabin_temp_f",     t->cabin_temp_f);
+    cJSON_AddNumberToObject(root, "ext_temp_f",       t->ext_temp_f);
+    cJSON_AddNumberToObject(root, "batt_v",           t->batt_v);
+    cJSON_AddNumberToObject(root, "rpm",              t->rpm);
+    cJSON_AddBoolToObject  (root, "oil_ok",           t->oil_ok);
+    cJSON_AddBoolToObject  (root, "ignition",         t->ignition);
+
+    /* mode + status (string label + raw enum) */
+    cJSON_AddStringToObject(root, "mode",             mode_name(t->mode));
+    cJSON_AddNumberToObject(root, "mode_n",           t->mode);
+    cJSON_AddStringToObject(root, "engine_status",    status_name(t->engine_status));
+    cJSON_AddNumberToObject(root, "engine_status_n",  t->engine_status);
+    cJSON_AddStringToObject(root, "control_status",   status_name(t->control_status));
+    cJSON_AddNumberToObject(root, "control_status_n", t->control_status);
+    cJSON_AddStringToObject(root, "error",            error_name(t->error));
+    cJSON_AddNumberToObject(root, "error_n",          t->error);
+    cJSON_AddStringToObject(root, "oil_change",       oil_change_name(t->oil_change));
+    cJSON_AddNumberToObject(root, "oil_change_n",     t->oil_change);
+
+    /* runtime hours + setpoints */
+    cJSON_AddNumberToObject(root, "engine_hrs",       t->engine_hrs);
+    cJSON_AddNumberToObject(root, "oil_hrs",          t->oil_hrs);
+    cJSON_AddNumberToObject(root, "machine_hrs",      t->machine_hrs);
+    cJSON_AddNumberToObject(root, "clmt_setpoint_f",  t->clmt_set_f);
+    cJSON_AddNumberToObject(root, "batt_setpoint_v",  t->batt_set_v);
+    cJSON_AddNumberToObject(root, "fan_speed",        t->fan_speed);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -405,13 +467,11 @@ static char *build_telemetry_json(const telemetry_t *t)
 static char *build_fault_json(const telemetry_t *t)
 {
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "unit",  g_unit_serial);
-    cJSON_AddNumberToObject(root, "ts",    (double)t->ts_ms);
-
-    char fault_hex[10];
-    snprintf(fault_hex, sizeof(fault_hex), "0x%04X", t->fault_word);
-    cJSON_AddStringToObject(root, "fault", fault_hex);
-    cJSON_AddStringToObject(root, "state", t->apu_state);
+    cJSON_AddStringToObject(root, "unit",    g_unit_serial);
+    cJSON_AddNumberToObject(root, "ts",      (double)t->ts_ms);
+    cJSON_AddStringToObject(root, "error",   error_name(t->error));
+    cJSON_AddNumberToObject(root, "error_n", t->error);
+    cJSON_AddStringToObject(root, "status",  status_name(t->control_status));
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -514,7 +574,7 @@ int main(void)
     mosquitto_loop_start(g_mosq);   /* background thread handles reconnects */
 
     /* ── 6. Telemetry loop ───────────────────────────────────────────────── */
-    uint16_t prev_fault = 0;
+    uint8_t prev_error = 0;   /* control_error_t; 0 = ERR_NONE */
 
     while (g_running) {
         /* Read poll interval from shadow config (updated live by delta msgs) */
@@ -524,24 +584,8 @@ int main(void)
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
 
-            /* ── Apply pending one-shot APU command ──────────────────────── */
-            /* Done here in the telemetry thread so we never touch the Modbus
-             * context concurrently with the shadow callback. The command stays
-             * pending (and is retried each cycle) until a write succeeds, so a
-             * command issued while the serial link was down is not lost. */
-            char apu_cmd[8];
-            if (shadow_peek_apu_command(apu_cmd, sizeof(apu_cmd))) {
-                int coil_val = (strcmp(apu_cmd, "start") == 0) ? 1 : 0;
-                if (modbus_write_bit(g_modbus, APU_CMD_COIL, coil_val) == 1) {
-                    syslog(LOG_INFO, "APU %s command sent via Modbus coil %d",
-                           apu_cmd, APU_CMD_COIL);
-                    shadow_ack_apu_command();
-                } else {
-                    syslog(LOG_WARNING,
-                           "APU %s Modbus write failed: %s — will retry next cycle",
-                           apu_cmd, modbus_strerror(errno));
-                }
-            }
+            /* Remote APU commands (shadow apu_command) are not applied in this
+             * telemetry-only build — see on_shadow_config(). */
 
             /* ── Telemetry publish ───────────────────────────────────────── */
             char *telem_json = build_telemetry_json(&t);
@@ -551,30 +595,32 @@ int main(void)
             }
 
             /* ── Fault publish (on every change, including clear) ────────── */
-            /* Publishing the transition back to 0x0000 lets the cloud resolve
+            /* Publishing the transition back to "none" lets the cloud resolve
              * open faults and stop alerting; without it a cleared fault looks
              * stuck until the next change. See cloud/lambda/fault/faults.js. */
-            if (t.fault_word != prev_fault) {
+            if (t.error != prev_error) {
                 char *fault_json = build_fault_json(&t);
                 if (fault_json) {
                     publish_or_buffer(g_topic_faults, "faults", t.ts_ms, fault_json);
                     free(fault_json);
                 }
-                if (t.fault_word != 0)
-                    syslog(LOG_WARNING, "Fault detected: 0x%04X", t.fault_word);
+                if (t.error != 0)
+                    syslog(LOG_WARNING, "APU error: %s (%u)", error_name(t.error), t.error);
                 else
-                    syslog(LOG_INFO, "Fault cleared");
-                prev_fault = t.fault_word;
+                    syslog(LOG_INFO, "APU error cleared");
+                prev_error = t.error;
             }
 
-            /* ── Shadow reported update ──────────────────────────────────── */
+            /* ── Shadow reported update (existing schema, best-effort) ────── */
+            /* shadow_reported_t is left unchanged in this pass; feed it the
+             * closest available values from the EF-G0B1R map. */
             shadow_reported_t srep = {
-                .dc_v         = t.dc_v,
-                .batt_soc     = t.batt_soc,
+                .dc_v         = t.batt_v,   /* this APU's DC rail is the battery */
+                .batt_soc     = 0,          /* SOC not provided by EF-G0B1R      */
                 .last_seen_ts = t.ts_ms,
             };
-            strncpy(srep.apu_state, t.apu_state, sizeof(srep.apu_state) - 1);
-            snprintf(srep.fault, sizeof(srep.fault), "0x%04X", t.fault_word);
+            strncpy(srep.apu_state, status_name(t.control_status), sizeof(srep.apu_state) - 1);
+            snprintf(srep.fault, sizeof(srep.fault), "0x%04X", t.error);
             shadow_publish_reported(g_mosq, &srep);
 
         } else {

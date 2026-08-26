@@ -34,29 +34,36 @@
 
 /* ── Modbus ───────────────────────────────────────────────────────────────── */
 #define MODBUS_DEVICE_DEFAULT "/dev/ttyUSB0"
-#define MODBUS_BAUD           19200
+#define MODBUS_BAUD           9600    /* EF-G0B1R firmware USART1 = 9600 8N1 */
 #define MODBUS_PARITY         'N'
 #define MODBUS_DATA_BITS      8
 #define MODBUS_STOP_BITS      1
 #define MODBUS_SLAVE_ID       1
 #define MODBUS_TIMEOUT_S      1
 
-/* Gobi APU Modbus register map (starting address, 0-based) */
-#define REG_DC_V        0   /* DC bus voltage × 10 (e.g. 278 = 27.8 V)   */
-#define REG_DC_A        1   /* DC current × 10                             */
-#define REG_BATT_V      2   /* Battery voltage × 10                        */
-#define REG_BATT_SOC    3   /* Battery state of charge, 0–100 %            */
-#define REG_BATT_T      4   /* Battery temperature × 10 (°C)               */
-#define REG_APU_STATE   5   /* 0=off 1=starting 2=running 3=stopping 4=fault */
-#define REG_RUNTIME_HI  6   /* Runtime hours, high word                    */
-#define REG_RUNTIME_LO  7   /* Runtime hours, low word                     */
-#define REG_FAULT       8   /* Fault word (bitmask, see faults.js)         */
-#define REG_WATTS_HI    9   /* Power output watts, high word               */
-#define REG_WATTS_LO   10   /* Power output watts, low word                */
-#define REG_RPM        11   /* Engine RPM                                  */
-#define REG_OIL_PSI    12   /* Oil pressure × 10                           */
-#define REG_COOLANT_T  13   /* Coolant temperature × 10                    */
-#define REG_COUNT      14   /* Total registers to read in one request      */
+/* EF-G0B1R APU Modbus holding-register map.
+ * Values below are 0-based WIRE addresses (= firmware register number - 1);
+ * the firmware register number is shown in the comment. The firmware map is
+ * SPARSE across regs 1..52 and rejects a block read that spans an unbound
+ * register (exception 0x02), so the agent reads ONLY these, one at a time.
+ * The firmware exposes no coils — there is no start/stop coil. */
+#define REG_CABIN_TEMP_F    0   /* fw 1  enclosure/cabin temp, degF (int16) R  */
+#define REG_BATT_CV         5   /* fw 6  battery voltage, centivolts (/100) R  */
+#define REG_OIL_OK          6   /* fw 7  oil-pressure switch OK, 0/1        R  */
+#define REG_IGNITION        7   /* fw 8  truck ignition, 0/1               R  */
+#define REG_MODE            9   /* fw 10 mode: 0=Off 1=Climate 2=Battery   R  */
+#define REG_ENGINE_HRS     10   /* fw 11 engine runtime, hours             R  */
+#define REG_FAN_SPEED      11   /* fw 12 evap fan speed, 0-2               R  */
+#define REG_BATT_SET_CV    12   /* fw 13 batt monitor setpoint, centivolts R  */
+#define REG_CLMT_SET_F     13   /* fw 14 climate temp setpoint, degF       R  */
+#define REG_ERROR          16   /* fw 17 error state, 0-10 (control_error_t) R */
+#define REG_OIL_CHANGE     17   /* fw 18 oil-change state, 0-4             R  */
+#define REG_OIL_HRS        19   /* fw 20 engine oil time, hours            R  */
+#define REG_MACHINE_HRS    20   /* fw 21 machine runtime, hours            R  */
+#define REG_ENGINE_STATUS  21   /* fw 22 engine op status (control_status_t) R */
+#define REG_CONTROL_STATUS 22   /* fw 23 control status (control_status_t) R  */
+#define REG_RPM            37   /* fw 38 engine RPM                        R  */
+#define REG_EXT_TEMP_F     50   /* fw 51 external temp, degF (int16)       R  */
 
 /* ── SQLite offline buffer ───────────────────────────────────────────────── */
 #define SQLITE_DB_PATH      "/var/lib/ecofleet/telemetry.db"
