@@ -3,7 +3,10 @@ software =
     version = "0.1.0";
     name    = "ecofleet-firmware";
 
-    hardware-compatibility = ["imx8mm-var-dart"];
+    /* Matched against the REVISION field of the device's /etc/hwrevision
+     * ("imx8mm-var-dart 1.0" -> revision "1.0"), NOT the board name. Listing
+     * the board name here made every OTA fail "SW not compatible with hardware". */
+    hardware-compatibility = ["1.0"];
 
     images: (
         {
