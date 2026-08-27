@@ -17,7 +17,7 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 6
+        anchors.margins: 4
         spacing: 4
 
         Repeater {
@@ -38,20 +38,20 @@ Rectangle {
 
                 ColumnLayout {
                     anchors.centerIn: parent
-                    spacing: 2
+                    spacing: 1
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: modelData.label || ""
                         color: "#8B949E"
-                        font.pixelSize: 13
+                        font.pixelSize: 12
                         font.weight: Font.Medium
                     }
 
                     WeatherIcon {
                         Layout.alignment: Qt.AlignHCenter
                         cat: modelData.cat || "unknown"
-                        dim: 26
+                        dim: 20
                     }
 
                     RowLayout {
@@ -60,13 +60,13 @@ Rectangle {
                         Text {
                             text: (modelData.hi !== undefined ? modelData.hi : "--") + "°"
                             color: "#C9D1D9"
-                            font.pixelSize: 15
+                            font.pixelSize: 13
                             font.weight: Font.Bold
                         }
                         Text {
                             text: (modelData.lo !== undefined ? modelData.lo : "--") + "°"
                             color: "#6E7681"
-                            font.pixelSize: 13
+                            font.pixelSize: 12
                         }
                     }
 
@@ -75,7 +75,7 @@ Rectangle {
                         visible: (modelData.precip || 0) > 0
                         text: (modelData.precip || 0) + "%"
                         color: "#58A6FF"
-                        font.pixelSize: 11
+                        font.pixelSize: 10
                     }
                 }
             }

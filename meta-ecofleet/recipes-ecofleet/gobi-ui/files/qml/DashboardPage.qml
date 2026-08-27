@@ -115,7 +115,7 @@ Page {
         WeatherStrip {
             visible: weather.valid
             Layout.fillWidth: true
-            Layout.preferredHeight: 78
+            Layout.preferredHeight: 74
         }
 
         // ── Control row ──────────────────────────────────────────────────────────
@@ -140,24 +140,24 @@ Page {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        StepButton { glyph: "−"; side: 60; onTapped: page.bumpTarget(-1) }
+                        StepButton { glyph: "−"; side: 54; onTapped: page.bumpTarget(-1) }
                         Item { Layout.fillWidth: true
                             RowLayout {
                                 anchors.centerIn: parent; spacing: 0
                                 Text { text: page.targetF; color: page.tempColor(page.targetF)
-                                       font.pixelSize: 84; font.weight: Font.Bold }
+                                       font.pixelSize: 64; font.weight: Font.Bold }
                                 Text { text: "°F"; color: page.tempColor(page.targetF)
-                                       font.pixelSize: 30; font.weight: Font.Light
-                                       Layout.alignment: Qt.AlignTop; topPadding: 12 }
+                                       font.pixelSize: 26; font.weight: Font.Light
+                                       Layout.alignment: Qt.AlignTop; topPadding: 8 }
                             }
                         }
-                        StepButton { glyph: "+"; side: 60; onTapped: page.bumpTarget(1) }
+                        StepButton { glyph: "+"; side: 54; onTapped: page.bumpTarget(1) }
                     }
 
                     Slider {
                         id: tempSlider
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 44
+                        Layout.preferredHeight: 40
                         from: page.minF; to: page.maxF; stepSize: 1
                         value: page.targetF
                         onMoved: { page.targetF = Math.round(value); sendTimer.restart() }
@@ -271,33 +271,6 @@ Page {
                     }
                     MouseArea { id: goMa; anchors.fill: parent
                                 onClicked: page.pickMode(page.isRunning ? "off" : "climate") }
-                }
-
-                // hold-to-reset oil
-                Rectangle {
-                    id: oilBtn
-                    Layout.fillWidth: true; Layout.preferredHeight: 38
-                    radius: 10; color: "#161B22"; border.color: "#30363D"; border.width: 1
-                    clip: true
-                    property bool done: false
-                    Rectangle {
-                        id: holdFill
-                        height: parent.height; radius: parent.radius; width: 0
-                        color: "#33E3B341"
-                        Behavior on width { NumberAnimation { duration: 1500; easing.type: Easing.Linear } }
-                    }
-                    Text { anchors.centerIn: parent
-                           text: oilBtn.done ? "OIL TIMER RESET" : "HOLD TO RESET OIL TIMER"
-                           color: oilBtn.done ? "#3FB950" : "#E3B341"
-                           font.pixelSize: 13; font.weight: Font.DemiBold; font.letterSpacing: 1 }
-                    Timer { id: oilHold; interval: 1500
-                            onTriggered: { telemetry.resetOil(); oilBtn.done = true; oilClear.restart() } }
-                    Timer { id: oilClear; interval: 2500; onTriggered: oilBtn.done = false }
-                    MouseArea {
-                        anchors.fill: parent
-                        onPressed:  { oilBtn.done = false; oilHold.restart(); holdFill.width = oilBtn.width }
-                        onReleased: { oilHold.stop(); holdFill.width = 0 }
-                    }
                 }
 
                 Item { Layout.fillHeight: true }
