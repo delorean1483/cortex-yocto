@@ -9,6 +9,10 @@ Rectangle {
     property color  accent: "#00C49A"
     signal tapped()
 
+    // Intrinsic size so the enclosing RowLayout gets a real height even when
+    // fillHeight can't resolve it (attached Layout props on a component root).
+    implicitWidth: 120
+    implicitHeight: 64
     Layout.fillWidth: true
     Layout.fillHeight: true
     radius: 12
