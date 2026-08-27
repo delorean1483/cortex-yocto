@@ -2,18 +2,25 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+// Interactive control home, tuned for the 800x480 LVDS panel
+// (usable content area ~800 x 388 after the top and tab bars).
 Page {
     id: page
     background: Rectangle { color: "#0D1117" }
 
-    // ── Local control state ───────────────────────────────────────────────────
     readonly property int minF: 60
     readonly property int maxF: 85
     property int  targetF: 70
     property bool seeded:  false
 
-    // Seed the target once from the device, then the UI owns it (our own writes
-    // keep reg 14 in sync, so they stay agreed).
+    // Optimistic control state: a tap updates these instantly (button highlights
+    // now), then telemetry echoes back within a few seconds and we defer to it.
+    property string uiMode: ""
+    property int    uiFan:  -1
+    readonly property string effMode:   uiMode !== "" ? uiMode : telemetry.mode
+    readonly property int    effFan:    uiFan  >= 0   ? uiFan  : telemetry.fanSpeed
+    readonly property bool   isRunning: effMode !== "off"
+
     Connections {
         target: telemetry
         function onDataChanged() {
@@ -22,16 +29,17 @@ Page {
                                         Math.round(telemetry.clmtSetpointF)))
                 page.seeded = true
             }
+            if (page.uiMode !== "" && telemetry.mode === page.uiMode)    page.uiMode = ""
+            if (page.uiFan  >= 0   && telemetry.fanSpeed === page.uiFan) page.uiFan  = -1
         }
     }
-
     Timer { id: sendTimer; interval: 350; onTriggered: telemetry.setSetpoint(page.targetF) }
     function bumpTarget(d) {
-        page.targetF = Math.max(page.minF, Math.min(page.maxF, page.targetF + d))
-        sendTimer.restart()
+        page.targetF = Math.max(page.minF, Math.min(page.maxF, page.targetF + d)); sendTimer.restart()
     }
+    function pickMode(m) { page.uiMode = m; telemetry.setMode(m) }
+    function pickFan(n)  { page.uiFan  = n; telemetry.setFan(n) }
 
-    // Cool→warm color for the target (blue below comfort, teal in band, amber above)
     function tempColor(f) {
         if (f <= 64) return "#2F81F7"
         if (f <= 68) return "#39B0C4"
@@ -50,71 +58,55 @@ Page {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 14
+        anchors.margins: 10
+        spacing: 8
 
         // ── Status banner ──────────────────────────────────────────────────────
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 92
-            radius: 14; color: "#161B22"
+            Layout.preferredHeight: 54
+            radius: 12; color: "#161B22"
             border.color: page.statusColor(telemetry.controlStatus); border.width: 2
 
             RowLayout {
-                anchors.fill: parent; anchors.leftMargin: 22; anchors.rightMargin: 22
-                spacing: 16
+                anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14
+                spacing: 12
 
                 Rectangle {
-                    width: 16; height: 16; radius: 8
+                    width: 12; height: 12; radius: 6
                     color: page.statusColor(telemetry.controlStatus)
                     SequentialAnimation on opacity {
-                        running: telemetry.controlStatus !== "off"
-                        loops: Animation.Infinite
+                        running: telemetry.controlStatus !== "off"; loops: Animation.Infinite
                         NumberAnimation { to: 0.35; duration: 700 }
                         NumberAnimation { to: 1.0;  duration: 700 }
                     }
                 }
-                Column {
-                    spacing: 0
-                    Text {
-                        text: telemetry.controlStatus.toUpperCase().replace("_", " ")
-                        color: page.statusColor(telemetry.controlStatus)
-                        font.pixelSize: 30; font.weight: Font.Bold
-                    }
-                    Text { text: "Mode: " + telemetry.mode.toUpperCase()
-                           color: "#8B949E"; font.pixelSize: 13; font.letterSpacing: 1 }
+                Text {
+                    text: telemetry.controlStatus.toUpperCase().replace("_", " ")
+                    color: page.statusColor(telemetry.controlStatus)
+                    font.pixelSize: 20; font.weight: Font.Bold
                 }
+                Text { text: "· " + telemetry.mode.toUpperCase()
+                       color: "#8B949E"; font.pixelSize: 13 }
 
                 Item { Layout.fillWidth: true }
 
-                // quick stat chips
                 Row {
-                    spacing: 10
+                    spacing: 8
                     Repeater {
-                        model: [
-                            telemetry.battV.toFixed(1) + " V",
-                            telemetry.rpm + " RPM",
-                            telemetry.oilOk ? "OIL OK" : "OIL LOW"
-                        ]
+                        model: [ telemetry.battV.toFixed(1) + " V",
+                                 telemetry.rpm + " RPM",
+                                 telemetry.oilOk ? "OIL OK" : "OIL LOW",
+                                 telemetry.engineHrs + " hrs" ]
                         Rectangle {
-                            height: 34; radius: 17; color: "#0D1117"
+                            height: 28; radius: 14; color: "#0D1117"
                             border.color: "#30363D"; border.width: 1
-                            width: chipTxt.width + 26
-                            Text { id: chipTxt; anchors.centerIn: parent; text: modelData
+                            width: cTxt.width + 20
+                            Text { id: cTxt; anchors.centerIn: parent; text: modelData
                                    color: (modelData === "OIL LOW") ? "#F85149" : "#C9D1D9"
-                                   font.pixelSize: 14; font.weight: Font.Medium }
+                                   font.pixelSize: 13; font.weight: Font.Medium }
                         }
                     }
-                }
-
-                Column {
-                    Layout.alignment: Qt.AlignVCenter
-                    spacing: 0
-                    Text { text: telemetry.engineHrs + " hrs"; color: "#C9D1D9"
-                           font.pixelSize: 22; font.weight: Font.Medium
-                           anchors.right: parent.right }
-                    Text { text: "Engine Runtime"; color: "#6E7681"; font.pixelSize: 12
-                           anchors.right: parent.right }
                 }
             }
         }
@@ -123,49 +115,49 @@ Page {
         RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 14
+            spacing: 10
 
-            // ── LEFT: climate target (the signature) ─────────────────────────────
+            // ── LEFT: climate target (signature) ─────────────────────────────────
             Rectangle {
                 Layout.fillHeight: true
                 Layout.fillWidth: true
-                radius: 16; color: "#161B22"
+                radius: 14; color: "#161B22"
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 24
-                    spacing: 10
+                    anchors.margins: 14
+                    spacing: 6
 
                     Text { text: "TARGET TEMPERATURE"; color: "#6E7681"
-                           font.pixelSize: 13; font.letterSpacing: 2; font.weight: Font.DemiBold }
+                           font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold }
 
-                    Item {
+                    RowLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 150
-                        RowLayout {
-                            anchors.centerIn: parent
-                            spacing: 0
-                            Text { text: page.targetF; color: page.tempColor(page.targetF)
-                                   font.pixelSize: 150; font.weight: Font.Bold }
-                            Text { text: "°F"; color: page.tempColor(page.targetF)
-                                   font.pixelSize: 52; font.weight: Font.Light
-                                   Layout.alignment: Qt.AlignTop; topPadding: 22 }
+                        StepButton { glyph: "−"; side: 60; onTapped: page.bumpTarget(-1) }
+                        Item { Layout.fillWidth: true
+                            RowLayout {
+                                anchors.centerIn: parent; spacing: 0
+                                Text { text: page.targetF; color: page.tempColor(page.targetF)
+                                       font.pixelSize: 84; font.weight: Font.Bold }
+                                Text { text: "°F"; color: page.tempColor(page.targetF)
+                                       font.pixelSize: 30; font.weight: Font.Light
+                                       Layout.alignment: Qt.AlignTop; topPadding: 12 }
+                            }
                         }
+                        StepButton { glyph: "+"; side: 60; onTapped: page.bumpTarget(1) }
                     }
 
-                    // gradient slider
                     Slider {
                         id: tempSlider
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 56
+                        Layout.preferredHeight: 44
                         from: page.minF; to: page.maxF; stepSize: 1
                         value: page.targetF
                         onMoved: { page.targetF = Math.round(value); sendTimer.restart() }
-
                         background: Rectangle {
                             x: tempSlider.leftPadding
                             y: tempSlider.topPadding + tempSlider.availableHeight/2 - height/2
-                            width: tempSlider.availableWidth; height: 12; radius: 6
+                            width: tempSlider.availableWidth; height: 10; radius: 5
                             gradient: Gradient {
                                 orientation: Gradient.Horizontal
                                 GradientStop { position: 0.0; color: "#2F81F7" }
@@ -176,107 +168,121 @@ Page {
                         handle: Rectangle {
                             x: tempSlider.leftPadding + tempSlider.visualPosition * (tempSlider.availableWidth - width)
                             y: tempSlider.topPadding + tempSlider.availableHeight/2 - height/2
-                            width: 44; height: 44; radius: 22
+                            width: 38; height: 38; radius: 19
                             color: "#E6EDF3"
                             border.color: page.tempColor(page.targetF); border.width: 4
                         }
                     }
 
-                    // big steppers
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 96
-                        spacing: 16
-                        StepButton { glyph: "−"; onTapped: page.bumpTarget(-1) }
-                        Item { Layout.fillWidth: true
-                            Text { anchors.centerIn: parent
-                                   text: page.seeded ? "" : "reading…"
-                                   color: "#6E7681"; font.pixelSize: 14 } }
-                        StepButton { glyph: "+"; onTapped: page.bumpTarget(1) }
-                    }
+                    Item { Layout.fillHeight: true }
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Text { text: "Cabin  " + telemetry.cabinTempF.toFixed(0) + " °F"
-                               color: "#8B949E"; font.pixelSize: 16 }
+                        Text { text: "Cabin  " + telemetry.cabinTempF.toFixed(0) + "°F"
+                               color: "#8B949E"; font.pixelSize: 14 }
                         Item { Layout.fillWidth: true }
-                        Text { text: "External  " + telemetry.extTempF.toFixed(0) + " °F"
-                               color: "#8B949E"; font.pixelSize: 16 }
+                        Text { text: "Ext  " + telemetry.extTempF.toFixed(0) + "°F"
+                               color: "#8B949E"; font.pixelSize: 14 }
                     }
                 }
             }
 
-            // ── RIGHT: mode / fan / stop / oil ───────────────────────────────────
+            // ── RIGHT: mode / fan / start-stop / oil ─────────────────────────────
             ColumnLayout {
                 Layout.fillHeight: true
-                Layout.preferredWidth: 460
+                Layout.alignment: Qt.AlignTop
+                Layout.preferredWidth: 380
                 Layout.fillWidth: false
-                spacing: 12
+                spacing: 7
 
                 Text { text: "MODE"; color: "#6E7681"
-                       font.pixelSize: 13; font.letterSpacing: 2; font.weight: Font.DemiBold }
+                       font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold }
                 RowLayout {
-                    Layout.fillWidth: true; Layout.preferredHeight: 64; spacing: 10
-                    SegButton { label: "OFF";     active: telemetry.mode === "off"
-                                accent: "#8B949E"; onTapped: telemetry.setMode("off") }
-                    SegButton { label: "CLIMATE"; active: telemetry.mode === "climate"
-                                accent: "#2F81F7"; onTapped: telemetry.setMode("climate") }
-                    SegButton { label: "BATTERY"; active: telemetry.mode === "battery"
-                                accent: "#00C49A"; onTapped: telemetry.setMode("battery") }
-                }
-
-                Text { text: "FAN SPEED"; color: "#6E7681"; topPadding: 4
-                       font.pixelSize: 13; font.letterSpacing: 2; font.weight: Font.DemiBold }
-                RowLayout {
-                    Layout.fillWidth: true; Layout.preferredHeight: 64; spacing: 10
-                    SegButton { label: "LOW";  active: telemetry.fanSpeed === 0
-                                accent: "#58A6FF"; onTapped: telemetry.setFan(0) }
-                    SegButton { label: "MED";  active: telemetry.fanSpeed === 1
-                                accent: "#58A6FF"; onTapped: telemetry.setFan(1) }
-                    SegButton { label: "HIGH"; active: telemetry.fanSpeed === 2
-                                accent: "#58A6FF"; onTapped: telemetry.setFan(2) }
-                }
-
-                Item { Layout.fillHeight: true }
-
-                // big STOP
-                Rectangle {
-                    Layout.fillWidth: true; Layout.preferredHeight: 96
-                    radius: 14
-                    color: stopMa.pressed ? "#3D1418" : "#2D1014"
-                    border.color: "#F85149"; border.width: 2
-                    Row {
-                        anchors.centerIn: parent; spacing: 14
-                        Rectangle { width: 26; height: 26; radius: 5; color: "#F85149"
-                                    anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: "STOP"; color: "#F85149"; font.pixelSize: 34
-                               font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
+                    Layout.fillWidth: true; Layout.fillHeight: false
+                    Layout.preferredHeight: 46; Layout.maximumHeight: 46; spacing: 8
+                    Repeater {
+                        model: [ { t: "OFF",     m: "off",     c: "#8B949E" },
+                                 { t: "CLIMATE", m: "climate", c: "#2F81F7" },
+                                 { t: "BATTERY", m: "battery", c: "#00C49A" } ]
+                        Rectangle {
+                            Layout.fillWidth: true; Layout.fillHeight: true
+                            radius: 10
+                            property bool on: page.effMode === modelData.m
+                            property color accent: modelData.c
+                            color: on ? Qt.rgba(accent.r, accent.g, accent.b, 0.20)
+                                      : (mma.pressed ? "#233041" : "#1C2230")
+                            border.color: on ? accent : "#30363D"; border.width: on ? 2 : 1
+                            Text { anchors.centerIn: parent; text: modelData.t
+                                   color: parent.on ? accent : "#C9D1D9"
+                                   font.pixelSize: 16; font.letterSpacing: 1
+                                   font.weight: parent.on ? Font.Bold : Font.Medium }
+                            MouseArea { id: mma; anchors.fill: parent
+                                        onClicked: page.pickMode(modelData.m) }
+                        }
                     }
-                    MouseArea { id: stopMa; anchors.fill: parent
-                                onClicked: telemetry.setMode("off") }
+                }
+
+                Text { text: "FAN SPEED"; color: "#6E7681"
+                       font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold }
+                RowLayout {
+                    Layout.fillWidth: true; Layout.fillHeight: false
+                    Layout.preferredHeight: 46; Layout.maximumHeight: 46; spacing: 8
+                    Repeater {
+                        model: [ { t: "LOW", n: 0 }, { t: "MED", n: 1 }, { t: "HIGH", n: 2 } ]
+                        Rectangle {
+                            Layout.fillWidth: true; Layout.fillHeight: true
+                            radius: 10
+                            property bool on: page.effFan === modelData.n
+                            color: on ? "#1D3A57" : (fma.pressed ? "#233041" : "#1C2230")
+                            border.color: on ? "#58A6FF" : "#30363D"; border.width: on ? 2 : 1
+                            Text { anchors.centerIn: parent; text: modelData.t
+                                   color: parent.on ? "#58A6FF" : "#C9D1D9"
+                                   font.pixelSize: 16; font.letterSpacing: 1
+                                   font.weight: parent.on ? Font.Bold : Font.Medium }
+                            MouseArea { id: fma; anchors.fill: parent
+                                        onClicked: page.pickFan(modelData.n) }
+                        }
+                    }
+                }
+
+                // Contextual primary: START when off, STOP when running
+                Rectangle {
+                    Layout.fillWidth: true; Layout.preferredHeight: 56; Layout.topMargin: 4
+                    radius: 12
+                    property color hue: page.isRunning ? "#F85149" : "#3FB950"
+                    color: goMa.pressed ? Qt.rgba(hue.r, hue.g, hue.b, 0.30)
+                                        : Qt.rgba(hue.r, hue.g, hue.b, 0.15)
+                    border.color: hue; border.width: 2
+                    Row {
+                        anchors.centerIn: parent; spacing: 12
+                        Rectangle { visible: page.isRunning
+                                    width: 20; height: 20; radius: 4; color: parent.parent.hue
+                                    anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: page.isRunning ? "STOP" : "START"
+                               color: parent.parent.hue; font.pixelSize: 28; font.weight: Font.Bold
+                               anchors.verticalCenter: parent.verticalCenter }
+                    }
+                    MouseArea { id: goMa; anchors.fill: parent
+                                onClicked: page.pickMode(page.isRunning ? "off" : "climate") }
                 }
 
                 // hold-to-reset oil
                 Rectangle {
                     id: oilBtn
-                    Layout.fillWidth: true; Layout.preferredHeight: 58
-                    radius: 12; color: "#161B22"; border.color: "#30363D"; border.width: 1
+                    Layout.fillWidth: true; Layout.preferredHeight: 38
+                    radius: 10; color: "#161B22"; border.color: "#30363D"; border.width: 1
                     clip: true
                     property bool done: false
-
-                    Rectangle {   // fill that grows across the button during the hold
+                    Rectangle {
                         id: holdFill
-                        height: parent.height; radius: parent.radius
+                        height: parent.height; radius: parent.radius; width: 0
                         color: "#33E3B341"
-                        width: 0
                         Behavior on width { NumberAnimation { duration: 1500; easing.type: Easing.Linear } }
                     }
-                    Text {
-                        anchors.centerIn: parent
-                        text: oilBtn.done ? "OIL TIMER RESET" : "HOLD TO RESET OIL TIMER"
-                        color: oilBtn.done ? "#3FB950" : "#E3B341"
-                        font.pixelSize: 16; font.weight: Font.DemiBold; font.letterSpacing: 1
-                    }
+                    Text { anchors.centerIn: parent
+                           text: oilBtn.done ? "OIL TIMER RESET" : "HOLD TO RESET OIL TIMER"
+                           color: oilBtn.done ? "#3FB950" : "#E3B341"
+                           font.pixelSize: 13; font.weight: Font.DemiBold; font.letterSpacing: 1 }
                     Timer { id: oilHold; interval: 1500
                             onTriggered: { telemetry.resetOil(); oilBtn.done = true; oilClear.restart() } }
                     Timer { id: oilClear; interval: 2500; onTriggered: oilBtn.done = false }
@@ -286,6 +292,8 @@ Page {
                         onReleased: { oilHold.stop(); holdFill.width = 0 }
                     }
                 }
+
+                Item { Layout.fillHeight: true }
             }
         }
     }

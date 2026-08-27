@@ -2,87 +2,81 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+// Live diagnostics, grouped by category into four labelled sections that fill
+// the 800x480 panel exactly (no scrolling).
 Page {
     id: page
     background: Rectangle { color: "#0D1117" }
 
-    // Evaluated every time telemetry emits dataChanged
-    property var items: [
-        ["Mode",            telemetry.mode],
-        ["Control Status",  telemetry.controlStatus],
-        ["Engine Status",   telemetry.engineStatus],
-        ["Cabin Temp",      telemetry.cabinTempF.toFixed(0) + " °F"],
-        ["Setpoint",        telemetry.clmtSetpointF.toFixed(0) + " °F"],
-        ["External Temp",   telemetry.extTempF.toFixed(0) + " °F"],
-        ["Battery",         telemetry.battV.toFixed(2) + " V"],
-        ["Engine RPM",      telemetry.rpm + ""],
-        ["Fan Speed",       telemetry.fanSpeed + ""],
-        ["Oil Pressure",    telemetry.oilOk ? "OK" : "LOW"],
-        ["Ignition",        telemetry.ignition ? "On" : "Off"],
-        ["Error",           telemetry.error],
-        ["Oil Change",      telemetry.oilChange],
-        ["Engine Hrs",      telemetry.engineHrs + " hrs"],
-        ["Machine Hrs",     telemetry.machineHrs + " hrs"],
+    // Rebuilt on every telemetry change (property bindings inside).
+    property var sections: [
+        { name: "STATUS", tiles: [
+            ["Mode",           telemetry.mode,                                false],
+            ["Control Status", telemetry.controlStatus,                       false],
+            ["Engine Status",  telemetry.engineStatus,                        false],
+            ["Error",          telemetry.error,                               telemetry.hasError] ] },
+        { name: "CLIMATE", tiles: [
+            ["Cabin Temp",     telemetry.cabinTempF.toFixed(0) + " °F",       false],
+            ["Setpoint",       telemetry.clmtSetpointF.toFixed(0) + " °F",    false],
+            ["External Temp",  telemetry.extTempF.toFixed(0) + " °F",         false],
+            ["Fan Speed",      ["Low","Med","High"][telemetry.fanSpeed] || "—", false] ] },
+        { name: "POWER & ENGINE", tiles: [
+            ["Battery",        telemetry.battV.toFixed(2) + " V",             false],
+            ["Engine RPM",     telemetry.rpm + "",                            false],
+            ["Oil Pressure",   telemetry.oilOk ? "OK" : "LOW",                !telemetry.oilOk],
+            ["Ignition",       telemetry.ignition ? "On" : "Off",             false] ] },
+        { name: "SERVICE", tiles: [
+            ["Engine Hours",   telemetry.engineHrs + " h",                    false],
+            ["Oil Hours",      telemetry.oilHrs + " h",                       false],
+            ["Machine Hours",  telemetry.machineHrs + " h",                   false],
+            ["Oil Change",     telemetry.oilChange,                           telemetry.oilChange !== "good"] ] }
     ]
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 12
+        anchors.margins: 12
+        spacing: 6
 
-        Text {
-            text: "Live Diagnostics"
-            color: "#C9D1D9"; font.pixelSize: 20; font.weight: Font.DemiBold
-        }
+        Text { text: "Live Diagnostics"; color: "#C9D1D9"
+               font.pixelSize: 18; font.weight: Font.DemiBold }
 
-        // Scrollable so tiles can never be clipped by the tab bar; sized to fit
-        // the viewport for the common case (no scroll needed).
-        Flickable {
-            id: flick
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            clip: true
-            contentWidth: width
-            contentHeight: grid.height
-            boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        // Four equal-height category sections.
+        Repeater {
+            model: page.sections
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 3
 
-            readonly property int cols: 3
-            readonly property int rowSpacing: 12
-            readonly property int rows: Math.ceil(page.items.length / cols)
-            // Fit all rows in the viewport when possible, but never below a
-            // comfortable touch height (then it scrolls).
-            readonly property real cellH: Math.max(96,
-                (flick.height - (rows - 1) * rowSpacing) / rows)
+                Text { text: modelData.name; color: "#6E7681"
+                       font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold }
 
-            Grid {
-                id: grid
-                width: parent.width
-                columns: flick.cols
-                rowSpacing: flick.rowSpacing
-                columnSpacing: 12
-                property real cellW: (width - columnSpacing * (columns - 1)) / columns
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 8
 
-                Repeater {
-                    model: page.items
-                    Rectangle {
-                        width: grid.cellW
-                        height: flick.cellH
-                        radius: 12
-                        color: "#161B22"
+                    Repeater {
+                        model: modelData.tiles
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            radius: 10
+                            color: "#161B22"
+                            border.color: modelData[2] ? "#F85149" : "transparent"
+                            border.width: modelData[2] ? 1 : 0
 
-                        Column {
-                            anchors.left: parent.left; anchors.leftMargin: 18
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 5
-                            Text { text: modelData[0]; color: "#6E7681"
-                                   font.pixelSize: 13; font.letterSpacing: 1 }
-                            Text {
-                                text: modelData[1]
-                                color: (modelData[0] === "Error" && telemetry.hasError) ||
-                                       (modelData[0] === "Oil Pressure" && !telemetry.oilOk)
-                                       ? "#F85149" : "#E6EDF3"
-                                font.pixelSize: 24; font.weight: Font.DemiBold
+                            Column {
+                                anchors.left: parent.left;  anchors.leftMargin: 14
+                                anchors.right: parent.right; anchors.rightMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
+                                Text { text: modelData[0]; color: "#6E7681"
+                                       font.pixelSize: 12; elide: Text.ElideRight; width: parent.width }
+                                Text { text: modelData[1]
+                                       color: modelData[2] ? "#F85149" : "#E6EDF3"
+                                       font.pixelSize: 22; font.weight: Font.DemiBold
+                                       elide: Text.ElideRight; width: parent.width }
                             }
                         }
                     }

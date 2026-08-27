@@ -1,26 +1,29 @@
 import QtQuick
 import QtQuick.Layouts
 
-// Large square +/- stepper, sized for gloved-finger taps.
+// Square +/- stepper for gloved-finger taps (sized for the 800x480 panel).
 Rectangle {
     id: btn
     property string glyph: "+"
+    property int    side: 56
     signal tapped()
 
-    Layout.preferredWidth: 96
-    Layout.preferredHeight: 96
-    radius: 18
+    implicitWidth: side
+    implicitHeight: side
+    Layout.preferredWidth: side
+    Layout.preferredHeight: side
+    radius: 14
     color: ma.pressed ? "#233041" : "#1C2230"
     border.color: "#30363D"; border.width: 1
-    scale: ma.pressed ? 0.96 : 1.0
+    scale: ma.pressed ? 0.94 : 1.0
     Behavior on scale { NumberAnimation { duration: 80 } }
 
     Text {
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: -4
+        anchors.verticalCenterOffset: -3
         text: btn.glyph
         color: "#E6EDF3"
-        font.pixelSize: 56
+        font.pixelSize: 34
         font.weight: Font.Light
     }
 
