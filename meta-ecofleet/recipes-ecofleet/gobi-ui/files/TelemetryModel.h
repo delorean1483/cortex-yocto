@@ -36,6 +36,13 @@ public:
     explicit TelemetryModel(QObject *parent = nullptr);
     ~TelemetryModel() override = default;
 
+    /* ── Control commands (write /var/lib/ecofleet/command.json; the agent
+     * applies them to Modbus within ~1 s). Callable from QML. ── */
+    Q_INVOKABLE void setMode(const QString &mode);   // "off" | "climate" | "battery"
+    Q_INVOKABLE void setSetpoint(int degF);          // climate target, degF
+    Q_INVOKABLE void setFan(int speed);              // 0 low | 1 med | 2 high
+    Q_INVOKABLE void resetOil();                     // zero oil hours + change state
+
     double  cabinTempF()    const { return m_cabinTempF; }
     double  extTempF()      const { return m_extTempF; }
     double  battV()         const { return m_battV; }
