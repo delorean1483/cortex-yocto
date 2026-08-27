@@ -108,12 +108,13 @@ Page {
                 }
 
                 Column {
+                    Layout.alignment: Qt.AlignVCenter
                     spacing: 0
                     Text { text: telemetry.engineHrs + " hrs"; color: "#C9D1D9"
                            font.pixelSize: 22; font.weight: Font.Medium
-                           horizontalAlignment: Text.AlignRight; width: parent.width }
+                           anchors.right: parent.right }
                     Text { text: "Engine Runtime"; color: "#6E7681"; font.pixelSize: 12
-                           horizontalAlignment: Text.AlignRight; width: parent.width }
+                           anchors.right: parent.right }
                 }
             }
         }
