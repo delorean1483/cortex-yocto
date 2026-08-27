@@ -6,9 +6,20 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda
 # The corresponding sign.key is NEVER committed — it lives in CI secrets.
 SRC_URI = "file://sign.crt"
 
+# Extract the RAW PUBLIC KEY from the certificate at build time. SWUpdate's
+# RAWRSA verification (see recipes-swupdate/files/signing.cfg) needs the public
+# key, not the X.509 cert. Deriving it here keeps sign.crt the single source of
+# truth so the two can never drift.
+DEPENDS += "openssl-native"
+
+do_compile() {
+    openssl x509 -in ${WORKDIR}/sign.crt -pubkey -noout > ${WORKDIR}/sign.pub
+}
+
 do_install() {
     install -d ${D}${sysconfdir}/swupdate
     install -m 0444 ${WORKDIR}/sign.crt ${D}${sysconfdir}/swupdate/sign.crt
+    install -m 0444 ${WORKDIR}/sign.pub ${D}${sysconfdir}/swupdate/sign.pub
 }
 
-FILES:${PN} = "${sysconfdir}/swupdate/sign.crt"
+FILES:${PN} = "${sysconfdir}/swupdate/sign.crt ${sysconfdir}/swupdate/sign.pub"

@@ -24,9 +24,13 @@ openssl req -new -x509 -days 3650 \
     -out "$OUTDIR/sign.crt" \
     -subj "/CN=EcoFleet OTA Signing/O=EcoFleet/C=US"
 
+echo "==> Extracting public key (for RAWRSA verification)..."
+openssl x509 -in "$OUTDIR/sign.crt" -pubkey -noout > "$OUTDIR/sign.pub"
+
 echo ""
 echo "Done."
 echo "  Private key : $OUTDIR/sign.key  ← KEEP SECRET, add to CI as SWUPDATE_SIGN_KEY"
 echo "  Certificate : $OUTDIR/sign.crt  ← commit this; bake into image via swupdate-keys recipe"
+echo "  Public key  : $OUTDIR/sign.pub  ← device verify key (also derived from sign.crt at build)"
 echo ""
 echo "Sign bundles:  SWUPDATE_SIGN_KEY=$OUTDIR/sign.key scripts/make-swu.sh <deploy> <ver>"

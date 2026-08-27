@@ -288,8 +288,12 @@ static void ota_trigger(const char *version)
 
     syslog(LOG_INFO, "ota: download complete, running swupdate");
 
-    /* swupdate -i <file> : applies the bundle, writes inactive slot, flips env */
-    const char *swu_argv[] = { "swupdate", "-i", local, NULL };
+    /* swupdate -i <file> -k <pubkey> : verify the RSA signature against the
+     * baked-in public key, then apply to the inactive slot and flip the env.
+     * -k makes verification explicit (and fails loudly if a build ever ships
+     * without CONFIG_SIGNED_IMAGES) rather than silently skipping it. */
+    const char *swu_argv[] = { "swupdate", "-i", local,
+                               "-k", "/etc/swupdate/sign.pub", NULL };
     pid_t swu_pid = fork();
     if (swu_pid == 0) {
         execvp("swupdate", (char *const *)swu_argv);
