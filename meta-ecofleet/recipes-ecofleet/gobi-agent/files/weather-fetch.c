@@ -31,6 +31,10 @@
 #define FORECAST_DAYS      4
 #define HTTP_TIMEOUT_S     15L
 #define API_HOST           "https://api.open-meteo.com/v1/forecast"
+/* Keyless IP geolocation. ip-api.com's free tier is HTTP-only; the data is
+ * non-sensitive (coarse coordinates) and the configured lat/lon is the fallback
+ * if this is tampered with or unreachable. */
+#define GEO_URL            "http://ip-api.com/json/?fields=status,lat,lon,city"
 
 /* ── Config ──────────────────────────────────────────────────────────────── */
 typedef struct {
@@ -111,18 +115,10 @@ static size_t on_data(char *ptr, size_t size, size_t nmemb, void *ud)
     return add;
 }
 
-/* GET the Open-Meteo daily forecast. Returns a malloc'd body (caller frees) or
- * NULL on any transport/HTTP error. */
-static char *http_get_forecast(const weather_cfg_t *cfg)
+/* GET a URL. Returns a malloc'd body (caller frees) or NULL on any
+ * transport/non-200 error. `what` names the endpoint for log messages. */
+static char *http_get(const char *url, const char *what)
 {
-    char url[512];
-    snprintf(url, sizeof(url),
-             "%s?latitude=%.5f&longitude=%.5f"
-             "&daily=weather_code,temperature_2m_max,temperature_2m_min,"
-             "precipitation_probability_max"
-             "&temperature_unit=fahrenheit&timezone=auto&forecast_days=%d",
-             API_HOST, cfg->lat, cfg->lon, FORECAST_DAYS);
-
     CURL *c = curl_easy_init();
     if (!c) return NULL;
 
@@ -142,16 +138,51 @@ static char *http_get_forecast(const weather_cfg_t *cfg)
     curl_easy_cleanup(c);
 
     if (rc != CURLE_OK) {
-        syslog(LOG_WARNING, "weather: fetch failed: %s", curl_easy_strerror(rc));
+        syslog(LOG_WARNING, "weather: %s fetch failed: %s", what, curl_easy_strerror(rc));
         free(buf.data);
         return NULL;
     }
     if (http != 200) {
-        syslog(LOG_WARNING, "weather: HTTP %ld from Open-Meteo", http);
+        syslog(LOG_WARNING, "weather: %s HTTP %ld", what, http);
         free(buf.data);
         return NULL;
     }
     return buf.data;
+}
+
+/* Resolve the forecast location. Primary source is IP-based geolocation (so the
+ * dashboard follows the device's network); the configured lat/lon is the
+ * fallback when the lookup fails or is offline. On return, lat, lon and label
+ * hold the location to use; returns 1 if a location was resolved, else 0. */
+static int resolve_location(const weather_cfg_t *cfg,
+                            double *lat, double *lon, char *label, size_t label_sz)
+{
+    int have = cfg->have_loc;
+    if (have) {                       /* seed with configured fallback */
+        *lat = cfg->lat;
+        *lon = cfg->lon;
+        snprintf(label, label_sz, "%s", cfg->label);
+    }
+
+    char *geo = http_get(GEO_URL, "ip-geo");
+    if (geo) {
+        double glat, glon;
+        char gcity[64];
+        if (geo_parse(geo, &glat, &glon, gcity, sizeof(gcity))) {
+            *lat = glat;
+            *lon = glon;
+            snprintf(label, label_sz, "%s", gcity[0] ? gcity : cfg->label);
+            have = 1;
+            syslog(LOG_INFO, "weather: auto-location %.4f,%.4f (%s)",
+                   glat, glon, label[0] ? label : "unnamed");
+        } else {
+            syslog(LOG_INFO, "weather: ip-geo response unusable — using configured location");
+        }
+        free(geo);
+    } else {
+        syslog(LOG_INFO, "weather: ip-geo unavailable — using configured location");
+    }
+    return have;
 }
 
 /* ── Atomic write (mirrors the agent's write_latest_snapshot) ────────────── */
@@ -174,20 +205,36 @@ int main(void)
     weather_cfg_t cfg = { 0, 0.0, 0.0, { 0 } };
     read_config(&cfg);
 
-    if (!cfg.have_loc) {
-        syslog(LOG_INFO, "weather: no [weather] lat/lon configured — skipping");
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    /* Location: IP geolocation first, configured lat/lon as fallback. */
+    double lat = 0.0, lon = 0.0;
+    char   label[64] = { 0 };
+    int    have_loc = resolve_location(&cfg, &lat, &lon, label, sizeof(label));
+
+    if (!have_loc) {
+        /* No geolocation and nothing configured — nothing to fetch for. */
+        syslog(LOG_INFO, "weather: no location (ip-geo failed, none configured) — skipping");
+        curl_global_cleanup();
         closelog();
         return 0;   /* inert: leave any existing file, exit clean */
     }
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    char *body = http_get_forecast(&cfg);
+    char url[512];
+    snprintf(url, sizeof(url),
+             "%s?latitude=%.5f&longitude=%.5f"
+             "&daily=weather_code,temperature_2m_max,temperature_2m_min,"
+             "precipitation_probability_max"
+             "&temperature_unit=fahrenheit&timezone=auto&forecast_days=%d",
+             API_HOST, lat, lon, FORECAST_DAYS);
+
+    char *body = http_get(url, "open-meteo");
     curl_global_cleanup();
 
     if (!body) { closelog(); return 1; }   /* keep last good file */
 
     long long now_ms = (long long)time(NULL) * 1000LL;
-    char *json = weather_build_json(body, cfg.label, now_ms, FORECAST_DAYS);
+    char *json = weather_build_json(body, label, now_ms, FORECAST_DAYS);
     free(body);
 
     if (!json) {
@@ -199,7 +246,7 @@ int main(void)
     int rc = write_atomic(WEATHER_JSON_PATH, json);
     if (rc == 0)
         syslog(LOG_INFO, "weather: updated %s (%s)",
-               WEATHER_JSON_PATH, cfg.label[0] ? cfg.label : "unnamed");
+               WEATHER_JSON_PATH, label[0] ? label : "unnamed");
     else
         syslog(LOG_WARNING, "weather: could not write %s", WEATHER_JSON_PATH);
 

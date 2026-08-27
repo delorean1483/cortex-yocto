@@ -6,6 +6,8 @@
  */
 #pragma once
 
+#include <stddef.h>   /* size_t */
+
 /* Coarse weather category derived from a WMO weather-interpretation code.
  * Open-Meteo returns ~30 distinct codes; the UI only needs a handful of icons,
  * so the fetcher collapses them here and the QML keys its icon off the slug. */
@@ -32,6 +34,15 @@ const char *weather_cat_slug(weather_cat_t cat);
  * "YYYY-MM-DD". Returns "?" if the string is not a parseable date.
  * Pure/proleptic-Gregorian (Sakamoto) — no libc time / timezone involvement. */
 const char *weekday_abbrev(const char *iso_date);
+
+/* Parse an ip-api.com/json geolocation response. On success (JSON has
+ * status:"success" with in-range numeric lat/lon) sets *lat and *lon, copies
+ * up to city_sz bytes of the "city" field into city (empty string if absent),
+ * and returns 1. Returns 0 on any parse/validation failure so the caller can
+ * fall back to configured coordinates. Pure/no I/O.
+ */
+int geo_parse(const char *ip_api_json, double *lat, double *lon,
+              char *city, size_t city_sz);
 
 /* Transform an Open-Meteo /v1/forecast *daily* JSON response into the compact
  * weather.json the UI consumes. Returns a malloc'd, NUL-terminated string the

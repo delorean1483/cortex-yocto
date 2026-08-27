@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 weather_cat_t wmo_to_category(int wmo_code)
 {
@@ -56,6 +57,40 @@ const char *weekday_abbrev(const char *iso_date)
     int dow = (yy + yy/4 - yy/100 + yy/400 + t[m - 1] + d) % 7;
     if (dow < 0) dow += 7;
     return NAMES[dow];
+}
+
+int geo_parse(const char *ip_api_json, double *lat, double *lon,
+              char *city, size_t city_sz)
+{
+    if (!ip_api_json) return 0;
+
+    cJSON *root = cJSON_Parse(ip_api_json);
+    if (!root) return 0;
+
+    int ok = 0;
+    const char *status =
+        cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(root, "status"));
+    cJSON *jlat = cJSON_GetObjectItemCaseSensitive(root, "lat");
+    cJSON *jlon = cJSON_GetObjectItemCaseSensitive(root, "lon");
+
+    if (status && strcmp(status, "success") == 0 &&
+        cJSON_IsNumber(jlat) && cJSON_IsNumber(jlon)) {
+        double la = cJSON_GetNumberValue(jlat);
+        double lo = cJSON_GetNumberValue(jlon);
+        if (la >= -90.0 && la <= 90.0 && lo >= -180.0 && lo <= 180.0) {
+            *lat = la;
+            *lon = lo;
+            if (city && city_sz) {
+                const char *c = cJSON_GetStringValue(
+                    cJSON_GetObjectItemCaseSensitive(root, "city"));
+                snprintf(city, city_sz, "%s", (c && c[0]) ? c : "");
+            }
+            ok = 1;
+        }
+    }
+
+    cJSON_Delete(root);
+    return ok;
 }
 
 static int arr_len(const cJSON *a)

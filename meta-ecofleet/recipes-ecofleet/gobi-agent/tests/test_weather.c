@@ -157,12 +157,40 @@ static void test_build_json_bad_input(void)
     CHECK(weather_build_json("{\"daily\":{}}", "X", 0, 4) == NULL, "missing arrays -> NULL");
 }
 
+static void test_geo_parse(void)
+{
+    printf("geo_parse\n");
+    double lat = 0, lon = 0;
+    char city[64];
+
+    CHECK(geo_parse("{\"status\":\"success\",\"lat\":37.7306,\"lon\":-88.9331,\"city\":\"Marion\"}",
+                    &lat, &lon, city, sizeof city) == 1, "valid -> 1");
+    CHECK(lat > 37.7305 && lat < 37.7307, "valid lat");
+    CHECK(lon > -88.9332 && lon < -88.9330, "valid lon");
+    CHECK_EQ_STR(city, "Marion", "valid city");
+
+    lat = lon = 0; city[0] = 'X'; city[1] = '\0';
+    CHECK(geo_parse("{\"status\":\"success\",\"lat\":40.0,\"lon\":-74.0}",
+                    &lat, &lon, city, sizeof city) == 1, "no city -> 1");
+    CHECK_EQ_STR(city, "", "no city -> empty string");
+
+    CHECK(geo_parse("{\"status\":\"fail\",\"message\":\"reserved range\"}",
+                    &lat, &lon, city, sizeof city) == 0, "status fail -> 0");
+    CHECK(geo_parse("{\"status\":\"success\",\"city\":\"X\"}",
+                    &lat, &lon, city, sizeof city) == 0, "missing coords -> 0");
+    CHECK(geo_parse("{\"status\":\"success\",\"lat\":200,\"lon\":0}",
+                    &lat, &lon, city, sizeof city) == 0, "out-of-range lat -> 0");
+    CHECK(geo_parse("not json", &lat, &lon, city, sizeof city) == 0, "garbage -> 0");
+    CHECK(geo_parse(NULL, &lat, &lon, city, sizeof city) == 0, "null -> 0");
+}
+
 int main(void)
 {
     test_wmo_to_category();
     test_weekday();
     test_build_json();
     test_build_json_bad_input();
+    test_geo_parse();
 
     printf("\n%d checks, %d failures\n", g_checks, g_fail);
     if (g_fail == 0) printf("ALL GREEN\n");
