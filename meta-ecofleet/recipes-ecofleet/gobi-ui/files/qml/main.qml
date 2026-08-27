@@ -67,6 +67,22 @@ ApplicationWindow {
                     color: "#F85149"; font.pixelSize: 11; font.weight: Font.Bold
                 }
             }
+
+            // Date / time clock (12-hour, with seconds)
+            Text {
+                id: clock
+                anchors.verticalCenter: parent.verticalCenter
+                property var now: new Date()
+                text: Qt.formatDateTime(now, "ddd MMM d  h:mm:ss AP")
+                color: "#8B949E"
+                font.pixelSize: 13
+                font.weight: Font.Medium
+
+                Timer {
+                    interval: 1000; running: true; repeat: true
+                    onTriggered: clock.now = new Date()
+                }
+            }
         }
     }
 
