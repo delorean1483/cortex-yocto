@@ -1,13 +1,36 @@
 #include "TelemetryModel.h"
 
 #include <QFile>
+#include <QSaveFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDateTime>
 
-static constexpr const char *LATEST_PATH = "/var/lib/ecofleet/latest.json";
-static constexpr int         POLL_MS     = 2000;
-static constexpr qint64      STALE_MS    = 30000; /* 30 s without a fresh snapshot */
+static constexpr const char *LATEST_PATH  = "/var/lib/ecofleet/latest.json";
+static constexpr const char *COMMAND_PATH = "/var/lib/ecofleet/command.json";
+static constexpr int         POLL_MS      = 2000;
+static constexpr qint64      STALE_MS     = 30000; /* 30 s without a fresh snapshot */
+
+/* Merge one key into command.json (atomic). Merging — rather than overwriting —
+ * lets several quick taps (e.g. temp then mode) accumulate before the agent
+ * consumes the file on its next cycle. */
+static void writeCommand(const QString &key, const QJsonValue &value)
+{
+    QJsonObject obj;
+    QFile in(QString::fromLatin1(COMMAND_PATH));
+    if (in.open(QIODevice::ReadOnly)) {
+        const auto doc = QJsonDocument::fromJson(in.readAll());
+        if (doc.isObject()) obj = doc.object();
+        in.close();
+    }
+    obj.insert(key, value);
+
+    QSaveFile out(QString::fromLatin1(COMMAND_PATH));
+    if (out.open(QIODevice::WriteOnly)) {
+        out.write(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+        out.commit();   /* atomic rename */
+    }
+}
 
 TelemetryModel::TelemetryModel(QObject *parent) : QObject(parent)
 {
@@ -56,3 +79,8 @@ void TelemetryModel::poll()
 
     emit dataChanged();
 }
+
+void TelemetryModel::setMode(const QString &mode)   { writeCommand(QStringLiteral("mode"), mode); }
+void TelemetryModel::setSetpoint(int degF)          { writeCommand(QStringLiteral("setpoint_f"), degF); }
+void TelemetryModel::setFan(int speed)              { writeCommand(QStringLiteral("fan"), speed); }
+void TelemetryModel::resetOil()                     { writeCommand(QStringLiteral("reset_oil"), true); }

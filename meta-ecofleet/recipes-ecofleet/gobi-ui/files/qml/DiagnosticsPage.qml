@@ -27,54 +27,62 @@ Page {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 12
-        spacing: 10
+        anchors.margins: 16
+        spacing: 12
 
         Text {
             text: "Live Diagnostics"
-            color: "#C9D1D9"; font.pixelSize: 18; font.weight: Font.DemiBold
+            color: "#C9D1D9"; font.pixelSize: 20; font.weight: Font.DemiBold
         }
 
-        // 3-column grid via a Flow
-        Item {
+        // Scrollable so tiles can never be clipped by the tab bar; sized to fit
+        // the viewport for the common case (no scroll needed).
+        Flickable {
+            id: flick
             Layout.fillWidth: true
             Layout.fillHeight: true
+            clip: true
+            contentWidth: width
+            contentHeight: grid.height
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+            readonly property int cols: 3
+            readonly property int rowSpacing: 12
+            readonly property int rows: Math.ceil(page.items.length / cols)
+            // Fit all rows in the viewport when possible, but never below a
+            // comfortable touch height (then it scrolls).
+            readonly property real cellH: Math.max(96,
+                (flick.height - (rows - 1) * rowSpacing) / rows)
 
             Grid {
                 id: grid
-                anchors.top: parent.top
-                anchors.left: parent.left
                 width: parent.width
-                columns: 3
-                rowSpacing: 8
-                columnSpacing: 10
-
+                columns: flick.cols
+                rowSpacing: flick.rowSpacing
+                columnSpacing: 12
                 property real cellW: (width - columnSpacing * (columns - 1)) / columns
 
                 Repeater {
                     model: page.items
-
                     Rectangle {
                         width: grid.cellW
-                        height: 68
-                        radius: 10
+                        height: flick.cellH
+                        radius: 12
                         color: "#161B22"
 
                         Column {
-                            anchors.left: parent.left; anchors.leftMargin: 16
+                            anchors.left: parent.left; anchors.leftMargin: 18
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: 4
-
-                            Text {
-                                text: modelData[0]
-                                color: "#6E7681"; font.pixelSize: 12
-                            }
+                            spacing: 5
+                            Text { text: modelData[0]; color: "#6E7681"
+                                   font.pixelSize: 13; font.letterSpacing: 1 }
                             Text {
                                 text: modelData[1]
                                 color: (modelData[0] === "Error" && telemetry.hasError) ||
                                        (modelData[0] === "Oil Pressure" && !telemetry.oilOk)
-                                       ? "#F85149" : "#C9D1D9"
-                                font.pixelSize: 20; font.weight: Font.DemiBold
+                                       ? "#F85149" : "#E6EDF3"
+                                font.pixelSize: 24; font.weight: Font.DemiBold
                             }
                         }
                     }

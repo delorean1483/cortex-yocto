@@ -496,6 +496,72 @@ static void write_latest_snapshot(const char *payload)
         unlink(tmp);
 }
 
+/* ── Local control channel (gobi-ui -> Modbus writes) ────────────────────────
+ * Apply any command the touchscreen dropped at COMMAND_JSON_PATH, then remove
+ * it. Called from the telemetry thread so the libmodbus context is never
+ * touched concurrently. Register numbers are 1-based; the wire address is
+ * (reg - 1). Best-effort: a bad file or a failed write is logged and the file
+ * removed so it can't wedge the queue. */
+static void mb_write_reg(int reg1based, int value, const char *what)
+{
+    if (modbus_write_register(g_modbus, reg1based - 1, value) == 1)
+        syslog(LOG_INFO, "control: %s -> reg %d = %d", what, reg1based, value);
+    else
+        syslog(LOG_WARNING, "control: %s write reg %d failed: %s",
+               what, reg1based, modbus_strerror(errno));
+}
+
+static void apply_command_file(void)
+{
+    FILE *f = fopen(COMMAND_JSON_PATH, "r");
+    if (!f) return;   /* no pending command (the common case) */
+
+    char buf[256];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    unlink(COMMAND_JSON_PATH);          /* consume it regardless of outcome */
+    if (n == 0) return;
+    buf[n] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) {
+        syslog(LOG_WARNING, "control: bad command JSON, ignoring: %s", buf);
+        return;
+    }
+
+    /* mode: off|climate|battery -> reg 10 = 0|1|2 */
+    const cJSON *mode = cJSON_GetObjectItemCaseSensitive(root, "mode");
+    if (cJSON_IsString(mode) && mode->valuestring) {
+        int v = -1;
+        if      (strcmp(mode->valuestring, "off")     == 0) v = 0;
+        else if (strcmp(mode->valuestring, "climate") == 0) v = 1;
+        else if (strcmp(mode->valuestring, "battery") == 0) v = 2;
+        if (v >= 0) mb_write_reg(10, v, "mode");
+        else syslog(LOG_WARNING, "control: unknown mode '%s'", mode->valuestring);
+    }
+
+    /* setpoint_f -> reg 14 (climate temp, degF) */
+    const cJSON *sp = cJSON_GetObjectItemCaseSensitive(root, "setpoint_f");
+    if (cJSON_IsNumber(sp))
+        mb_write_reg(14, (int)sp->valuedouble, "setpoint");
+
+    /* fan 0|1|2 -> reg 12 (evap fan speed) */
+    const cJSON *fan = cJSON_GetObjectItemCaseSensitive(root, "fan");
+    if (cJSON_IsNumber(fan)) {
+        int v = (int)fan->valuedouble;
+        if (v >= 0 && v <= 2) mb_write_reg(12, v, "fan");
+    }
+
+    /* reset_oil -> zero engine-oil hours (reg 20) + oil-change state (reg 18) */
+    const cJSON *ro = cJSON_GetObjectItemCaseSensitive(root, "reset_oil");
+    if (cJSON_IsTrue(ro)) {
+        mb_write_reg(20, 0, "reset_oil_hours");
+        mb_write_reg(18, 0, "reset_oil_state");
+    }
+
+    cJSON_Delete(root);
+}
+
 /* ── Publish or buffer ───────────────────────────────────────────────────── */
 static void publish_or_buffer(const char *topic, const char *table,
                                uint64_t ts_ms, const char *payload)
@@ -602,8 +668,10 @@ int main(void)
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
 
-            /* Remote APU commands (shadow apu_command) are not applied in this
-             * telemetry-only build — see on_shadow_config(). */
+            /* (Touchscreen commands are applied in the 1 Hz wait loop below, in
+             * this same thread — the libmodbus context is never touched
+             * concurrently. Remote shadow commands remain unhandled — see
+             * on_shadow_config().) */
 
             /* ── Telemetry publish ───────────────────────────────────────── */
             char *telem_json = build_telemetry_json(&t);
@@ -654,7 +722,13 @@ int main(void)
         db_flush("telemetry", g_topic_telemetry);
         db_flush("faults",    g_topic_faults);
 
-        sleep((unsigned int)poll_s);
+        /* Wait out the poll interval, but check the touchscreen command file
+         * every second so a button press lands within ~1 s instead of waiting
+         * a whole telemetry cycle. */
+        for (int slept = 0; slept < poll_s && g_running; slept++) {
+            sleep(1);
+            apply_command_file();
+        }
     }
 
     /* ── 7. Cleanup ──────────────────────────────────────────────────────── */

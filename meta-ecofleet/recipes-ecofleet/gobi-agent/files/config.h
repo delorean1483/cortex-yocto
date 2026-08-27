@@ -71,6 +71,13 @@
  * every cycle regardless of MQTT connectivity — the SQLite buffer only holds
  * rows while offline, so the live UI reads this instead. */
 #define LATEST_JSON_PATH    "/var/lib/ecofleet/latest.json"
+
+/* Local control channel: gobi-ui (the touchscreen) writes a small JSON command
+ * here; the agent applies it to the Modbus holding registers each poll cycle,
+ * then removes it. gobi-ui can't drive Modbus itself — the agent is the sole
+ * RTU master on the serial port. Keys (any subset): "mode" (off|climate|
+ * battery), "setpoint_f" (int), "fan" (0|1|2), "reset_oil" (true). */
+#define COMMAND_JSON_PATH   "/var/lib/ecofleet/command.json"
 #define SQLITE_MAX_ROWS     8640    /* ~12 h at 5 s poll — then oldest is dropped */
 #define SQLITE_FLUSH_BATCH  50      /* rows to flush per MQTT reconnect cycle     */
 

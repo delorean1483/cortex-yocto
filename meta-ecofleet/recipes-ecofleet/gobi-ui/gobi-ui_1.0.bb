@@ -1,6 +1,6 @@
 SUMMARY = "EcoFleet Gobi APU touchscreen dashboard"
 LICENSE = "CLOSED"
-PR = "r2"
+PR = "r3"
 
 SRC_URI = " \
     file://CMakeLists.txt \
@@ -13,6 +13,8 @@ SRC_URI = " \
     file://qml/DashboardPage.qml \
     file://qml/DiagnosticsPage.qml \
     file://qml/DevicePage.qml \
+    file://qml/StepButton.qml \
+    file://qml/SegButton.qml \
     file://gobi-ui.service \
     file://ecofleet_logo.png \
     file://ecofleet_logo_topbar.png \
@@ -41,6 +43,8 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/qml/DashboardPage.qml   ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/DiagnosticsPage.qml ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/DevicePage.qml      ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/StepButton.qml      ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/SegButton.qml       ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/ecofleet_logo.png        ${D}${datadir}/gobi-ui/
     install -m 0644 ${WORKDIR}/ecofleet_logo_topbar.png ${D}${datadir}/gobi-ui/
 }
