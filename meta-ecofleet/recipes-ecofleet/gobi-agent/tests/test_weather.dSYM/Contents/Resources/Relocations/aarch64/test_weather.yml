@@ -1,5 +1,0 @@
----
-triple:          'arm64-apple-darwin'
-binary-path:     '/Users/sungkang/Documents/github/ecofleet-firmware/meta-ecofleet/recipes-ecofleet/gobi-agent/tests/test_weather'
-relocations:     []
-...
