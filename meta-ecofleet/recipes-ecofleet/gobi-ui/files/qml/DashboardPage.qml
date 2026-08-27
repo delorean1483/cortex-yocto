@@ -111,6 +111,13 @@ Page {
             }
         }
 
+        // ── Weather outlook (hidden until a location is configured) ───────────────
+        WeatherStrip {
+            visible: weather.valid
+            Layout.fillWidth: true
+            Layout.preferredHeight: 78
+        }
+
         // ── Control row ──────────────────────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true

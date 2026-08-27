@@ -1,6 +1,6 @@
 SUMMARY = "EcoFleet Gobi APU touchscreen dashboard"
 LICENSE = "CLOSED"
-PR = "r4"
+PR = "r5"
 
 SRC_URI = " \
     file://CMakeLists.txt \
@@ -9,12 +9,16 @@ SRC_URI = " \
     file://TelemetryModel.cpp \
     file://DeviceInfoModel.h \
     file://DeviceInfoModel.cpp \
+    file://WeatherModel.h \
+    file://WeatherModel.cpp \
     file://qml/main.qml \
     file://qml/DashboardPage.qml \
     file://qml/DiagnosticsPage.qml \
     file://qml/DevicePage.qml \
     file://qml/StepButton.qml \
     file://qml/SegButton.qml \
+    file://qml/WeatherStrip.qml \
+    file://qml/WeatherIcon.qml \
     file://gobi-ui.service \
     file://ecofleet_logo.png \
     file://ecofleet_logo_topbar.png \
@@ -45,6 +49,8 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/qml/DevicePage.qml      ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/StepButton.qml      ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/SegButton.qml       ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/WeatherStrip.qml    ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/WeatherIcon.qml     ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/ecofleet_logo.png        ${D}${datadir}/gobi-ui/
     install -m 0644 ${WORKDIR}/ecofleet_logo_topbar.png ${D}${datadir}/gobi-ui/
 }
