@@ -53,6 +53,9 @@ jobs:
             VERSION="${{ github.sha }}"
             VERSION="${VERSION:0:8}"
           fi
+          # Branch names contain '/' (e.g. feat/foo) which is illegal in a
+          # version string / filename — sanitize to '-'. Tags (1.2.30) are unaffected.
+          VERSION="${VERSION//\//-}"
           printf 'header:\n  version: 14\nlocal_conf_header:\n  version: |\n    ECOFLEET_FW_VERSION = "%s"\n' "$VERSION" > kas-version.yml
 
       - name: Inject device certificate
@@ -121,6 +124,8 @@ jobs:
             VERSION="${{ github.sha }}"
             VERSION="${VERSION:0:8}"
           fi
+          # Sanitize '/' from branch names so the .swu path isn't a bogus subdir
+          VERSION="${VERSION//\//-}"
 
           SIGN_OPT=""
           if [ -f /tmp/ota-keys/sign.key ]; then
