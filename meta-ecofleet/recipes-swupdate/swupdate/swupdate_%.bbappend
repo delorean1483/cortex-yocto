@@ -28,9 +28,14 @@ do_configure:append() {
     fi
 }
 
+# Install our OTA config at a path WE own, NOT /etc/swupdate.cfg — Variscite's
+# BSP also ships /etc/swupdate.cfg at higher layer priority and clobbers ours
+# (the device kept the stock suricatta config with public-key-file commented).
+# ota_trigger passes `-f /etc/swupdate/ecofleet.cfg`, which sets public-key-file
+# to the baked-in /etc/swupdate/sign.pub for signature verification.
 do_install:append() {
-    install -d ${D}${sysconfdir}
-    install -m 0644 ${WORKDIR}/swupdate.cfg ${D}${sysconfdir}/swupdate.cfg
+    install -d ${D}${sysconfdir}/swupdate
+    install -m 0644 ${WORKDIR}/swupdate.cfg ${D}${sysconfdir}/swupdate/ecofleet.cfg
 }
 
-FILES:${PN} += "${sysconfdir}/swupdate.cfg"
+FILES:${PN} += "${sysconfdir}/swupdate/ecofleet.cfg"

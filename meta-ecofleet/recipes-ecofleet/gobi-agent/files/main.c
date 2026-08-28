@@ -294,7 +294,7 @@ static void ota_trigger(const char *version)
      * when swupdate is built with CONFIG_SIGNED_IMAGES, is driven by
      * public-key-file in the config file we ship (/etc/swupdate.cfg). */
     const char *swu_argv[] = { "swupdate", "-i", local,
-                               "-f", "/etc/swupdate.cfg", NULL };
+                               "-f", "/etc/swupdate/ecofleet.cfg", NULL };
     pid_t swu_pid = fork();
     if (swu_pid == 0) {
         execvp("swupdate", (char *const *)swu_argv);

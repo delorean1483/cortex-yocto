@@ -22,11 +22,13 @@ software =
         {
             filename = "pre-install.sh";
             type     = "shellscript";
+            sha256   = "@pre-install.sh";
             properties: { execute-before-update = ["true"]; };
         },
         {
             filename = "post-install.sh";
             type     = "shellscript";
+            sha256   = "@post-install.sh";
             properties: { execute-after-update = ["true"]; };
         }
     );
