@@ -1,0 +1,588 @@
+
+<h2 class="sr-only">EcoFleet APU dashboard prototype with four role tiers: Admin, Fleet Manager, Maintenance, and End User</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.app{display:flex;flex-direction:column;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;min-height:560px;font-size:13px}
+/* Role bar */
+.role-bar{display:flex;align-items:center;gap:0;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);padding:0 12px;overflow-x:auto;flex-shrink:0}
+.role-lbl{font-size:10.5px;color:var(--color-text-tertiary);padding:0 10px 0 0;white-space:nowrap;flex-shrink:0}
+.rtab{padding:9px 13px;font-size:12px;font-weight:500;border:none;background:none;cursor:pointer;color:var(--color-text-secondary);white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s}
+.rtab.on{color:var(--color-text-primary);border-bottom-color:#BA7517}
+/* Body */
+.body{display:flex;flex:1;min-height:0;overflow:hidden}
+/* Sidebar */
+.sidebar{width:172px;flex-shrink:0;background:var(--color-background-secondary);border-right:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column;overflow-y:auto}
+.sb-head{padding:12px 14px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;gap:9px;flex-shrink:0}
+.sb-ico{width:28px;height:28px;border-radius:6px;background:#BA7517;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sb-brand{font-size:13px;font-weight:500;line-height:1.2}
+.sb-ctx{font-size:10px;color:var(--color-text-tertiary);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
+.sb-sec{padding:14px 12px 3px;font-size:9.5px;font-weight:500;letter-spacing:.09em;text-transform:uppercase;color:var(--color-text-tertiary)}
+.sb-btn{display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:6px;margin:1px 5px;cursor:pointer;font-size:12px;color:var(--color-text-secondary);border:none;background:none;width:calc(100% - 10px);text-align:left;transition:background .1s,color .1s}
+.sb-btn:hover{background:color-mix(in srgb,var(--color-background-primary) 60%,transparent);color:var(--color-text-primary)}
+.sb-btn.on{background:var(--color-background-primary);color:#BA7517;font-weight:500}
+.sb-btn i{font-size:15px;flex-shrink:0;width:16px;text-align:center}
+.sb-btn.gone{display:none}
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:0.5px solid var(--color-border-tertiary);gap:8px;flex-shrink:0;flex-wrap:wrap}
+.topbar-l{display:flex;align-items:center;gap:8px}
+.page-title{font-size:14px;font-weight:500}
+.rbadge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500}
+.rb-admin{background:#EEEDFE;color:#534AB7}
+.rb-fm{background:#E1F5EE;color:#085041}
+.rb-maint{background:#FAEEDA;color:#633806}
+.rb-eu{background:#E6F1FB;color:#0C447C}
+@media(prefers-color-scheme:dark){
+  .rb-admin{background:#26215C;color:#AFA9EC}
+  .rb-fm{background:#04342C;color:#9FE1CB}
+  .rb-maint{background:#412402;color:#FAC775}
+  .rb-eu{background:#042C53;color:#85B7EB}
+}
+.scroll{overflow-y:auto;flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:14px}
+/* Panels */
+.panel{display:none;flex-direction:column;gap:14px}
+.panel.on{display:flex}
+/* Stat grid */
+.sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:9px}
+.scard{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px}
+.scard-lbl{font-size:10.5px;color:var(--color-text-tertiary);margin-bottom:4px}
+.scard-val{font-size:21px;font-weight:500;line-height:1;font-variant-numeric:tabular-nums}
+.scard-sub{font-size:10.5px;color:var(--color-text-tertiary);margin-top:3px}
+/* Section headers */
+.sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+.sec-title{font-size:11.5px;font-weight:500;color:var(--color-text-secondary)}
+.sec-sub{font-size:10.5px;color:var(--color-text-tertiary)}
+/* Unit rows */
+.urow{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-tertiary);background:var(--color-background-primary);margin-bottom:5px;cursor:pointer;transition:border-color .1s}
+.urow:hover{border-color:var(--color-border-secondary)}
+.sdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.s-on{background:#1D9E75}.s-warn{background:#BA7517}.s-err{background:#E24B4A}.s-off{background:#888780}
+.uid{font-size:12.5px;font-weight:500;flex:1}
+.umeta{font-size:11px;color:var(--color-text-tertiary);min-width:60px}
+.uval{font-size:11.5px;font-family:var(--font-mono);color:var(--color-text-secondary)}
+/* Alert rows */
+.arow{display:flex;align-items:flex-start;gap:8px;padding:9px 10px 9px 12px;border-radius:var(--border-radius-md);margin-bottom:5px;border:0.5px solid transparent}
+.a-crit{background:var(--color-background-danger);border-left:3px solid #E24B4A;border-color:var(--color-border-danger)}
+.a-warn{background:var(--color-background-warning);border-left:3px solid #BA7517;border-color:var(--color-border-warning)}
+.a-info{background:var(--color-background-info);border-left:3px solid var(--color-border-info);border-color:var(--color-border-info)}
+.a-ok{background:var(--color-background-success);border-left:3px solid #1D9E75;border-color:var(--color-border-success)}
+.atxt{flex:1;min-width:0}
+.atitle{font-size:12.5px;font-weight:500;color:var(--color-text-primary)}
+.asub{font-size:11px;color:var(--color-text-secondary);margin-top:1px}
+.atime{font-size:10.5px;color:var(--color-text-tertiary);flex-shrink:0;margin-top:1px}
+/* Table */
+.dtbl{width:100%;border-collapse:collapse;font-size:12px}
+.dtbl th{text-align:left;padding:5px 8px;border-bottom:0.5px solid var(--color-border-tertiary);font-size:10px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.07em}
+.dtbl td{padding:8px 8px;border-bottom:0.5px solid var(--color-border-tertiary);vertical-align:middle}
+.dtbl tr:last-child td{border-bottom:none}
+.dtbl tr:hover td{background:var(--color-background-secondary)}
+/* Pills */
+.pill{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10.5px;font-weight:500;white-space:nowrap}
+.p-g{background:#E1F5EE;color:#0F6E56}.p-a{background:#FAEEDA;color:#633806}.p-r{background:#FCEBEB;color:#A32D2D}.p-b{background:#E6F1FB;color:#0C447C}.p-v{background:#EEEDFE;color:#534AB7}.p-n{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+@media(prefers-color-scheme:dark){
+  .p-g{background:#04342C;color:#5DCAA5}.p-a{background:#412402;color:#FAC775}.p-r{background:#501313;color:#F09595}.p-b{background:#042C53;color:#85B7EB}.p-v{background:#26215C;color:#AFA9EC}
+}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:var(--border-radius-md);font-size:12px;font-weight:500;cursor:pointer;border:0.5px solid var(--color-border-secondary);background:none;color:var(--color-text-primary);transition:background .1s;white-space:nowrap;flex-shrink:0}
+.btn:hover{background:var(--color-background-secondary)}
+.btn i{font-size:14px}
+.btn-amber{background:#BA7517;border-color:#BA7517;color:#fff}
+.btn-amber:hover{background:#854F0B;border-color:#854F0B}
+.btn-red{border-color:#E24B4A;color:#E24B4A}
+.btn-red:hover{background:var(--color-background-danger)}
+.btn-sm{padding:3px 8px;font-size:11px}
+.btn.gone{display:none}
+.bbar{display:flex;flex-wrap:wrap;gap:7px}
+/* Tele */
+.tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(82px,1fr));gap:7px}
+.tcell{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 10px}
+.tlbl{font-size:10px;color:var(--color-text-tertiary);margin-bottom:3px}
+.tval{font-size:15px;font-weight:500;font-family:var(--font-mono);line-height:1}
+.tunit{font-size:10px;color:var(--color-text-tertiary)}
+/* LED */
+.swatch{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:border-color .1s;flex-shrink:0}
+.swatch.on{border-color:var(--color-text-primary)}
+/* Notice */
+.notice{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);font-size:12px;color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary)}
+.notice i{font-size:16px;flex-shrink:0;color:var(--color-text-tertiary)}
+/* Card wrapper */
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:12px 14px}
+/* Firmware progress */
+.fw-bar{height:4px;border-radius:2px;background:var(--color-background-secondary);overflow:hidden;margin-top:4px}
+.fw-fill{height:100%;border-radius:2px;background:#BA7517;transition:width .4s}
+/* Threshold row edit */
+.thresh-val{font-family:var(--font-mono);font-size:12px;color:var(--color-text-secondary)}
+.gone{display:none!important}
+</style>
+
+<div class="app">
+
+  <!-- Role switcher -->
+  <div class="role-bar">
+    <span class="role-lbl">View as:</span>
+    <button class="rtab on"  onclick="R('admin')">EcoFleet Admin</button>
+    <button class="rtab"     onclick="R('fm')">Fleet Manager</button>
+    <button class="rtab"     onclick="R('maint')">Maintenance</button>
+    <button class="rtab"     onclick="R('eu')">End User</button>
+  </div>
+
+  <div class="body">
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="sb-head">
+        <div class="sb-ico"><i class="ti ti-bolt" style="font-size:16px;color:#fff" aria-hidden="true"></i></div>
+        <div>
+          <div class="sb-brand">EcoFleet</div>
+          <div class="sb-ctx" id="sb-ctx">All fleets</div>
+        </div>
+      </div>
+
+      <div style="flex:1;padding-bottom:12px">
+        <div class="sb-sec">Overview</div>
+        <button class="sb-btn on" id="n-dash"   onclick="P('dash')"  ><i class="ti ti-layout-dashboard" aria-hidden="true"></i>Dashboard</button>
+        <button class="sb-btn"    id="n-map"    onclick="P('map')"   ><i class="ti ti-map-2" aria-hidden="true"></i>Fleet map</button>
+
+        <div class="sb-sec">Operations</div>
+        <button class="sb-btn"    id="n-remote" onclick="P('remote')"><i class="ti ti-adjustments-horizontal" aria-hidden="true"></i>Remote control</button>
+        <button class="sb-btn"    id="n-maint"  onclick="P('maint')" ><i class="ti ti-tool" aria-hidden="true"></i>Maintenance</button>
+        <button class="sb-btn"    id="n-fw"     onclick="P('fw')"    ><i class="ti ti-device-desktop-down" aria-hidden="true"></i>Firmware</button>
+
+        <div class="sb-sec">Insights</div>
+        <button class="sb-btn"    id="n-alerts" onclick="P('alerts')"><i class="ti ti-bell" aria-hidden="true"></i>Alerts</button>
+        <button class="sb-btn"    id="n-rpts"   onclick="P('rpts')"  ><i class="ti ti-chart-bar" aria-hidden="true"></i>Reports</button>
+        <button class="sb-btn"    id="n-hist"   onclick="P('hist')"  ><i class="ti ti-history" aria-hidden="true"></i>APU history</button>
+
+        <div class="sb-sec" id="sb-admsec">Admin</div>
+        <button class="sb-btn"    id="n-users"  onclick="P('users')" ><i class="ti ti-users" aria-hidden="true"></i>Users</button>
+        <button class="sb-btn"    id="n-cfg"    onclick="P('cfg')"   ><i class="ti ti-settings" aria-hidden="true"></i>System config</button>
+      </div>
+    </nav>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="topbar">
+        <div class="topbar-l">
+          <span class="page-title" id="ptitle">Dashboard</span>
+        </div>
+        <span class="rbadge rb-admin" id="rbadge">EcoFleet Admin</span>
+      </div>
+
+      <div class="scroll">
+
+        <!-- ── DASHBOARD ── -->
+        <div class="panel on" id="p-dash">
+          <div class="sgrid" id="sg">
+            <div class="scard"><div class="scard-lbl">Online units</div><div class="scard-val" style="color:#1D9E75">47</div><div class="scard-sub">of 50 total</div></div>
+            <div class="scard"><div class="scard-lbl">Active faults</div><div class="scard-val" style="color:#E24B4A">3</div><div class="scard-sub">2 critical</div></div>
+            <div class="scard"><div class="scard-lbl">Avg runtime</div><div class="scard-val">1,284<span style="font-size:11px;color:var(--color-text-tertiary)"> h</span></div><div class="scard-sub">this month</div></div>
+            <div class="scard" id="sc-eff"><div class="scard-lbl">Fleet efficiency</div><div class="scard-val">91<span style="font-size:11px;color:var(--color-text-tertiary)">%</span></div><div class="scard-sub">↑ 3% vs last mo</div></div>
+          </div>
+
+          <div>
+            <div class="sec-hd"><span class="sec-title">Unit status</span><span class="sec-sub" id="u-scope">All fleets · 50 units</span></div>
+            <div class="urow" onclick="P('remote')"><span class="sdot s-err"></span><span class="uid">TRUCK-042</span><span class="umeta" id="um-042">FLEET-001</span><span class="uval">0x0020 <span style="color:#E24B4A;font-size:10px;font-family:var(--font-sans)">LOW OIL</span></span></div>
+            <div class="urow" onclick="P('remote')"><span class="sdot s-warn"></span><span class="uid">TRUCK-017</span><span class="umeta">FLEET-001</span><span class="uval">25.1 V</span></div>
+            <div class="urow" onclick="P('remote')" id="ur-031"><span class="sdot s-on"></span><span class="uid">TRUCK-031</span><span class="umeta" id="um-031">FLEET-002</span><span class="uval">27.9 V</span></div>
+            <div class="urow" onclick="P('remote')" id="ur-009"><span class="sdot s-on"></span><span class="uid">TRUCK-009</span><span class="umeta">FLEET-003</span><span class="uval">28.1 V</span></div>
+          </div>
+
+          <div>
+            <div class="sec-hd"><span class="sec-title">Recent events</span></div>
+            <div class="arow a-crit"><div class="atxt"><div class="atitle">Low oil pressure — TRUCK-042</div><div class="asub">0x0020 · FLEET-001 · SNS alert sent to oncall@ecofleet.io</div></div><div class="atime">4 min ago</div></div>
+            <div class="arow a-warn"><div class="atxt"><div class="atitle">DC under-voltage — TRUCK-017</div><div class="asub">0x0002 · 25.1 V · threshold 25.5 V</div></div><div class="atime">18 min ago</div></div>
+            <div class="arow a-ok"><div class="atxt"><div class="atitle">Firmware update complete — TRUCK-031</div><div class="asub">v2.4.1 → v2.5.0</div></div><div class="atime">2 hrs ago</div></div>
+            <div class="arow a-info" id="ev-009"><div class="atxt"><div class="atitle">APU started — TRUCK-009</div><div class="asub">Operator: M. Cruz · FLEET-003</div></div><div class="atime">3 hrs ago</div></div>
+          </div>
+        </div>
+
+        <!-- ── REMOTE CONTROL ── -->
+        <div class="panel" id="p-remote">
+          <div class="card">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <span class="sdot s-err" style="width:9px;height:9px"></span>
+              <span style="font-size:13px;font-weight:500">TRUCK-042</span>
+              <span class="pill p-r">FAULT</span>
+              <span style="font-size:11px;color:var(--color-text-tertiary);margin-left:auto" id="rc-fleet">FLEET-001</span>
+            </div>
+            <div class="tgrid">
+              <div class="tcell"><div class="tlbl">DC voltage</div><div class="tval" style="color:#E24B4A">25.1<span class="tunit"> V</span></div></div>
+              <div class="tcell"><div class="tlbl">Current</div><div class="tval">44.8<span class="tunit"> A</span></div></div>
+              <div class="tcell"><div class="tlbl">Batt SOC</div><div class="tval">71<span class="tunit"> %</span></div></div>
+              <div class="tcell"><div class="tlbl">Oil PSI</div><div class="tval" style="color:#E24B4A">8.2<span class="tunit"> psi</span></div></div>
+              <div class="tcell"><div class="tlbl">Coolant</div><div class="tval" style="color:#BA7517">91<span class="tunit"> °C</span></div></div>
+              <div class="tcell"><div class="tlbl">Runtime</div><div class="tval">1,243<span class="tunit"> h</span></div></div>
+              <div class="tcell"><div class="tlbl">RPM</div><div class="tval">1,800<span class="tunit"></span></div></div>
+              <div class="tcell"><div class="tlbl">Power</div><div class="tval">1,850<span class="tunit"> W</span></div></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="sec-hd"><span class="sec-title">Unit actions</span></div>
+            <div class="bbar">
+              <button class="btn btn-amber" id="b-start" onclick="alert('▶ Start command sent to TRUCK-042')"><i class="ti ti-player-play" aria-hidden="true"></i>Start APU</button>
+              <button class="btn btn-red"   id="b-stop"  onclick="alert('■ Stop command sent to TRUCK-042')"><i class="ti ti-player-stop" aria-hidden="true"></i>Stop APU</button>
+              <button class="btn"           id="b-status" onclick="alert('↻ Status refreshed')"><i class="ti ti-refresh" aria-hidden="true"></i>Refresh status</button>
+              <button class="btn"           id="b-logs"   onclick="P('hist')"><i class="ti ti-file-text" aria-hidden="true"></i>Get logs</button>
+            </div>
+            <div class="notice" id="maint-notice" style="margin-top:8px;display:none">
+              <i class="ti ti-info-circle" aria-hidden="true"></i>
+              Maintenance role: start/stop requires supervisor sign-off. Status checks and log retrieval are available.
+            </div>
+          </div>
+
+          <div id="led-sec">
+            <div class="sec-hd"><span class="sec-title">LED indicator color</span></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div class="swatch on" style="background:#ffffff;box-shadow:0 0 0 1px var(--color-border-secondary)" onclick="led(this)" title="White"></div>
+              <div class="swatch" style="background:#E24B4A" onclick="led(this)" title="Red"></div>
+              <div class="swatch" style="background:#1D9E75" onclick="led(this)" title="Green"></div>
+              <div class="swatch" style="background:#378ADD" onclick="led(this)" title="Blue"></div>
+              <div class="swatch" style="background:#BA7517" onclick="led(this)" title="Amber"></div>
+              <div class="swatch" style="background:#7F77DD" onclick="led(this)" title="Purple"></div>
+              <div class="swatch" style="background:#ED93B1" onclick="led(this)" title="Pink"></div>
+              <button class="btn" style="margin-left:2px" onclick="alert('LED color applied to TRUCK-042')"><i class="ti ti-palette" aria-hidden="true"></i>Apply</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── MAINTENANCE ── -->
+        <div class="panel" id="p-maint">
+          <div>
+            <div class="sec-hd">
+              <span class="sec-title">Maintenance history</span>
+              <span class="sec-sub" id="maint-scope">All units</span>
+            </div>
+            <table class="dtbl">
+              <thead><tr><th>Unit</th><th>Date</th><th>Type</th><th>Tech</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>TRUCK-042</td><td>May 24</td><td>Oil pressure check</td><td>R. Holt</td><td><span class="pill p-a">Pending</span></td></tr>
+                <tr><td>TRUCK-017</td><td>May 21</td><td>Battery service</td><td>R. Holt</td><td><span class="pill p-g">Done</span></td></tr>
+                <tr><td>TRUCK-031</td><td>May 18</td><td>Scheduled PM</td><td>L. Chen</td><td><span class="pill p-g">Done</span></td></tr>
+                <tr id="mr-009"><td>TRUCK-009</td><td>May 10</td><td>Modbus calibration</td><td>L. Chen</td><td><span class="pill p-g">Done</span></td></tr>
+                <tr id="mr-026"><td>TRUCK-026</td><td>Apr 30</td><td>RS485 adapter swap</td><td>R. Holt</td><td><span class="pill p-g">Done</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="bulk-maint-sec">
+            <div class="sec-hd"><span class="sec-title">Bulk actions</span></div>
+            <div class="bbar">
+              <button class="btn" onclick="alert('Opening bulk PM scheduler…')"><i class="ti ti-calendar-event" aria-hidden="true"></i>Schedule bulk PM</button>
+              <button class="btn" onclick="alert('Generating work orders…')"><i class="ti ti-clipboard-list" aria-hidden="true"></i>Generate work orders</button>
+              <button class="btn" onclick="alert('Exporting maintenance log…')"><i class="ti ti-download" aria-hidden="true"></i>Export log</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── FIRMWARE ── -->
+        <div class="panel" id="p-fw">
+          <div>
+            <div class="sec-hd">
+              <span class="sec-title">Firmware status</span>
+              <span class="sec-sub" id="fw-scope">All units · latest v2.5.0</span>
+            </div>
+            <table class="dtbl">
+              <thead><tr><th>Unit</th><th>Current</th><th>Available</th><th>State</th><th></th></tr></thead>
+              <tbody>
+                <tr id="fw-042"><td>TRUCK-042</td><td style="font-family:var(--font-mono);font-size:11px">v2.5.0</td><td style="font-family:var(--font-mono);font-size:11px">v2.5.0</td><td><span class="pill p-g">Up to date</span></td><td></td></tr>
+                <tr id="fw-017"><td>TRUCK-017</td><td style="font-family:var(--font-mono);font-size:11px">v2.4.1</td><td style="font-family:var(--font-mono);font-size:11px;color:#BA7517;font-weight:500">v2.5.0</td><td><span class="pill p-a">Update avail</span></td><td><button class="btn btn-sm" onclick="startFW('fw-017','TRUCK-017')"><i class="ti ti-upload" aria-hidden="true"></i>Update</button></td></tr>
+                <tr id="fw-031"><td>TRUCK-031</td><td style="font-family:var(--font-mono);font-size:11px">v2.5.0</td><td style="font-family:var(--font-mono);font-size:11px">v2.5.0</td><td><span class="pill p-g">Up to date</span></td><td></td></tr>
+                <tr id="fw-009"><td>TRUCK-009</td><td style="font-family:var(--font-mono);font-size:11px">v2.3.9</td><td style="font-family:var(--font-mono);font-size:11px;color:#E24B4A;font-weight:500">v2.5.0</td><td><span class="pill p-r">2 versions behind</span></td><td><button class="btn btn-amber btn-sm" onclick="startFW('fw-009','TRUCK-009')"><i class="ti ti-upload" aria-hidden="true"></i>Update</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="bulk-fw-sec">
+            <div class="sec-hd"><span class="sec-title">Bulk OTA rollout</span></div>
+            <div class="bbar">
+              <button class="btn btn-amber" onclick="alert('Queuing OTA update to all outdated units…')"><i class="ti ti-upload" aria-hidden="true"></i>Update all outdated</button>
+              <button class="btn" onclick="alert('Opening staged rollout planner…')"><i class="ti ti-list-check" aria-hidden="true"></i>Staged rollout</button>
+              <button class="btn" onclick="alert('Generating firmware audit report…')"><i class="ti ti-report" aria-hidden="true"></i>Audit report</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── ALERTS ── -->
+        <div class="panel" id="p-alerts">
+          <div>
+            <div class="sec-hd"><span class="sec-title">Active alerts</span><span class="sec-sub" id="alert-scope">All fleets</span></div>
+            <div class="arow a-crit"><div class="atxt"><div class="atitle">Low oil pressure — TRUCK-042</div><div class="asub">Threshold: &gt;15 psi · Current: 8.2 psi · CRITICAL · FLEET-001</div></div><div class="atime">4 min ago</div></div>
+            <div class="arow a-warn"><div class="atxt"><div class="atitle">DC under-voltage — TRUCK-017</div><div class="asub">Threshold: &gt;25.5 V · Current: 25.1 V · WARNING · FLEET-001</div></div><div class="atime">18 min ago</div></div>
+            <div class="arow a-warn" id="a-fleet2"><div class="atxt"><div class="atitle">Comm timeout — TRUCK-058</div><div class="asub">0x0040 · MQTT gap 12 min · FLEET-002</div></div><div class="atime">1 hr ago</div></div>
+          </div>
+
+          <div id="thresh-sec">
+            <div class="sec-hd"><span class="sec-title">Alert thresholds</span><button class="btn btn-sm" id="b-addthresh" onclick="alert('Add threshold rule…')"><i class="ti ti-plus" aria-hidden="true"></i>Add rule</button></div>
+            <table class="dtbl">
+              <thead><tr><th>Parameter</th><th>Condition</th><th>Severity</th><th>Notify</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>Oil pressure</td><td class="thresh-val">&lt; 15 psi</td><td><span class="pill p-r">Critical</span></td><td>SNS + PagerDuty</td><td><button class="btn btn-sm" onclick="alert('Edit threshold…')">Edit</button></td></tr>
+                <tr><td>DC voltage</td><td class="thresh-val">&lt; 25.5 V</td><td><span class="pill p-a">Warning</span></td><td>SNS email</td><td><button class="btn btn-sm" onclick="alert('Edit threshold…')">Edit</button></td></tr>
+                <tr><td>Coolant temp</td><td class="thresh-val">&gt; 95 °C</td><td><span class="pill p-r">Critical</span></td><td>SNS + PagerDuty</td><td><button class="btn btn-sm" onclick="alert('Edit threshold…')">Edit</button></td></tr>
+                <tr><td>Battery SOC</td><td class="thresh-val">&lt; 20 %</td><td><span class="pill p-a">Warning</span></td><td>SNS email</td><td><button class="btn btn-sm" onclick="alert('Edit threshold…')">Edit</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="notice" id="thresh-readonly" style="display:none">
+            <i class="ti ti-lock" aria-hidden="true"></i>
+            Alert thresholds are view-only for your role. Contact your fleet manager to adjust rules.
+          </div>
+        </div>
+
+        <!-- ── REPORTS ── -->
+        <div class="panel" id="p-rpts">
+          <div class="sgrid">
+            <div class="scard"><div class="scard-lbl">Total runtime</div><div class="scard-val">64,200<span style="font-size:11px;color:var(--color-text-tertiary)"> h</span></div></div>
+            <div class="scard"><div class="scard-lbl">Fuel saved</div><div class="scard-val" style="color:#1D9E75">$18.4k</div></div>
+            <div class="scard"><div class="scard-lbl">MTBF</div><div class="scard-val">812<span style="font-size:11px;color:var(--color-text-tertiary)"> h</span></div></div>
+            <div class="scard"><div class="scard-lbl">Fault events</div><div class="scard-val">14</div><div class="scard-sub">May 2026</div></div>
+          </div>
+          <div>
+            <div class="sec-hd"><span class="sec-title">Operator activity — May 2026</span><span class="sec-sub" id="rpt-scope">All fleets</span></div>
+            <table class="dtbl">
+              <thead><tr><th>Operator</th><th>Fleet</th><th>Starts</th><th>Stops</th><th>FW updates</th></tr></thead>
+              <tbody>
+                <tr><td>operator@fleet1.com</td><td>FLEET-001</td><td>142</td><td>138</td><td>3</td></tr>
+                <tr><td>dispatch@fleet2.com</td><td>FLEET-002</td><td>89</td><td>91</td><td>1</td></tr>
+                <tr id="rpt-f3"><td>manager@fleet3.com</td><td>FLEET-003</td><td>61</td><td>59</td><td>2</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="bbar">
+            <button class="btn" onclick="alert('Exporting PDF report…')"><i class="ti ti-download" aria-hidden="true"></i>Export PDF</button>
+            <button class="btn" onclick="alert('Exporting CSV…')"><i class="ti ti-file-spreadsheet" aria-hidden="true"></i>Export CSV</button>
+            <button class="btn" onclick="alert('Opening custom report builder…')"><i class="ti ti-adjustments" aria-hidden="true"></i>Custom report</button>
+          </div>
+        </div>
+
+        <!-- ── APU HISTORY ── -->
+        <div class="panel" id="p-hist">
+          <div>
+            <div class="sec-hd"><span class="sec-title">Event log</span><span class="sec-sub" id="hist-scope">All units · last 30 days</span></div>
+            <table class="dtbl">
+              <thead><tr><th>Timestamp</th><th>Unit</th><th>Event</th><th>Detail</th></tr></thead>
+              <tbody>
+                <tr><td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap">2026-05-28 09:14</td><td>TRUCK-042</td><td><span class="pill p-r">Fault</span></td><td>0x0020 Low oil pressure</td></tr>
+                <tr><td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap">2026-05-28 07:02</td><td>TRUCK-017</td><td><span class="pill p-g">Start</span></td><td>Operator: J. Reed</td></tr>
+                <tr id="hr-031"><td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap">2026-05-26 14:30</td><td>TRUCK-031</td><td><span class="pill p-b">FW update</span></td><td>v2.4.1 → v2.5.0</td></tr>
+                <tr id="hr-009"><td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap">2026-05-25 11:45</td><td>TRUCK-009</td><td><span class="pill p-n">Stop</span></td><td>Operator: M. Cruz</td></tr>
+                <tr id="hr-026"><td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap">2026-05-24 09:00</td><td>TRUCK-026</td><td><span class="pill p-g">Start</span></td><td>Operator: B. Kim</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="bbar">
+            <button class="btn" onclick="alert('Exporting event log…')"><i class="ti ti-download" aria-hidden="true"></i>Export log</button>
+          </div>
+        </div>
+
+        <!-- ── USERS ── -->
+        <div class="panel" id="p-users">
+          <div>
+            <div class="sec-hd">
+              <span class="sec-title" id="users-title">All users</span>
+              <button class="btn btn-sm" onclick="alert('Create user…')"><i class="ti ti-user-plus" aria-hidden="true"></i>Add user</button>
+            </div>
+            <table class="dtbl">
+              <thead><tr><th>Email</th><th>Role</th><th>Fleet</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                <tr class="adm-row"><td>admin@ecofleet.io</td><td><span class="pill p-v">Admin</span></td><td style="color:var(--color-text-tertiary)">—</td><td><span class="pill p-g">Active</span></td><td></td></tr>
+                <tr><td>mgr@fleet1.com</td><td><span class="pill p-a">Fleet Mgr</span></td><td>FLEET-001</td><td><span class="pill p-g">Active</span></td><td><button class="btn btn-sm" onclick="alert('Edit user…')">Edit</button></td></tr>
+                <tr><td>tech@fleet1.com</td><td><span class="pill p-n">Maintenance</span></td><td>FLEET-001</td><td><span class="pill p-g">Active</span></td><td><button class="btn btn-sm" onclick="alert('Edit user…')">Edit</button></td></tr>
+                <tr><td>driver@fleet1.com</td><td><span class="pill p-g">End User</span></td><td>FLEET-001</td><td><span class="pill p-g">Active</span></td><td><button class="btn btn-sm" onclick="alert('Edit user…')">Edit</button></td></tr>
+                <tr class="adm-row"><td>mgr@fleet2.com</td><td><span class="pill p-a">Fleet Mgr</span></td><td>FLEET-002</td><td><span class="pill p-g">Active</span></td><td><button class="btn btn-sm" onclick="alert('Edit user…')">Edit</button></td></tr>
+                <tr class="adm-row"><td>driver2@fleet2.com</td><td><span class="pill p-g">End User</span></td><td>FLEET-002</td><td><span class="pill p-a">Invited</span></td><td><button class="btn btn-sm" onclick="alert('Resend invite…')">Resend</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="notice" style="font-size:11.5px">
+            <i class="ti ti-shield-check" aria-hidden="true"></i>
+            Fleet managers cannot assign roles above their own level. Cognito enforces this via <code style="font-size:10.5px">custom:fleet_id</code> scope at the API layer.
+          </div>
+        </div>
+
+        <!-- ── SYSTEM CONFIG ── -->
+        <div class="panel" id="p-cfg">
+          <div>
+            <div class="sec-hd"><span class="sec-title">Infrastructure</span></div>
+            <table class="dtbl">
+              <thead><tr><th>Setting</th><th>Value</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>AWS region</td><td style="font-family:var(--font-mono);font-size:11px">us-east-1</td><td><button class="btn btn-sm" onclick="alert('Edit…')">Edit</button></td></tr>
+                <tr><td>IoT endpoint</td><td style="font-family:var(--font-mono);font-size:11px;color:var(--color-text-secondary)">aj2h2j…iot.us-east-1</td><td><button class="btn btn-sm" onclick="alert('Edit…')">Edit</button></td></tr>
+                <tr><td>InfluxDB host</td><td style="font-family:var(--font-mono);font-size:11px">10.0.10.230</td><td><button class="btn btn-sm" onclick="alert('Edit…')">Edit</button></td></tr>
+                <tr><td>Telemetry interval</td><td style="font-family:var(--font-mono);font-size:11px">5 s</td><td><button class="btn btn-sm" onclick="alert('Edit…')">Edit</button></td></tr>
+                <tr><td>JWT expiry</td><td style="font-family:var(--font-mono);font-size:11px">3600 s</td><td><button class="btn btn-sm" onclick="alert('Edit…')">Edit</button></td></tr>
+                <tr><td>WAF login rate limit</td><td style="font-family:var(--font-mono);font-size:11px">100 req / 5 min / IP</td><td><button class="btn btn-sm" onclick="alert('Edit…')">Edit</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <div class="sec-hd"><span class="sec-title">Danger zone</span></div>
+            <div class="bbar">
+              <button class="btn btn-red" onclick="alert('Rotating InfluxDB token — Lambda will cold-start on next invocation…')"><i class="ti ti-key" aria-hidden="true"></i>Rotate InfluxDB token</button>
+              <button class="btn btn-red" onclick="alert('Rotating JWT secret — all active sessions will be invalidated immediately.')"><i class="ti ti-lock" aria-hidden="true"></i>Rotate JWT secret</button>
+              <button class="btn btn-red" onclick="alert('Revoking device certificate…')"><i class="ti ti-certificate" aria-hidden="true"></i>Revoke device cert</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── MAP ── -->
+        <div class="panel" id="p-map">
+          <div class="notice"><i class="ti ti-map-2" aria-hidden="true"></i>Fleet map — wire up a mapping provider (Google Maps Platform, Mapbox GL JS) using GPS coordinates from InfluxDB telemetry. Each unit publishes <code style="font-size:10.5px">lat</code> / <code style="font-size:10.5px">lng</code> in the telemetry payload.</div>
+          <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);height:200px;display:flex;align-items:center;justify-content:center;border:0.5px solid var(--color-border-tertiary)">
+            <div style="text-align:center;color:var(--color-text-tertiary)">
+              <i class="ti ti-map-2" style="font-size:36px;display:block;margin-bottom:8px" aria-hidden="true"></i>
+              <span style="font-size:12px">Map canvas placeholder</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /scroll -->
+    </main>
+  </div><!-- /body -->
+</div>
+
+<script>
+const CFG = {
+  admin:{lbl:'EcoFleet Admin', badge:'rb-admin', ctx:'All fleets',
+    nav:['dash','map','remote','maint','fw','alerts','rpts','hist','users','cfg'], admSec:true},
+  fm:   {lbl:'Fleet Manager',  badge:'rb-fm',    ctx:'FLEET-001',
+    nav:['dash','map','remote','maint','fw','alerts','rpts','hist','users'], admSec:true},
+  maint:{lbl:'Maintenance Tech',badge:'rb-maint',ctx:'All units (service)',
+    nav:['dash','remote','maint','fw','hist'], admSec:false},
+  eu:   {lbl:'End User',       badge:'rb-eu',    ctx:'TRUCK-042',
+    nav:['dash','remote','maint','fw','alerts','hist'], admSec:false}
+};
+const ALL_NAV=['dash','map','remote','maint','fw','alerts','rpts','hist','users','cfg'];
+const TITLES={dash:'Dashboard',map:'Fleet map',remote:'Remote control',maint:'Maintenance',fw:'Firmware updates',alerts:'Alerts',rpts:'Reports',hist:'APU history',users:'User management',cfg:'System configuration'};
+
+let role='admin', panel='dash';
+
+function R(r){
+  role=r;
+  const c=CFG[r];
+  // tabs
+  document.querySelectorAll('.rtab').forEach((t,i)=>t.classList.toggle('on',['admin','fm','maint','eu'][i]===r));
+  // badge
+  const b=document.getElementById('rbadge');
+  b.className='rbadge '+c.badge; b.textContent=c.lbl;
+  // sidebar context
+  document.getElementById('sb-ctx').textContent=c.ctx;
+  // nav visibility
+  ALL_NAV.forEach(id=>{
+    const el=document.getElementById('n-'+id);
+    if(el) el.classList.toggle('gone',!c.nav.includes(id));
+  });
+  document.getElementById('sb-admsec').style.display=c.admSec?'':'none';
+  // if current panel gone, reset
+  if(!c.nav.includes(panel)) P('dash');
+  else{apply(); markNav();}
+}
+
+function P(p){
+  panel=p;
+  document.querySelectorAll('.panel').forEach(el=>el.classList.remove('on'));
+  const el=document.getElementById('p-'+p);
+  if(el) el.classList.add('on');
+  document.getElementById('ptitle').textContent=TITLES[p]||p;
+  markNav(); apply();
+}
+
+function markNav(){
+  document.querySelectorAll('.sb-btn').forEach(b=>b.classList.remove('on'));
+  const nb=document.getElementById('n-'+panel);
+  if(nb) nb.classList.add('on');
+}
+
+function apply(){
+  const a=role==='admin', fm=role==='fm', mn=role==='maint', eu=role==='eu';
+
+  // Dashboard
+  tog('sc-eff', !(eu||mn));
+  document.getElementById('u-scope').textContent=
+    a?'All fleets · 50 units':fm?'FLEET-001 · 18 units':mn?'All units (service)':'Your unit · TRUCK-042';
+  tog('ur-009', !fm&&!eu);
+  tog('ur-031', !eu);
+  document.getElementById('um-031').textContent=a?'FLEET-002':'FLEET-001';
+  tog('ev-009', !eu&&!fm||a);
+
+  // Remote control
+  document.getElementById('rc-fleet').textContent=eu?'TRUCK-042 · FLEET-001':'FLEET-001';
+  tog('led-sec', !mn);
+  const mn_n=document.getElementById('maint-notice');
+  mn_n.style.display=mn?'':'none';
+  // disable start/stop for maint
+  ['b-start','b-stop'].forEach(id=>{
+    const b=document.getElementById(id);
+    if(b){b.disabled=mn; b.style.opacity=mn?.45:1; b.style.cursor=mn?'not-allowed':'pointer';}
+  });
+
+  // Maintenance
+  document.getElementById('maint-scope').textContent=
+    a?'All units':fm?'FLEET-001':mn?'All units (service)':'TRUCK-042';
+  tog('mr-009', !eu&&!fm||a);
+  tog('mr-026', !eu&&!fm||a);
+  tog('bulk-maint-sec', !mn&&!eu);
+
+  // Firmware
+  document.getElementById('fw-scope').textContent=
+    eu?'TRUCK-042 · latest v2.5.0':'All units · latest v2.5.0';
+  tog('fw-009', !eu&&!fm||a);
+  tog('bulk-fw-sec', !eu);
+
+  // Alerts
+  document.getElementById('alert-scope').textContent=
+    a?'All fleets':fm?'FLEET-001':eu?'TRUCK-042':'';
+  tog('thresh-sec', !mn);
+  tog('a-fleet2', !eu&&!fm||a);
+  document.getElementById('thresh-readonly').style.display=mn?'':'none';
+
+  // Reports
+  document.getElementById('rpt-scope').textContent=a?'All fleets':fm?'FLEET-001':'';
+  tog('rpt-f3', !fm&&!mn&&!eu||a);
+
+  // History
+  document.getElementById('hist-scope').textContent=
+    a?'All units · last 30 days':fm?'FLEET-001 · last 30 days':mn?'All units (service)':'TRUCK-042 · last 30 days';
+  tog('hr-009', !eu&&!fm||a);
+  tog('hr-026', !eu&&!fm||a);
+  tog('hr-031', !eu||a||fm||mn);
+
+  // Users
+  document.getElementById('users-title').textContent=fm?'FLEET-001 users':'All users';
+  document.querySelectorAll('.adm-row').forEach(r=>tog2(r,!fm));
+}
+
+function tog(id,show){
+  const el=document.getElementById(id);
+  if(el) el.style.display=show?'':'none';
+}
+function tog2(el,show){if(el) el.style.display=show?'':'none';}
+
+function led(el){
+  document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('on'));
+  el.classList.add('on');
+}
+
+function startFW(rowId,unit){
+  const row=document.getElementById(rowId);
+  if(!row) return;
+  const tds=row.querySelectorAll('td');
+  tds[2].innerHTML='<span class="pill p-a">Updating…</span>';
+  tds[4].innerHTML='<div class="fw-bar"><div class="fw-fill" id="fw-prog-'+rowId+'" style="width:0%"></div></div>';
+  let w=0;
+  const t=setInterval(()=>{
+    w+=Math.random()*18+6;
+    if(w>=100){w=100;clearInterval(t);
+      tds[1].textContent='v2.5.0';
+      tds[2].innerHTML='<span class="pill p-g">Up to date</span>';
+      tds[3].innerHTML='<span class="pill p-g">Up to date</span>';
+      tds[4].innerHTML='';
+    }
+    const bar=document.getElementById('fw-prog-'+rowId);
+    if(bar) bar.style.width=Math.min(w,100)+'%';
+  },280);
+}
+
+// init
+apply(); markNav();
+</script>
