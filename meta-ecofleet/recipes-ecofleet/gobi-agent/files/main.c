@@ -550,11 +550,11 @@ static void apply_command_file(void)
     if (cJSON_IsNumber(sp))
         mb_write_reg(14, (int)sp->valuedouble, "setpoint");
 
-    /* fan 0|1|2 -> reg 12 (evap fan speed) */
+    /* fan percent 0..100 (0 = off) -> reg 12 (evap fan speed) */
     const cJSON *fan = cJSON_GetObjectItemCaseSensitive(root, "fan");
     if (cJSON_IsNumber(fan)) {
         int v = (int)fan->valuedouble;
-        if (v >= 0 && v <= 2) mb_write_reg(12, v, "fan");
+        if (v >= 0 && v <= 100) mb_write_reg(12, v, "fan");
     }
 
     /* reset_oil -> zero engine-oil hours (reg 20) + oil-change state (reg 18) */

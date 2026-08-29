@@ -19,7 +19,7 @@ Page {
             ["Cabin Temp",     telemetry.cabinTempF.toFixed(0) + " °F",       false],
             ["Setpoint",       telemetry.clmtSetpointF.toFixed(0) + " °F",    false],
             ["External Temp",  telemetry.extTempF.toFixed(0) + " °F",         false],
-            ["Fan Speed",      ["Low","Med","High"][telemetry.fanSpeed] || "—", false] ] },
+            ["Fan Speed",      telemetry.fanSpeed > 0 ? telemetry.fanSpeed + "%" : "Off", false] ] },
         { name: "POWER & ENGINE", tiles: [
             ["Battery",        telemetry.battV.toFixed(2) + " V",             false],
             ["Engine RPM",     telemetry.rpm + "",                            false],

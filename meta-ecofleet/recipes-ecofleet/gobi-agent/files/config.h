@@ -53,7 +53,7 @@
 #define REG_IGNITION        7   /* fw 8  truck ignition, 0/1               R  */
 #define REG_MODE            9   /* fw 10 mode: 0=Off 1=Climate 2=Battery   R  */
 #define REG_ENGINE_HRS     10   /* fw 11 engine runtime, hours             R  */
-#define REG_FAN_SPEED      11   /* fw 12 evap fan speed, 0-2               R  */
+#define REG_FAN_SPEED      11   /* fw 12 evap fan speed, 0-100 %           R  */
 #define REG_BATT_SET_CV    12   /* fw 13 batt monitor setpoint, centivolts R  */
 #define REG_CLMT_SET_F     13   /* fw 14 climate temp setpoint, degF       R  */
 #define REG_ERROR          16   /* fw 17 error state, 0-10 (control_error_t) R */

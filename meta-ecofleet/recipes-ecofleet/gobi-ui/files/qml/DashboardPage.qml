@@ -34,11 +34,14 @@ Page {
         }
     }
     Timer { id: sendTimer; interval: 350; onTriggered: telemetry.setSetpoint(page.targetF) }
+    Timer { id: fanSendTimer; interval: 350; onTriggered: telemetry.setFan(page.uiFan) }
     function bumpTarget(d) {
         page.targetF = Math.max(page.minF, Math.min(page.maxF, page.targetF + d)); sendTimer.restart()
     }
     function pickMode(m) { page.uiMode = m; telemetry.setMode(m) }
-    function pickFan(n)  { page.uiFan  = n; telemetry.setFan(n) }
+    // Fan is a continuous percent (0 = off). Dragging updates optimistically and
+    // debounces the write (350 ms) so a drag doesn't spam the command file.
+    function pickFan(n)  { page.uiFan = Math.round(n); fanSendTimer.restart() }
 
     function tempColor(f) {
         if (f <= 64) return "#2F81F7"
@@ -229,25 +232,49 @@ Page {
                     }
                 }
 
-                Text { text: "FAN SPEED"; color: "#6E7681"
-                       font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold }
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 8
+                    Text { text: "FAN SPEED"; color: "#6E7681"
+                           font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold }
+                    Item { Layout.fillWidth: true }
+                    Text { text: page.effFan <= 0 ? "OFF" : page.effFan + "%"
+                           color: page.effFan <= 0 ? "#6E7681" : "#58A6FF"
+                           font.pixelSize: 16; font.weight: Font.Bold }
+                }
                 RowLayout {
                     Layout.fillWidth: true; Layout.fillHeight: false
                     Layout.preferredHeight: 46; Layout.maximumHeight: 46; spacing: 8
-                    Repeater {
-                        model: [ { t: "LOW", n: 0 }, { t: "MED", n: 1 }, { t: "HIGH", n: 2 } ]
-                        Rectangle {
-                            Layout.fillWidth: true; Layout.fillHeight: true
-                            radius: 10
-                            property bool on: page.effFan === modelData.n
-                            color: on ? "#1D3A57" : (fma.pressed ? "#233041" : "#1C2230")
-                            border.color: on ? "#58A6FF" : "#30363D"; border.width: on ? 2 : 1
-                            Text { anchors.centerIn: parent; text: modelData.t
-                                   color: parent.on ? "#58A6FF" : "#C9D1D9"
-                                   font.pixelSize: 16; font.letterSpacing: 1
-                                   font.weight: parent.on ? Font.Bold : Font.Medium }
-                            MouseArea { id: fma; anchors.fill: parent
-                                        onClicked: page.pickFan(modelData.n) }
+                    Slider {
+                        id: fanSlider
+                        Layout.fillWidth: true; Layout.fillHeight: true
+                        from: 0; to: 100; stepSize: 1; live: true
+                        // Seed from telemetry; follow it only while the user isn't dragging
+                        // and no optimistic write is pending (page.uiFan < 0).
+                        Component.onCompleted: value = page.effFan
+                        onMoved: page.pickFan(value)
+                        Connections {
+                            target: telemetry
+                            function onDataChanged() {
+                                if (!fanSlider.pressed && page.uiFan < 0)
+                                    fanSlider.value = telemetry.fanSpeed
+                            }
+                        }
+                        background: Rectangle {
+                            x: fanSlider.leftPadding
+                            y: fanSlider.topPadding + fanSlider.availableHeight / 2 - height / 2
+                            width: fanSlider.availableWidth; height: 10; radius: 5
+                            color: "#1C2230"; border.color: "#30363D"; border.width: 1
+                            Rectangle {
+                                width: fanSlider.visualPosition * parent.width
+                                height: parent.height; radius: 5; color: "#58A6FF"
+                            }
+                        }
+                        handle: Rectangle {
+                            x: fanSlider.leftPadding + fanSlider.visualPosition * (fanSlider.availableWidth - width)
+                            y: fanSlider.topPadding + fanSlider.availableHeight / 2 - height / 2
+                            implicitWidth: 30; implicitHeight: 30; radius: 15
+                            color: fanSlider.pressed ? "#233041" : "#1D3A57"
+                            border.color: "#58A6FF"; border.width: 2
                         }
                     }
                 }
