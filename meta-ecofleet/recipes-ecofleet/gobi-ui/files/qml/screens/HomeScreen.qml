@@ -24,7 +24,9 @@ Item {
                   : (telemetry.engineStatus.length ? telemetry.engineStatus.toUpperCase() : "STANDBY")
         pillHue: telemetry.mode === "off" ? Theme.textMute : Theme.accent
         faultText: telemetry.hasError ? "Fault: " + telemetry.error : ""
-        footerStats: [ { label: "BATTERY", value: telemetry.battV.toFixed(1) + " V" },
+        footerStats: [ { label: "CABIN", value: telemetry.cabinTempF.toFixed(0) + "°F" },
+                       { label: "OUTSIDE", value: telemetry.extTempF.toFixed(0) + "°F" },
+                       { label: "BATTERY", value: telemetry.battV.toFixed(1) + " V" },
                        { label: "ENGINE HRS", value: telemetry.engineHrs + "" } ]
         onIncremented: home.bump(1)
         onDecremented: home.bump(-1)
