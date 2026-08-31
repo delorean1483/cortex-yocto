@@ -2,6 +2,7 @@ import QtQuick
 QtObject {
     // telemetry mock — mirrors TelemetryModel's read API + no-op writes
     property QtObject telemetry: QtObject {
+        signal dataChanged()   // real TelemetryModel emits this; here so Connections resolve
         property real   cabinTempF: 74;   property real extTempF: 88
         property real   battV: 12.9;      property real clmtSetpointF: 70
         property real   battSetpointV: 12.0
