@@ -19,18 +19,20 @@ Item {
                         model: modelData
                         Rectangle {
                             Layout.fillWidth: true; Layout.fillHeight: true; radius: 12
-                            color: ma.pressed ? Theme.surface2 : Theme.surface
-                            border.color: ma.pressed ? Theme.accent : Theme.border; border.width: 1
+                            color: tap.pressed ? Theme.surface2 : Theme.surface
+                            border.color: tap.pressed ? Theme.accent : Theme.border; border.width: 1
                             Column { anchors.centerIn: parent; spacing: 10
                                 Icon { anchors.horizontalCenter: parent.horizontalCenter
                                     name: modelData.icon !== undefined ? modelData.icon : ""
-                                    size: 38; color: ma.pressed ? Theme.accent : Theme.accentBlue }
+                                    size: 38; color: tap.pressed ? Theme.accent : Theme.accentBlue }
                                 Text { text: modelData.title; anchors.horizontalCenter: parent.horizontalCenter
                                     color: Theme.text; font.pixelSize: 15; font.weight: Font.Medium } }
                             Icon { visible: modelData.locked === true; name: "lock"; size: 16
                                 color: Theme.textMute
                                 anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 10 }
-                            MouseArea { id: ma; anchors.fill: parent; onClicked: grid.opened(modelData.target) }
+                            // TapHandler (not MouseArea) so taps register inside the SwipeView's flickable
+                            TapHandler { id: tap; gesturePolicy: TapHandler.ReleaseWithinBounds
+                                onTapped: grid.opened(modelData.target) }
                         }
                     }
                 }
