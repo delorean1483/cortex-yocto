@@ -4,11 +4,21 @@
 
 **Goal:** Replace the cluttered 3-tab gobi-ui with the rail-based IA (Home / Mode / Battery / Menu) on a fixed 800×480 canvas that scales to any panel, re-homing today's Diagnostics/Device content into Menu — using only data that already exists.
 
+> **Scope amendment (2026-08-31):** The Diagnostics screen (Task 14) additionally carries a **live fan-test slider** (`telemetry.setFan 0-100`, already wired end-to-end via `command.json` → gobi-agent reg 12) so a tech can troubleshoot the evap fan. **Individual relay/actuator triggering is explicitly deferred to firmware** — there is no relay write path today (gobi-agent write surface = holding regs 10/12/14/18/20 only; no coils; the STM32 drives relays solely from its op-state machine). A gated "Component Test" that energizes individual relays is Phase-3 work needing new STM32 test hooks + agent command + `TelemetryModel` method, and is safety-critical (interlocks). Not in this plan.
+
 **Architecture:** All QML is authored inside a fixed 800×480 `ScaleRoot` that letterbox-scales to the physical panel (native on the Riverdi 5″, ~1.6× on the 1280×800 dev kit). An `AppShell` hosts a persistent left `Rail` + a content `StackView`. Three reusable templates (`BigNumberScreen`, `ChoiceList`, `TileGrid`) back every screen. Colors are centralized in a `Theme` singleton. A desktop `qml` preview harness with mocked `telemetry`/`devinfo`/`weather` gives a fast visual loop; final verification is a Yocto image build flashed to the dev kit.
 
 **Tech Stack:** Qt 6 / QML (QtQuick, QtQuick.Controls, QtQuick.Layouts); Yocto (`gobi-ui_1.0.bb`); desktop Qt 6 `qml` runtime for preview.
 
 **Spec:** `docs/superpowers/specs/2026-08-31-apu-gui-redesign-design.md` (read it first; it maps every screen to telemetry and explains the phasing).
+
+## Status (2026-08-31)
+
+**Tasks 1–16 code-complete and preview-verified** on the desktop `qml` harness (offscreen, `QT_QUICK_CONTROLS_STYLE=Basic` to match the device) — all components/screens/boot-path load with zero QML errors. One commit per task on `feat/gobi-ui-800x480-layout`. Task 14 carries the added fan-test slider; relays deferred (see scope amendment above).
+
+**Remaining: Task 16 Step 4 only — image build + flash + on-device visual/functional check** (needs CI/Yocto + the physical dev kit; cannot be done from the dev laptop). This is the last gate before the work is "done"; treat preview-verified as necessary-but-not-sufficient until the panel is confirmed.
+
+Firmware findings captured during execution: the STM32 exposes **7 relays** (fuel/starter/glow/compressor/heat-reverser/evap-fan/condenser-fan) + 2 fan PWM channels, driven **only** by the internal op-state machine — no Modbus relay/diagnostic/override register exists. `setFan`→reg 12 is an NVM-backed **fan-speed setting**, applied to the evap PWM only while the evap fan relay is energized (i.e. in Climate/cooling); the slider won't spin the fan with the unit Off. A gated component-test that energizes relays is Phase-3 firmware work with real safety interlocks.
 
 ## Global Constraints
 
