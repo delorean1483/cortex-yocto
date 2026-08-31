@@ -7,13 +7,20 @@ Item {
     Component { id: diag;      DiagnosticsScreen {} }
     Component { id: usermaint; UserMaintScreen {} }
     Component { id: unit;      UnitInfoScreen {} }
-    Component { id: soon; Item { Rectangle { anchors.fill: parent; color: Theme.bg
-        Text { anchors.centerIn: parent; text: "Coming soon"; color: Theme.textMute; font.pixelSize: 18 } } } }
+    Component { id: alerts;    AlertsScreen {} }
+    Component { id: log;       ErrorLogScreen {} }
+    Component { id: settings;  SettingsScreen {} }
+    Component { id: cloud;     CloudScreen {} }
+    Component { id: lock;      ScreenLockScreen {} }
+    Component { id: maint;     MaintenanceScreen {} }
+    Component { id: support;   SupportScreen {} }
+    property var _routes: ({
+        "diag": diag, "usermaint": usermaint, "unit": unit, "alerts": alerts,
+        "log": log, "settings": settings, "cloud": cloud, "lock": lock,
+        "maint": maint, "support": support
+    })
     function open(target) {
-        if (target === "diag") menu.shell.pushScreen(diag);
-        else if (target === "usermaint") menu.shell.pushScreen(usermaint);
-        else if (target === "unit") menu.shell.pushScreen(unit);
-        else menu.shell.pushScreen(soon);
+        if (menu._routes[target] !== undefined) menu.shell.pushScreen(menu._routes[target]);
     }
     TileGrid {
         anchors.fill: parent

@@ -22,6 +22,7 @@ ApplicationWindow {
                          {key:"batt",label:"Battery",icon:"battery"}, {key:"menu",label:"Menu",icon:"menu"} ]
             railScreens: [ homeC, modeC, battC, menuC ]
         }
+        LockOverlay { anchors.fill: parent }   // covers the rail too when locked
     }
     Component { id: homeC; HomeScreen {} }
     Component { id: modeC; ModeScreen {} }

@@ -1,6 +1,6 @@
 SUMMARY = "EcoFleet Gobi APU touchscreen dashboard"
 LICENSE = "CLOSED"
-PR = "r8"
+PR = "r9"
 
 SRC_URI = " \
     file://CMakeLists.txt \
@@ -18,10 +18,14 @@ SRC_URI = " \
     file://qml/AppShell.qml \
     file://qml/Rail.qml \
     file://qml/Header.qml \
+    file://qml/LockController.qml \
+    file://qml/LockOverlay.qml \
     file://qml/atoms/StatusPill.qml \
     file://qml/atoms/FaultBanner.qml \
     file://qml/atoms/StatCard.qml \
     file://qml/atoms/Icon.qml \
+    file://qml/atoms/ScreenHeader.qml \
+    file://qml/atoms/Keypad.qml \
     file://qml/templates/BigNumberScreen.qml \
     file://qml/templates/ChoiceList.qml \
     file://qml/templates/TileGrid.qml \
@@ -32,6 +36,13 @@ SRC_URI = " \
     file://qml/screens/DiagnosticsScreen.qml \
     file://qml/screens/UserMaintScreen.qml \
     file://qml/screens/UnitInfoScreen.qml \
+    file://qml/screens/AlertsScreen.qml \
+    file://qml/screens/ErrorLogScreen.qml \
+    file://qml/screens/SettingsScreen.qml \
+    file://qml/screens/CloudScreen.qml \
+    file://qml/screens/ScreenLockScreen.qml \
+    file://qml/screens/MaintenanceScreen.qml \
+    file://qml/screens/SupportScreen.qml \
     file://qml/WeatherStrip.qml \
     file://qml/WeatherIcon.qml \
     file://gobi-ui.service \
@@ -68,6 +79,8 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/qml/AppShell.qml        ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/Rail.qml            ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/Header.qml          ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/LockController.qml  ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/LockOverlay.qml     ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/WeatherStrip.qml    ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/WeatherIcon.qml     ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/atoms/*.qml         ${D}${datadir}/gobi-ui/qml/atoms/
