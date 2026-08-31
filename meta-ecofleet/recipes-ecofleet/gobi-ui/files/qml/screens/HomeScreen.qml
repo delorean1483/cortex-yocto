@@ -7,9 +7,17 @@ Item {
     Component.onCompleted: target = Math.round(telemetry.clmtSetpointF)
     Timer { id: send; interval: 350; onTriggered: telemetry.setSetpoint(home.target) }
     function bump(d) { target = Math.max(55, Math.min(85, target + d)); send.restart() }
+    function tempColor(f) {
+        if (f <= 64) return "#2F81F7";
+        if (f <= 68) return "#39B0C4";
+        if (f <= 74) return Theme.accent;
+        if (f <= 78) return Theme.warn;
+        return "#F0883E";
+    }
     BigNumberScreen {
         anchors.fill: parent
         value: home.target + "°"
+        valueColor: home.tempColor(home.target)
         showSteppers: true
         statusText: telemetry.controlStatus
         pillText: telemetry.mode === "off" ? "OFF"

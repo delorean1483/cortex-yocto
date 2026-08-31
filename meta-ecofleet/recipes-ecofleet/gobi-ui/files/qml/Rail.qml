@@ -1,5 +1,6 @@
 import QtQuick
 import "."
+import "atoms"
 Rectangle {
     id: rail
     property var model: []
@@ -17,11 +18,11 @@ Rectangle {
                 property bool active: index === rail.currentIndex
                 Rectangle { anchors.left: parent.left; width: 3; height: parent.height
                     color: item.active ? Theme.accent : "transparent" }
-                Column { anchors.centerIn: parent; spacing: 4
-                    // icon placeholder: a rounded square; replace with line-icon set during styling
-                    Rectangle { width: 30; height: 30; radius: 8; anchors.horizontalCenter: parent.horizontalCenter
-                        color: "transparent"; border.width: 2
-                        border.color: item.active ? Theme.accent : Theme.textMute }
+                Column { anchors.centerIn: parent; spacing: 6
+                    Icon { anchors.horizontalCenter: parent.horizontalCenter
+                        name: modelData.icon !== undefined ? modelData.icon : modelData.key
+                        size: 28; stroke: item.active ? 2.4 : 2
+                        color: item.active ? Theme.accent : Theme.textMute }
                     Text { text: modelData.label; anchors.horizontalCenter: parent.horizontalCenter
                         color: item.active ? Theme.accent : Theme.textMute
                         font.pixelSize: 14; font.weight: item.active ? Font.Bold : Font.Medium }

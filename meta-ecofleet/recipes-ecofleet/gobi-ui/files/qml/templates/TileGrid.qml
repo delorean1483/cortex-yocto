@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
+import "../atoms"
 Item {
     id: grid
     property var pages: []
@@ -19,14 +20,16 @@ Item {
                         Rectangle {
                             Layout.fillWidth: true; Layout.fillHeight: true; radius: 12
                             color: ma.pressed ? Theme.surface2 : Theme.surface
-                            border.color: Theme.border; border.width: 1
-                            Column { anchors.centerIn: parent; spacing: 8
-                                Rectangle { width: 40; height: 40; radius: 10; anchors.horizontalCenter: parent.horizontalCenter
-                                    color: "transparent"; border.color: Theme.textMute; border.width: 2 }
+                            border.color: ma.pressed ? Theme.accent : Theme.border; border.width: 1
+                            Column { anchors.centerIn: parent; spacing: 10
+                                Icon { anchors.horizontalCenter: parent.horizontalCenter
+                                    name: modelData.icon !== undefined ? modelData.icon : ""
+                                    size: 38; color: ma.pressed ? Theme.accent : Theme.accentBlue }
                                 Text { text: modelData.title; anchors.horizontalCenter: parent.horizontalCenter
-                                    color: Theme.text; font.pixelSize: 15 } }
-                            Text { visible: modelData.locked === true; text: "\u{1F512}"
-                                anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 8; font.pixelSize: 14 }
+                                    color: Theme.text; font.pixelSize: 15; font.weight: Font.Medium } }
+                            Icon { visible: modelData.locked === true; name: "lock"; size: 16
+                                color: Theme.textMute
+                                anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 10 }
                             MouseArea { id: ma; anchors.fill: parent; onClicked: grid.opened(modelData.target) }
                         }
                     }

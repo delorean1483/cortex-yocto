@@ -5,6 +5,7 @@ import "../atoms"
 Item {
     id: scr
     property string value: ""
+    property color valueColor: Theme.text
     property bool showSteppers: false
     property string statusText: ""
     property string pillText: ""
@@ -19,7 +20,7 @@ Item {
         Item { Layout.fillWidth: true; Layout.fillHeight: true
             RowLayout {
                 anchors.centerIn: parent; spacing: 16
-                Text { text: scr.value; color: Theme.text; font.pixelSize: 140; font.weight: Font.Light }
+                Text { text: scr.value; color: scr.valueColor; font.pixelSize: 140; font.weight: Font.Light }
                 ColumnLayout {
                     visible: scr.showSteppers; spacing: 8
                     Repeater { model: [{t:"▲",inc:true},{t:"▼",inc:false}]

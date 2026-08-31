@@ -10,6 +10,7 @@ Item {
     BigNumberScreen {
         anchors.fill: parent
         value: telemetry.battV.toFixed(1) + " V"
+        valueColor: telemetry.battV < 11.8 ? Theme.warn : Theme.ok
         showSteppers: false
         statusText: parent.statusText(telemetry.battV)
         pillText: telemetry.battV < 11.8 ? "LOW" : "OK"
