@@ -1,0 +1,14 @@
+[Unit]
+Description=Periodic EcoFleet weather forecast refresh
+
+[Timer]
+# First refresh shortly after boot (once the link is up), then every 30 min.
+OnBootSec=45s
+OnUnitActiveSec=30min
+# Spread a fleet's requests so they don't hit Open-Meteo in lockstep.
+RandomizedDelaySec=300
+# Run a missed refresh (e.g. device was asleep/offline) as soon as it can.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -9,8 +9,13 @@ SRC_URI = " \
     file://shadow.c \
     file://shadow.h \
     file://config.h \
+    file://weather.h \
+    file://weather.c \
+    file://weather-fetch.c \
     file://CMakeLists.txt \
     file://gobi-agent.service \
+    file://weather-fetch.service \
+    file://weather-fetch.timer \
     file://gobi-agent.conf \
     file://AmazonRootCA1.pem \
     file://device.crt \
@@ -21,7 +26,12 @@ SRC_URI = " \
 S = "${WORKDIR}"
 
 # ── Build deps ────────────────────────────────────────────────────────────────
-DEPENDS = "libmodbus mosquitto sqlite3 cjson"
+DEPENDS = "libmodbus mosquitto sqlite3 cjson curl"
+
+# ── Runtime deps ──────────────────────────────────────────────────────────────
+# weather-fetch does TLS to Open-Meteo; ca-certificates supplies the trust store
+# (only Amazon's root ships for MQTT, which won't validate a public API host).
+RDEPENDS:${PN} += "ca-certificates"
 
 inherit cmake systemd useradd
 
@@ -79,13 +89,17 @@ do_install:append() {
     # Agent config file
     install -m 0644 -o ecofleet -g ecofleet ${WORKDIR}/gobi-agent.conf     ${D}${sysconfdir}/ecofleet/
 
-    # systemd service
+    # systemd units
     install -d ${D}${systemd_system_unitdir}
-    install -m 0644 ${WORKDIR}/gobi-agent.service  ${D}${systemd_system_unitdir}/
+    install -m 0644 ${WORKDIR}/gobi-agent.service      ${D}${systemd_system_unitdir}/
+    install -m 0644 ${WORKDIR}/weather-fetch.service   ${D}${systemd_system_unitdir}/
+    install -m 0644 ${WORKDIR}/weather-fetch.timer     ${D}${systemd_system_unitdir}/
 }
 
 # ── systemd integration ───────────────────────────────────────────────────────
-SYSTEMD_SERVICE:${PN} = "gobi-agent.service"
+# Enable the agent and the weather timer; weather-fetch.service is oneshot and
+# started by the timer, so it is installed but not enabled on its own.
+SYSTEMD_SERVICE:${PN} = "gobi-agent.service weather-fetch.timer"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 # ── File permissions QA ───────────────────────────────────────────────────────
@@ -96,4 +110,6 @@ FILES:${PN} += " \
     ${sysconfdir}/ecofleet/ \
     /var/lib/ecofleet/ \
     ${systemd_system_unitdir}/gobi-agent.service \
+    ${systemd_system_unitdir}/weather-fetch.service \
+    ${systemd_system_unitdir}/weather-fetch.timer \
 "

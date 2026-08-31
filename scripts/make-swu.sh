@@ -52,9 +52,16 @@ echo "==> sha256: $SHA256"
 
 # ── 4. Patch sw-description ───────────────────────────────────────────────────
 SW_DESC="$TMPDIR/sw-description"
+# Signed mode requires a sha256 for EVERY artifact, scripts included — else
+# swupdate rejects the bundle ("Hash not set for pre-install.sh").
+SHA_PRE=$(sha256sum "$SCRIPT_DIR/pre-install.sh"  | awk '{print $1}')
+SHA_POST=$(sha256sum "$SCRIPT_DIR/post-install.sh" | awk '{print $1}')
+
 sed \
     -e "s|version = \"0.1.0\"|version = \"${VERSION}\"|" \
     -e "s|sha256   = \"@rootfs.ext4.gz\"|sha256   = \"${SHA256}\"|" \
+    -e "s|sha256   = \"@pre-install.sh\"|sha256   = \"${SHA_PRE}\"|" \
+    -e "s|sha256   = \"@post-install.sh\"|sha256   = \"${SHA_POST}\"|" \
     "$SCRIPT_DIR/sw-description" > "$SW_DESC"
 
 # ── 5. Copy scripts ───────────────────────────────────────────────────────────

@@ -55,3 +55,21 @@ ota-keys/sign.key
 # Lambda build artifacts
 cloud/lambda/**/node_modules/
 cloud/lambda/**/*.zip
+
+# Nested working clone (separate repo checkout kept on disk, not part of this repo)
+cortex-yocto/
+
+# STM32 firmware CubeIDE build output & local IDE prefs
+# (firmware source is tracked on the APU branch; this only hides regenerable cruft)
+firmware/**/Debug/
+firmware/**/.settings/
+firmware/**/*.launch
+
+# Superpowers / agent tooling state
+.superpowers/
+
+# Old repo-local memory dir (superseded by ~/.claude project memory)
+memory/
+
+# Flash bmap artifact (companion to the gitignored *.wic)
+*.wic.bmap

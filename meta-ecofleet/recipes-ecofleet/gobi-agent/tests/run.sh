@@ -1,0 +1,16 @@
+#!/bin/sh
+# Host test runner for the pure weather transforms. Uses the Mac's Homebrew
+# cJSON. No device or network involved.
+set -e
+here=$(cd "$(dirname "$0")" && pwd)
+files="$here/../files"
+cjson=$(brew --prefix cjson 2>/dev/null || echo /opt/homebrew/opt/cjson)
+
+cc -std=c11 -Wall -Wextra -Wpedantic -g \
+   -fsanitize=address,undefined \
+   -I"$files" -I"$cjson/include" \
+   "$here/test_weather.c" "$files/weather.c" \
+   -L"$cjson/lib" -lcjson \
+   -o "$here/test_weather"
+
+"$here/test_weather"

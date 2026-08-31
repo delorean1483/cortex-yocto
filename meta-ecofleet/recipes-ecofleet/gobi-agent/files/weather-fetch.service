@@ -1,0 +1,23 @@
+[Unit]
+Description=EcoFleet weather forecast fetch (Open-Meteo)
+Documentation=https://github.com/your-org/ecofleet-firmware
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ecofleet
+Group=ecofleet
+ExecStart=/usr/sbin/weather-fetch
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=weather-fetch
+
+# Hardening — needs only outbound network and its own state dir
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/ecofleet
+PrivateTmp=yes
+
+# No [Install]: this unit is started by weather-fetch.timer, not on its own.

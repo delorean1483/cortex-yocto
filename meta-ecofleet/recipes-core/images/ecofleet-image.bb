@@ -40,6 +40,8 @@ IMAGE_INSTALL:append = " \
     sqlite3 \
     libmodbus \
     cjson \
+    curl \
+    ca-certificates \
     gobi-ui \
     qtbase \
     qtdeclarative \

@@ -288,8 +288,13 @@ static void ota_trigger(const char *version)
 
     syslog(LOG_INFO, "ota: download complete, running swupdate");
 
-    /* swupdate -i <file> : applies the bundle, writes inactive slot, flips env */
-    const char *swu_argv[] = { "swupdate", "-i", local, NULL };
+    /* swupdate -i <file> -f <config> : install to the inactive A/B slot and
+     * flip the bootloader env. swupdate has NO CLI option for the verification
+     * key (its -k does not exist; -K is AES *decryption*) — signature checking,
+     * when swupdate is built with CONFIG_SIGNED_IMAGES, is driven by
+     * public-key-file in the config file we ship (/etc/swupdate.cfg). */
+    const char *swu_argv[] = { "swupdate", "-i", local,
+                               "-f", "/etc/swupdate/ecofleet.cfg", NULL };
     pid_t swu_pid = fork();
     if (swu_pid == 0) {
         execvp("swupdate", (char *const *)swu_argv);
@@ -545,11 +550,11 @@ static void apply_command_file(void)
     if (cJSON_IsNumber(sp))
         mb_write_reg(14, (int)sp->valuedouble, "setpoint");
 
-    /* fan 0|1|2 -> reg 12 (evap fan speed) */
+    /* fan percent 0..100 (0 = off) -> reg 12 (evap fan speed) */
     const cJSON *fan = cJSON_GetObjectItemCaseSensitive(root, "fan");
     if (cJSON_IsNumber(fan)) {
         int v = (int)fan->valuedouble;
-        if (v >= 0 && v <= 2) mb_write_reg(12, v, "fan");
+        if (v >= 0 && v <= 100) mb_write_reg(12, v, "fan");
     }
 
     /* reset_oil -> zero engine-oil hours (reg 20) + oil-change state (reg 18) */

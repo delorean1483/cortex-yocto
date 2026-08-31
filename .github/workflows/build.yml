@@ -53,6 +53,9 @@ jobs:
             VERSION="${{ github.sha }}"
             VERSION="${VERSION:0:8}"
           fi
+          # Branch names contain '/' (e.g. feat/foo) which is illegal in a
+          # version string / filename — sanitize to '-'. Tags (1.2.30) are unaffected.
+          VERSION="${VERSION//\//-}"
           printf 'header:\n  version: 14\nlocal_conf_header:\n  version: |\n    ECOFLEET_FW_VERSION = "%s"\n' "$VERSION" > kas-version.yml
 
       - name: Inject device certificate
@@ -121,6 +124,8 @@ jobs:
             VERSION="${{ github.sha }}"
             VERSION="${VERSION:0:8}"
           fi
+          # Sanitize '/' from branch names so the .swu path isn't a bogus subdir
+          VERSION="${VERSION//\//-}"
 
           SIGN_OPT=""
           if [ -f /tmp/ota-keys/sign.key ]; then
@@ -133,6 +138,34 @@ jobs:
 
       - name: List release artifacts
         run: ls -lh /tmp/yocto-release
+
+      - name: Publish signed bundle to OTA bucket
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.OTA_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.OTA_AWS_SECRET_ACCESS_KEY }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          SWU="/tmp/yocto-release/ecofleet-${VERSION}.swu"
+
+          # The whole point of this step is *signed* OTA. Refuse to publish a
+          # bundle that has no sw-description.sig (i.e. SWUPDATE_SIGN_KEY unset).
+          if ! cpio -it < "$SWU" 2>/dev/null | grep -qx 'sw-description.sig'; then
+            echo "ERROR: $SWU is unsigned (no sw-description.sig) — refusing to publish." >&2
+            echo "Set the SWUPDATE_SIGN_KEY secret so make-swu.sh signs the bundle." >&2
+            exit 1
+          fi
+
+          docker run --rm \
+            -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY \
+            -e AWS_DEFAULT_REGION=us-east-1 \
+            -v /tmp/yocto-release:/rel \
+            amazon/aws-cli s3 cp "/rel/ecofleet-${VERSION}.swu" \
+            "s3://ecofleet-ota/releases/${VERSION}/ecofleet-${VERSION}.swu" \
+            --content-type application/octet-stream
+
+          echo "Published s3://ecofleet-ota/releases/${VERSION}/ecofleet-${VERSION}.swu"
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
