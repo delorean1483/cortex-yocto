@@ -3,7 +3,7 @@ import "../templates"
 import ".."
 Item {
     id: menu
-    property var shell
+    property var appShell   // the AppShell (renamed from `shell` to avoid an id/property name clash → binding loop)
     Component { id: diag;      DiagnosticsScreen {} }
     Component { id: usermaint; UserMaintScreen {} }
     Component { id: unit;      UnitInfoScreen {} }
@@ -20,7 +20,7 @@ Item {
         "maint": maint, "support": support
     })
     function open(target) {
-        if (menu._routes[target] !== undefined) menu.shell.pushScreen(menu._routes[target]);
+        if (menu._routes[target] !== undefined) menu.appShell.pushScreen(menu._routes[target]);
     }
     TileGrid {
         anchors.fill: parent
@@ -31,6 +31,6 @@ Item {
             [ {title:"Cloud Connection",target:"cloud",icon:"cloud"}, {title:"Screen Lock",target:"lock",icon:"lock"},
               {title:"Maintenance",target:"maint",icon:"cpu",locked:true}, {title:"Support",target:"support",icon:"support"} ]
         ]
-        onOpened: menu.open(target)
+        onOpened: function(target) { menu.open(target) }
     }
 }

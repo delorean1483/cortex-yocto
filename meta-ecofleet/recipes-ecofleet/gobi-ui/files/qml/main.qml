@@ -27,7 +27,7 @@ ApplicationWindow {
     Component { id: homeC; HomeScreen {} }
     Component { id: modeC; ModeScreen {} }
     Component { id: battC; BatteryScreen {} }
-    Component { id: menuC; MenuScreen { shell: shell } }
+    Component { id: menuC; MenuScreen { appShell: shell } }
 
     // ── Splash overlay ────────────────────────────────────────────────────────
     Rectangle {
