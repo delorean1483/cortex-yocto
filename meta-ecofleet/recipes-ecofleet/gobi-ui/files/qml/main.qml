@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "screens"
 
 ApplicationWindow {
     id: root
@@ -11,136 +12,21 @@ ApplicationWindow {
 
     background: Rectangle { color: "#0D1117" }
 
-    // ── Top bar ───────────────────────────────────────────────────────────────
-    Rectangle {
-        id: topBar
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: 40
-        color: "#161B22"
-
-        Rectangle {
-            anchors.bottom: parent.bottom
-            width: parent.width; height: 1
-            color: "#21262D"
-        }
-
-        Image {
-            anchors.left: parent.left
-            anchors.leftMargin: 14
-            anchors.verticalCenter: parent.verticalCenter
-            source: "/usr/share/gobi-ui/ecofleet_logo_topbar.png"
-            height: 28
-            fillMode: Image.PreserveAspectFit
-        }
-
-        Row {
-            anchors.right: parent.right
-            anchors.rightMargin: 14
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 8
-
-            // No-data badge
-            Rectangle {
-                visible: telemetry.stale
-                width: noDataRow.width + 20; height: 24; radius: 12
-                color: "#2D1B1B"; border.color: "#F85149"; border.width: 1
-                Row {
-                    id: noDataRow
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Rectangle { width: 6; height: 6; radius: 3; color: "#F85149"; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: "NO DATA"; color: "#F85149"; font.pixelSize: 11; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
-                }
-            }
-
-            // Error badge
-            Rectangle {
-                visible: telemetry.hasError
-                width: faultTxt.width + 20; height: 24; radius: 12
-                color: "#2D1014"; border.color: "#F85149"; border.width: 1
-                Text {
-                    id: faultTxt
-                    anchors.centerIn: parent
-                    text: "ERROR " + telemetry.error.toUpperCase()
-                    color: "#F85149"; font.pixelSize: 11; font.weight: Font.Bold
-                }
-            }
-
-            // Date / time clock (12-hour, with seconds)
-            Text {
-                id: clock
-                anchors.verticalCenter: parent.verticalCenter
-                property var now: new Date()
-                text: Qt.formatDateTime(now, "ddd MMM d  h:mm:ss AP")
-                color: "#8B949E"
-                font.pixelSize: 13
-                font.weight: Font.Medium
-
-                Timer {
-                    interval: 1000; running: true; repeat: true
-                    onTriggered: clock.now = new Date()
-                }
-            }
+    // ── Rail IA on a fixed 800x480 canvas that letterbox-scales to the panel ──
+    ScaleRoot {
+        anchors.fill: parent
+        AppShell {
+            id: shell
+            anchors.centerIn: parent   // AppShell is fixed 800x480; ScaleRoot scales it
+            railModel: [ {key:"home",label:"Home"}, {key:"mode",label:"Mode"},
+                         {key:"batt",label:"Battery"}, {key:"menu",label:"Menu"} ]
+            railScreens: [ homeC, modeC, battC, menuC ]
         }
     }
-
-    SwipeView {
-        id: view
-        anchors.top: topBar.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: tabBar.top
-        clip: true
-
-        DashboardPage  {}
-        DiagnosticsPage {}
-        DevicePage {}
-    }
-
-    // ── Tab bar ───────────────────────────────────────────────────────────────
-    Rectangle {
-        id: tabBar
-        height: 52
-        anchors.bottom: parent.bottom
-        width: parent.width
-        color: "#161B22"
-
-        Row {
-            anchors.fill: parent
-
-            Repeater {
-                model: ["Dashboard", "Diagnostics", "Device"]
-
-                Item {
-                    width: root.width / 3
-                    height: tabBar.height
-
-                    Rectangle {
-                        anchors.top: parent.top
-                        width: parent.width; height: 2
-                        color: view.currentIndex === index ? "#00C49A" : "transparent"
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: modelData
-                        color: view.currentIndex === index ? "#00C49A" : "#8B949E"
-                        font.pixelSize: 16
-                        font.weight: Font.Medium
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: view.currentIndex = index
-                    }
-                }
-            }
-        }
-    }
+    Component { id: homeC; HomeScreen {} }
+    Component { id: modeC; ModeScreen {} }
+    Component { id: battC; BatteryScreen {} }
+    Component { id: menuC; MenuScreen { shell: shell } }
 
     // ── Splash overlay ────────────────────────────────────────────────────────
     Rectangle {
