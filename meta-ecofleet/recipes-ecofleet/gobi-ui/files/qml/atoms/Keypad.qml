@@ -36,9 +36,10 @@ ColumnLayout {
                 visible: modelData !== ""
                 color: modelData === "" ? "transparent" : (kma.pressed ? Theme.surface2 : Theme.surface)
                 border.color: Theme.border; border.width: modelData === "" ? 0 : 1
-                Text { anchors.centerIn: parent
-                    text: modelData === "back" ? "⌫" : modelData
-                    color: Theme.text; font.pixelSize: modelData === "back" ? 22 : 24 }
+                Text { visible: modelData !== "back"; anchors.centerIn: parent
+                    text: modelData; color: Theme.text; font.pixelSize: 24 }
+                Icon { visible: modelData === "back"; anchors.centerIn: parent
+                    name: "backspace"; size: 26; color: Theme.textDim }
                 MouseArea { id: kma; anchors.fill: parent; enabled: modelData !== ""
                     onClicked: modelData === "back" ? kp.back() : kp.press(modelData) }
             }
