@@ -61,6 +61,8 @@ static void test_diag_end_to_end(void) {
     TEST_ASSERT_EQUAL_INT(OP_DIAG, c->op_state);
     TEST_ASSERT_EQUAL_INT(MB_EXC_NONE, mb_reg_write(50, (OUT_CONDENSER_FAN << 8) | 1));
     control_10ms_slot();                         /* dispatches OP_DIAG -> outputs_apply */
+    TEST_ASSERT_TRUE(fake_bsp_io_out(OUT_CONDENSER_FAN));           /* actually energized via outputs_apply */
+    TEST_ASSERT_EQUAL_UINT16(1000, fake_bsp_pwm_duty(PWM_CONDENSER_FAN));
     uint16_t o = 0; mb_reg_read(41, &o);
     TEST_ASSERT_EQUAL_UINT16((1u << OUT_CONDENSER_FAN), o);
     TEST_ASSERT_EQUAL_INT(MB_EXC_NONE, mb_reg_write(49, 0));
