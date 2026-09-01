@@ -9,6 +9,33 @@ Item {
     property string gate: "locked"
     readonly property bool active: gate === "active"
 
+    property int heartbeatMs: 3000
+    readonly property var relays: [
+        { name: "Fuel Pump", i: 0, engine: true }, { name: "Starter", i: 1, engine: true },
+        { name: "Glow Plug", i: 2, engine: true }, { name: "Compressor Clutch", i: 3, engine: false },
+        { name: "Heat Reverser", i: 4, engine: false }, { name: "Evap Fan", i: 5, engine: false },
+        { name: "Condenser Fan", i: 6, engine: false }
+    ]
+    // index of the currently-energized LOW-RISK output we heartbeat (-1 = none)
+    property int heldIndex: -1
+    function isOn(i) { return (telemetry.diagOutputs & (1 << i)) !== 0 }
+    function toggle(r) {
+        if (isOn(r.i)) { telemetry.setTestRelay(r.i, false); if (heldIndex === r.i) heldIndex = -1; return }
+        // single-active: releasing any previous is enforced by firmware; drop our heartbeat target
+        heldIndex = r.engine ? -1 : r.i
+        telemetry.setTestRelay(r.i, true)
+    }
+    Timer {  // deadman heartbeat: re-assert the held low-risk output well within the fw ~10s timeout
+        interval: panel.heartbeatMs; repeat: true; running: panel.active && panel.heldIndex >= 0
+        onTriggered: if (panel.heldIndex >= 0) panel.telemetry.setTestRelay(panel.heldIndex, true)
+    }
+    // TelemetryModel has no per-property diagOutputsChanged signal (all Q_PROPERTYs
+    // share NOTIFY dataChanged) — same adaptation as the gate Connections below: if
+    // firmware auto-dropped the held output (bitmask cleared), stop heartbeating it.
+    Connections {
+        target: panel.telemetry
+        function onDataChanged() { if (panel.heldIndex >= 0 && !panel.isOn(panel.heldIndex)) panel.heldIndex = -1 }
+    }
     // Firmware confirms entry by driving diagActive true; a refused entry never does.
     // TelemetryModel's Q_PROPERTYs all share one NOTIFY (dataChanged) — there is no
     // per-property diagActiveChanged signal on the real model — so this hooks
@@ -75,7 +102,57 @@ Item {
 
         Text { visible: panel.gate === "entering"; text: "Entering test mode…"; color: Theme.textMute; font.pixelSize: 13 }
 
-        // Grid placeholder — filled in Task 7
-        Item { id: gridSlot; Layout.fillWidth: true; Layout.fillHeight: true; visible: panel.active }
+        // Live relay grid — one-at-a-time component test
+        Flickable {
+            id: gridSlot; Layout.fillWidth: true; Layout.fillHeight: true; visible: panel.active
+            contentHeight: grid.height; clip: true
+            ColumnLayout {
+                id: grid; width: gridSlot.width; spacing: 8
+                RowLayout { Layout.fillWidth: true
+                    Text { text: "COMPONENT TEST — one at a time"; color: Theme.textMute
+                        font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold }
+                    Item { Layout.fillWidth: true }
+                    Text { text: "Exit"; color: Theme.accentBlue; font.pixelSize: 14
+                        MouseArea { anchors.fill: parent; anchors.margins: -10; onClicked: panel.leave() } } }
+                GridLayout {
+                    Layout.fillWidth: true; columns: 2; columnSpacing: 8; rowSpacing: 8
+                    Repeater { model: panel.relays
+                        Rectangle {
+                            Layout.fillWidth: true; Layout.preferredHeight: 52; radius: 10
+                            property bool on: panel.isOn(modelData.i)
+                            color: on ? Qt.rgba(Theme.ok.r, Theme.ok.g, Theme.ok.b, 0.20) : Theme.surface
+                            border.color: on ? Theme.ok : (modelData.engine ? Theme.warn : Theme.border); border.width: 1
+                            RowLayout { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 6
+                                Text { Layout.fillWidth: true; text: modelData.name; color: Theme.textDim
+                                    font.pixelSize: 13; elide: Text.ElideRight }
+                                Text { visible: modelData.engine; text: "⚠"; color: Theme.warn; font.pixelSize: 13 }
+                                Text { text: parent.parent.on ? "ON" : "OFF"
+                                    color: parent.parent.on ? Theme.ok : Theme.textMute; font.pixelSize: 12; font.weight: Font.Bold } }
+                            MouseArea { anchors.fill: parent
+                                onClicked: {
+                                    if (modelData.engine && !parent.on) { confirm.pending = modelData; confirm.open = true }
+                                    else panel.toggle(modelData)
+                                } }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Engine-relay confirm strip (crank/prime hazard)
+        Rectangle {
+            id: confirm
+            Layout.fillWidth: true; Layout.preferredHeight: 56; radius: 10; visible: confirm.open
+            color: Qt.rgba(Theme.warn.r, Theme.warn.g, Theme.warn.b, 0.12); border.color: Theme.warn; border.width: 1
+            property var pending: null; property bool open: false
+            RowLayout { anchors.fill: parent; anchors.margins: 10; spacing: 10
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.warn; font.pixelSize: 12
+                    text: confirm.pending ? ("Energize " + confirm.pending.name + "? This can crank/prime the engine.") : "" }
+                Text { text: "Confirm"; color: Theme.warn; font.pixelSize: 14; font.weight: Font.Bold
+                    MouseArea { anchors.fill: parent; anchors.margins: -8
+                        onClicked: { panel.toggle(confirm.pending); confirm.open = false; confirm.pending = null } } }
+                Text { text: "Cancel"; color: Theme.textMute; font.pixelSize: 14
+                    MouseArea { anchors.fill: parent; anchors.margins: -8; onClicked: { confirm.open = false; confirm.pending = null } } } }
+        }
     }
 }
