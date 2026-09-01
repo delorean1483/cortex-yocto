@@ -580,6 +580,23 @@ static void apply_command_file(void)
         mb_write_reg(18, 0, "reset_oil_state");
     }
 
+    /* diag_mode: 0|1 -> reg 49 (enter/exit Component Test) */
+    const cJSON *dmode = cJSON_GetObjectItemCaseSensitive(root, "diag_mode");
+    if (cJSON_IsNumber(dmode)) {
+        int v = (int)dmode->valuedouble;
+        if (v == 0 || v == 1) mb_write_reg(49, v, "diag_mode");
+    }
+
+    /* diag_out: (index<<8)|state -> reg 50 (actuate one output) */
+    const cJSON *dout = cJSON_GetObjectItemCaseSensitive(root, "diag_out");
+    if (cJSON_IsNumber(dout)) {
+        int v   = (int)dout->valuedouble;
+        int idx = (v >> 8) & 0xFF;
+        int st  = v & 0xFF;
+        if (idx <= 6 && st <= 1) mb_write_reg(50, v, "diag_out");
+        else syslog(LOG_WARNING, "control: bad diag_out 0x%04x", v);
+    }
+
     cJSON_Delete(root);
 }
 
