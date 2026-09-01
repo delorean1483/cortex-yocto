@@ -1,2 +1,3 @@
 singleton Theme 1.0 Theme.qml
 singleton LockController 1.0 LockController.qml
+singleton MaintController 1.0 MaintController.qml
