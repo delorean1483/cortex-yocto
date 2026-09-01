@@ -154,7 +154,7 @@ git commit -m "feat(agent): read component-test mode + status into latest.json (
     }
 ```
 
-- [ ] **Step 2: Verify (on-device).** With Component-Test-capable firmware and the APU OFF/engine-off: `echo '{"diag_mode":1}' > /var/lib/ecofleet/command.json` then `journalctl -u gobi-agent -n5` shows `control: diag_mode -> reg 49 = 1`; `echo '{"diag_out":1541}' > …/command.json` (0x0605 = index 6 / Condenser Fan, state 1) logs `diag_out -> reg 50 = 1541`. Then `echo '{"diag_mode":0}'` to exit.
+- [ ] **Step 2: Verify (on-device).** With Component-Test-capable firmware and the APU OFF/engine-off: `echo '{"diag_mode":1}' > /var/lib/ecofleet/command.json` then `journalctl -u gobi-agent -n5` shows `control: diag_mode -> reg 49 = 1`; `echo '{"diag_out":1537}' > …/command.json` (0x0601 = index 6 / Condenser Fan, state 1) logs `diag_out -> reg 50 = 1537`. Then `echo '{"diag_mode":0}'` to exit.
 
 - [ ] **Step 3: Commit**
 

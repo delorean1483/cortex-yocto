@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
-import "../atoms"
 Item {
     id: page
 
@@ -93,7 +92,7 @@ Item {
                         Rectangle { visible: page.running; width: 16; height: 16; radius: 3; color: parent.parent.hue; anchors.verticalCenter: parent.verticalCenter }
                         Text { text: page.running ? "STOP" : "START"; color: parent.parent.hue
                             font.pixelSize: 24; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter } }
-                    MouseArea { id: goMa; anchors.fill: parent; enabled: !ctp.active; onClicked: page.startStop() }
+                    MouseArea { id: goMa; anchors.fill: parent; enabled: !ctp.guarding; onClicked: page.startStop() }
                 }
 
                 // Evap fan slider (real)
@@ -101,7 +100,7 @@ Item {
                     Layout.fillWidth: true; Layout.preferredHeight: 66; radius: 10; color: Theme.surface; border.color: Theme.border; border.width: 1
                     RowLayout { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14; spacing: 14
                         Text { Layout.preferredWidth: 110; text: "Evap Fan"; color: Theme.textDim; font.pixelSize: 14; font.weight: Font.Medium }
-                        Slider { id: fanSlider; enabled: !ctp.active
+                        Slider { id: fanSlider; enabled: !ctp.guarding
                             Layout.fillWidth: true; Layout.preferredHeight: 40
                             from: 0; to: 100; stepSize: 1; live: true
                             Component.onCompleted: value = page.effFan

@@ -8,6 +8,10 @@ Item {
     // gate: locked -> keypad -> entering -> active ; back to locked on leave/refuse
     property string gate: "locked"
     readonly property bool active: gate === "active"
+    // exposed so screens hosting this panel can disable their own mode/fan
+    // controls while an OP_DIAG entry is in flight, not just once it's live —
+    // a tap during "entering" would race the firmware's entry transition.
+    readonly property bool guarding: gate === "entering" || gate === "active"
 
     property int heartbeatMs: 3000
     readonly property var relays: [
@@ -40,22 +44,41 @@ Item {
     // TelemetryModel's Q_PROPERTYs all share one NOTIFY (dataChanged) — there is no
     // per-property diagActiveChanged signal on the real model — so this hooks
     // onDataChanged, same as DiagnosticsScreen.qml / ModeScreen.qml already do.
+    //
+    // Refusal is snapshot-based, NOT wall-clock. diag_active confirmation only
+    // reaches the UI once per firmware telemetry cycle (poll_interval_s, default
+    // 5s, up to 60s) — a fixed short timer false-refuses (and tears down, via the
+    // compensating exit) a perfectly legitimate slow-polling entry. Instead, count
+    // FRESH telemetry snapshots (telemetry.tsMs changing) that land while entering
+    // and still show diagActive false: the confirmation lands on the very FIRST
+    // fresh snapshot after firmware accepts entry, so 3 fresh snapshots without it
+    // means genuine refusal — this never false-refuses regardless of poll interval.
+    property var lastEnterTs: 0
+    property int freshSnapshots: 0
     Connections {
         target: panel.telemetry
         function onDataChanged() {
-            if (panel.gate === "entering" && panel.telemetry.diagActive) panel.gate = "active"
+            if (panel.gate === "entering") {
+                if (panel.telemetry.diagActive) { panel.gate = "active"; return }
+                if (panel.telemetry.stale) {
+                    // agent/link is dead — no data is ever coming, refuse now.
+                    panel.gate = "refused"
+                    if (panel.telemetry) panel.telemetry.exitComponentTest()
+                    return
+                }
+                if (panel.telemetry.tsMs !== panel.lastEnterTs) {
+                    panel.lastEnterTs = panel.telemetry.tsMs
+                    panel.freshSnapshots++
+                    if (panel.freshSnapshots >= 3) {
+                        panel.gate = "refused"
+                        // Compensating exit so a late-accepting firmware doesn't
+                        // strand in OP_DIAG; a no-op if it truly never entered.
+                        if (panel.telemetry) panel.telemetry.exitComponentTest()
+                    }
+                }
+                return
+            }
             if (panel.gate === "active" && !panel.telemetry.diagActive) panel.gate = "locked"
-        }
-    }
-    Timer {   // entry watchdog: if firmware doesn't confirm, treat as refused/unsupported
-        id: entryTimeout; interval: 5000; repeat: false
-        onTriggered: if (panel.gate === "entering") {
-            panel.gate = "refused"
-            // A late-accepting firmware may have entered diag mode after the watchdog
-            // fired (poll ~2s + apply ~1s can approach the window). Send the
-            // compensating exit so it doesn't strand in OP_DIAG; a no-op if it truly
-            // never entered.
-            if (panel.telemetry) panel.telemetry.exitComponentTest()
         }
     }
 
@@ -63,7 +86,9 @@ Item {
     function submitPin(code) {
         if (!MaintController.verify(code)) { gate = "badpin"; return }
         if (!telemetry) return
-        gate = "entering"; telemetry.enterComponentTest(); entryTimeout.restart()
+        freshSnapshots = 0
+        lastEnterTs = telemetry ? telemetry.tsMs : 0
+        gate = "entering"; telemetry.enterComponentTest()
     }
     function leave() {
         if (telemetry && (gate === "active" || gate === "entering")) telemetry.exitComponentTest()
