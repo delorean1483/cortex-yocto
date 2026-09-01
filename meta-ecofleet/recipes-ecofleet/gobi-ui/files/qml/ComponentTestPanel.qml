@@ -86,8 +86,18 @@ Item {
     function submitPin(code) {
         if (!MaintController.verify(code)) { gate = "badpin"; return }
         if (!telemetry) return
+        // Live-telemetry guard: the "entering" gate is closed purely by the
+        // NEXT onDataChanged (see below), but TelemetryModel only emits that
+        // NOTIFY on the stale false->true TRANSITION (TelemetryModel.cpp:47/55)
+        // — not on every poll while already stale. If telemetry is already
+        // stale right now (first boot before the agent's first write, a
+        // deleted/corrupt latest.json), no dataChanged will ever fire during
+        // "entering" and the gate would hang on "Entering test mode…"
+        // forever. Refuse up front instead — there's nothing to compensate,
+        // we never actually entered.
+        if (telemetry.stale) { gate = "refused"; return }
         freshSnapshots = 0
-        lastEnterTs = telemetry ? telemetry.tsMs : 0
+        lastEnterTs = telemetry.tsMs
         gate = "entering"; telemetry.enterComponentTest()
     }
     function leave() {
