@@ -36,6 +36,7 @@ SRC_URI = " \
     file://qml/screens/BatteryScreen.qml \
     file://qml/screens/MenuScreen.qml \
     file://qml/screens/DiagnosticsScreen.qml \
+    file://qml/screens/ComponentTestScreen.qml \
     file://qml/screens/UserMaintScreen.qml \
     file://qml/screens/UnitInfoScreen.qml \
     file://qml/screens/AlertsScreen.qml \

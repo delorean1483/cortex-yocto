@@ -5,28 +5,8 @@ import ".."
 Item {
     id: page
 
-    StackView.onDeactivating: ctp.leave()
-    Component.onDestruction: ctp.leave()
-
-    // ── Evap fan: real control (telemetry.setFan → reg 12), optimistic + debounced ──
-    property int uiFan: -1
-    readonly property int effFan: uiFan >= 0 ? uiFan : telemetry.fanSpeed
-    Timer { id: fanSend; interval: 350; onTriggered: telemetry.setFan(page.uiFan) }
-    function pickFan(n) { page.uiFan = Math.round(n); fanSend.restart() }
-
-    // ── START/STOP: real control via mode (climate/off), optimistic ──
-    property string uiMode: ""
-    readonly property string effMode: uiMode !== "" ? uiMode : telemetry.mode
-    readonly property bool running: effMode !== "off"
-    function startStop() { var m = page.running ? "off" : "climate"; page.uiMode = m; telemetry.setMode(m) }
-
-    Connections {
-        target: telemetry
-        function onDataChanged() {
-            if (page.uiFan >= 0 && telemetry.fanSpeed === page.uiFan) page.uiFan = -1
-            if (page.uiMode !== "" && telemetry.mode === page.uiMode) page.uiMode = ""
-        }
-    }
+    // Read-only live monitoring. All APU actuation (START/STOP, evap fan, the
+    // passcode-gated relay test) lives on its own ComponentTestScreen now.
 
     property var sections: [
         { name: "STATUS", tiles: [
@@ -75,55 +55,6 @@ Item {
                                         Text { text: modelData[1]; color: modelData[2] ? Theme.fault : Theme.text; font.pixelSize: 20
                                                font.weight: Font.DemiBold; elide: Text.ElideRight; width: parent.width } } } } } } }
 
-                // ── Component test ───────────────────────────────────────────────
-                Rectangle { Layout.fillWidth: true; height: 1; color: Theme.border; Layout.topMargin: 4 }
-                RowLayout { Layout.fillWidth: true
-                    Text { text: "COMPONENT TEST"; color: Theme.textMute; font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold }
-                    Item { Layout.fillWidth: true }
-                    Text { text: "commands the APU — use with care"; color: Theme.textMute; font.pixelSize: 11 } }
-
-                // START / STOP (real, via mode)
-                Rectangle {
-                    Layout.fillWidth: true; Layout.preferredHeight: 56; radius: 12
-                    property color hue: page.running ? Theme.fault : Theme.ok
-                    color: goMa.pressed ? Qt.rgba(hue.r,hue.g,hue.b,0.30) : Qt.rgba(hue.r,hue.g,hue.b,0.15)
-                    border.color: hue; border.width: 2
-                    Row { anchors.centerIn: parent; spacing: 10
-                        Rectangle { visible: page.running; width: 16; height: 16; radius: 3; color: parent.parent.hue; anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: page.running ? "STOP" : "START"; color: parent.parent.hue
-                            font.pixelSize: 24; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter } }
-                    MouseArea { id: goMa; anchors.fill: parent; enabled: !ctp.guarding; onClicked: page.startStop() }
-                }
-
-                // Evap fan slider (real)
-                Rectangle {
-                    Layout.fillWidth: true; Layout.preferredHeight: 66; radius: 10; color: Theme.surface; border.color: Theme.border; border.width: 1
-                    RowLayout { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14; spacing: 14
-                        Text { Layout.preferredWidth: 110; text: "Evap Fan"; color: Theme.textDim; font.pixelSize: 14; font.weight: Font.Medium }
-                        Slider { id: fanSlider; enabled: !ctp.guarding
-                            Layout.fillWidth: true; Layout.preferredHeight: 40
-                            from: 0; to: 100; stepSize: 1; live: true
-                            Component.onCompleted: value = page.effFan
-                            onMoved: page.pickFan(value)
-                            Connections { target: telemetry; function onDataChanged() { if (!fanSlider.pressed && page.uiFan < 0) fanSlider.value = telemetry.fanSpeed } }
-                            background: Rectangle { x: fanSlider.leftPadding; y: fanSlider.topPadding + fanSlider.availableHeight/2 - height/2
-                                width: fanSlider.availableWidth; height: 10; radius: 5; color: Theme.surface2; border.color: Theme.border; border.width: 1
-                                Rectangle { width: fanSlider.visualPosition * parent.width; height: parent.height; radius: 5; color: Theme.accentBlue } }
-                            handle: Rectangle { x: fanSlider.leftPadding + fanSlider.visualPosition * (fanSlider.availableWidth - width)
-                                y: fanSlider.topPadding + fanSlider.availableHeight/2 - height/2
-                                implicitWidth: 30; implicitHeight: 30; radius: 15
-                                color: fanSlider.pressed ? Theme.surface2 : "#1D3A57"; border.color: Theme.accentBlue; border.width: 2 } }
-                        Text { Layout.preferredWidth: 52; horizontalAlignment: Text.AlignRight
-                            text: page.effFan <= 0 ? "OFF" : page.effFan + "%"
-                            color: page.effFan <= 0 ? Theme.textMute : Theme.accentBlue; font.pixelSize: 16; font.weight: Font.Bold } }
-                }
-
-                // ── Component Test (guarded) ─────────────────────────────────
-                ComponentTestPanel {
-                    id: ctp
-                    Layout.fillWidth: true; Layout.preferredHeight: 320
-                    telemetry: telemetry
-                }
                 Item { Layout.preferredHeight: 4 }
             }
         }
