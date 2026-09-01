@@ -92,6 +92,8 @@ typedef struct {
     uint8_t  control_status; /* reg 23 */
     uint8_t  oil_change;     /* reg 18 */
     uint8_t  fan_speed;      /* reg 12 */
+    uint8_t  diag_mode;      /* reg 49  component-test mode 0/1 (best-effort) */
+    uint16_t diag_outputs;   /* reg 41  energized-output bitmask (best-effort) */
     uint64_t ts_ms;
 } telemetry_t;
 
@@ -431,6 +433,16 @@ static int modbus_read_telemetry(telemetry_t *t)
     return 0;
 }
 
+/* Best-effort: Component Test regs are optional. A failure here (unbound on old
+ * firmware, or a transient) leaves diag inactive and never forces a reconnect —
+ * modbus_read_telemetry remains the sole link-health authority. */
+static void modbus_read_diag(telemetry_t *t)
+{
+    uint16_t v;
+    t->diag_mode    = (modbus_read_registers(g_modbus, REG_DIAG_MODE,   1, &v) == 1) ? (uint8_t)v  : 0;
+    t->diag_outputs = (modbus_read_registers(g_modbus, REG_DIAG_STATUS, 1, &v) == 1) ? (uint16_t)v : 0;
+}
+
 /* ── JSON payload builders ───────────────────────────────────────────────── */
 static char *build_telemetry_json(const telemetry_t *t)
 {
@@ -465,6 +477,8 @@ static char *build_telemetry_json(const telemetry_t *t)
     cJSON_AddNumberToObject(root, "clmt_setpoint_f",  t->clmt_set_f);
     cJSON_AddNumberToObject(root, "batt_setpoint_v",  t->batt_set_v);
     cJSON_AddNumberToObject(root, "fan_speed",        t->fan_speed);
+    cJSON_AddBoolToObject  (root, "diag_active",  t->diag_mode != 0);
+    cJSON_AddNumberToObject(root, "diag_outputs", t->diag_outputs);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -674,6 +688,7 @@ int main(void)
 
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
+            modbus_read_diag(&t);
 
             /* (Touchscreen commands are applied in the 1 Hz wait loop below, in
              * this same thread — the libmodbus context is never touched
