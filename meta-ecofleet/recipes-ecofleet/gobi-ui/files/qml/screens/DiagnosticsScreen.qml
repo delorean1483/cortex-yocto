@@ -6,6 +6,9 @@ import "../atoms"
 Item {
     id: page
 
+    StackView.onDeactivating: ctp.leave()
+    Component.onDestruction: ctp.leave()
+
     // ── Evap fan: real control (telemetry.setFan → reg 12), optimistic + debounced ──
     property int uiFan: -1
     readonly property int effFan: uiFan >= 0 ? uiFan : telemetry.fanSpeed
@@ -40,12 +43,6 @@ Item {
             ["Engine Hours", telemetry.engineHrs+" h", false], ["Oil Hours", telemetry.oilHrs+" h", false],
             ["Machine Hours", telemetry.machineHrs+" h", false], ["Oil Change", telemetry.oilChange, telemetry.oilChange!=="good"] ] }
     ]
-    // Placeholder actuators — no write path exists yet (firmware component-test hooks pending)
-    property var relays: [
-        { name: "Condenser Fan" }, { name: "Compressor" }, { name: "Fuel Solenoid" },
-        { name: "Glow Plug" }, { name: "Starter", warn: true }, { name: "Heat Reverser" }
-    ]
-
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 12; spacing: 8
 
@@ -96,7 +93,7 @@ Item {
                         Rectangle { visible: page.running; width: 16; height: 16; radius: 3; color: parent.parent.hue; anchors.verticalCenter: parent.verticalCenter }
                         Text { text: page.running ? "STOP" : "START"; color: parent.parent.hue
                             font.pixelSize: 24; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter } }
-                    MouseArea { id: goMa; anchors.fill: parent; onClicked: page.startStop() }
+                    MouseArea { id: goMa; anchors.fill: parent; enabled: !ctp.active; onClicked: page.startStop() }
                 }
 
                 // Evap fan slider (real)
@@ -104,7 +101,7 @@ Item {
                     Layout.fillWidth: true; Layout.preferredHeight: 66; radius: 10; color: Theme.surface; border.color: Theme.border; border.width: 1
                     RowLayout { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14; spacing: 14
                         Text { Layout.preferredWidth: 110; text: "Evap Fan"; color: Theme.textDim; font.pixelSize: 14; font.weight: Font.Medium }
-                        Slider { id: fanSlider
+                        Slider { id: fanSlider; enabled: !ctp.active
                             Layout.fillWidth: true; Layout.preferredHeight: 40
                             from: 0; to: 100; stepSize: 1; live: true
                             Component.onCompleted: value = page.effFan
@@ -122,23 +119,11 @@ Item {
                             color: page.effFan <= 0 ? Theme.textMute : Theme.accentBlue; font.pixelSize: 16; font.weight: Font.Bold } }
                 }
 
-                // Relay testers (placeholders — disabled until firmware adds the hooks)
-                Text { text: "Relay tests — available with an APU firmware update"; color: Theme.textMute; font.pixelSize: 12 }
-                GridLayout {
-                    Layout.fillWidth: true; columns: 3; columnSpacing: 8; rowSpacing: 8
-                    Repeater { model: page.relays
-                        Rectangle {
-                            Layout.fillWidth: true; Layout.preferredHeight: 48; radius: 10
-                            color: Theme.surface; border.color: Theme.border; border.width: 1
-                            opacity: 0.55   // disabled look
-                            RowLayout { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 6
-                                Text { Layout.fillWidth: true; text: modelData.name; color: Theme.textDim; font.pixelSize: 13
-                                    elide: Text.ElideRight }
-                                Text { visible: modelData.warn === true; text: "⚠"; color: Theme.warn; font.pixelSize: 13 }
-                                Icon { name: "lock"; size: 14; color: Theme.textMute } }
-                            // intentionally no handler — inert placeholder
-                        }
-                    }
+                // ── Component Test (guarded) ─────────────────────────────────
+                ComponentTestPanel {
+                    id: ctp
+                    Layout.fillWidth: true; Layout.preferredHeight: 320
+                    telemetry: telemetry
                 }
                 Item { Layout.preferredHeight: 4 }
             }
