@@ -27,7 +27,7 @@ static modbus_exc_t rd_mode(uint16_t r, uint16_t *o)  { (void)r; *o = s_ctx->mod
 static modbus_exc_t wr_mode(uint16_t r, uint16_t v) {
     (void)r;
     if (v > MODE_BATTERY) return MB_EXC_ILLEGAL_VALUE;
-    if (v == MODE_OFF && s_ctx->op_state == OP_DIAG) {
+    if (s_ctx->op_state == OP_DIAG) {   /* any reg-10 write is a clean exit from Component Test */
         control_deenergize_all(s_ctx);
         s_ctx->op_state = OP_OFF;
     }

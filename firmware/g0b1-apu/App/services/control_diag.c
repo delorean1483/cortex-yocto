@@ -77,8 +77,9 @@ static modbus_exc_t wr_diag_out(uint16_t r, uint16_t v) {
     if (idx >= OUT_COUNT) return MB_EXC_ILLEGAL_VALUE;
     if (diag_is_engine((int8_t)idx) && !diag_engine_gate_ok(s_ctx)) return MB_EXC_ILLEGAL_VALUE;
     if (state) {
+        bool rising = (s_active != (int8_t)idx);
         s_active = (int8_t)idx;
-        if (diag_is_engine(s_active))
+        if (diag_is_engine(s_active) && rising)
             app_timer_set(SCALE_SECOND, DIAG_ENGINE_TMR, (s_active == OUT_STARTER) ? 4u : 5u);
     } else if (s_active == (int8_t)idx) {
         s_active = -1;
@@ -97,7 +98,8 @@ void control_diag_register(apu_ctx_t *ctx) {
 
 void control_diag_mode(apu_ctx_t *ctx) {
     if (app_timer_expired(SCALE_SECOND, DIAG_INACTIVITY_TMR)) { diag_exit(ctx); return; }
-    if (diag_is_engine(s_active) && app_timer_expired(SCALE_SECOND, DIAG_ENGINE_TMR))
+    if (diag_is_engine(s_active) &&
+        (app_timer_expired(SCALE_SECOND, DIAG_ENGINE_TMR) || !diag_engine_gate_ok(ctx)))
         s_active = -1;
     control_deenergize_all(ctx);   /* single-active: clear, then apply the one */
     diag_apply_active(ctx);

@@ -161,6 +161,34 @@ static void test_engine_pulse_cap_drops_relay_but_stays(void) {
     TEST_ASSERT_EQUAL_INT(OP_DIAG, ctx.op_state);      /* mode still active */
 }
 
+static void test_engine_heartbeat_does_not_rearm_cap(void) {
+    /* C1: repeating the SAME engine energize (a master heartbeat) must NOT
+     * re-arm the engine pulse-cap timer -- only the rising edge should. */
+    mb_reg_write(49, 1);
+    mb_reg_write(50, (OUT_STARTER << 8) | 1);          /* rising edge: cap armed at 4 s */
+    control_diag_mode(&ctx);
+    TEST_ASSERT_TRUE(ctx.out.starter);
+    tick_seconds(3);
+    mb_reg_write(50, (OUT_STARTER << 8) | 1);          /* heartbeat: same index, must not rearm */
+    tick_seconds(2);                                    /* total 5 s > original 4 s cap */
+    control_diag_mode(&ctx);
+    TEST_ASSERT_FALSE(ctx.out.starter);                /* dropped at the original cap */
+    TEST_ASSERT_EQUAL_INT(OP_DIAG, ctx.op_state);
+}
+
+static void test_engine_gate_rechecked_every_tick(void) {
+    /* I2: if truck ignition turns on mid-pulse, the energized engine relay
+     * must drop immediately, not ride out the cap timer. */
+    mb_reg_write(49, 1);
+    mb_reg_write(50, (OUT_STARTER << 8) | 1);
+    control_diag_mode(&ctx);
+    TEST_ASSERT_TRUE(ctx.out.starter);
+    ctx.in_truck_ignition = true;
+    control_diag_mode(&ctx);
+    TEST_ASSERT_FALSE(ctx.out.starter);
+    TEST_ASSERT_EQUAL_INT(OP_DIAG, ctx.op_state);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_enter_from_off_ok);
@@ -179,5 +207,7 @@ int main(void) {
     RUN_TEST(test_inactivity_timeout_exits);
     RUN_TEST(test_out_write_refreshes_inactivity);
     RUN_TEST(test_engine_pulse_cap_drops_relay_but_stays);
+    RUN_TEST(test_engine_heartbeat_does_not_rearm_cap);
+    RUN_TEST(test_engine_gate_rechecked_every_tick);
     return UNITY_END();
 }

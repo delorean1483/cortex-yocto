@@ -66,6 +66,16 @@ static void test_mode_off_exits_diag(void) {
     TEST_ASSERT_FALSE(ctx.out.compressor_clutch);
 }
 
+static void test_any_mode_write_exits_diag(void) {
+    /* I3: ANY reg-10 write while in OP_DIAG must be a clean exit -- not just
+     * MODE_OFF -- so diag-energized outputs never bleed into another mode. */
+    ctx.op_state = OP_DIAG;
+    ctx.out.compressor_clutch = true;
+    TEST_ASSERT_EQUAL_INT(MB_EXC_NONE, mb_reg_write(10, MODE_CLIMATE));
+    TEST_ASSERT_EQUAL_INT(OP_OFF, ctx.op_state);
+    TEST_ASSERT_FALSE(ctx.out.compressor_clutch);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_debounced_oil_input_reaches_ctx_and_reg7);
@@ -74,5 +84,6 @@ int main(void) {
     RUN_TEST(test_status_regs_are_read_only);
     RUN_TEST(test_temp_display_reg33_rw_and_range);
     RUN_TEST(test_mode_off_exits_diag);
+    RUN_TEST(test_any_mode_write_exits_diag);
     return UNITY_END();
 }
