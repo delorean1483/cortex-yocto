@@ -96,6 +96,9 @@ void control_diag_register(apu_ctx_t *ctx) {
 }
 
 void control_diag_mode(apu_ctx_t *ctx) {
+    if (app_timer_expired(SCALE_SECOND, DIAG_INACTIVITY_TMR)) { diag_exit(ctx); return; }
+    if (diag_is_engine(s_active) && app_timer_expired(SCALE_SECOND, DIAG_ENGINE_TMR))
+        s_active = -1;
     control_deenergize_all(ctx);   /* single-active: clear, then apply the one */
     diag_apply_active(ctx);
 }

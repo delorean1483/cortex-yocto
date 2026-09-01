@@ -125,6 +125,42 @@ static void test_engine_relay_allowed_when_off(void) {
     TEST_ASSERT_TRUE(ctx.out.starter);
 }
 
+/* Helper: advance the second-scale timers by n seconds. */
+static void tick_seconds(int n) { for (int i = 0; i < n; i++) app_timers_tick(SCALE_SECOND); }
+
+static void test_inactivity_timeout_exits(void) {
+    mb_reg_write(49, 1);
+    mb_reg_write(50, (OUT_CONDENSER_FAN << 8) | 1);
+    control_diag_mode(&ctx);
+    TEST_ASSERT_TRUE(ctx.out.condenser_fan);
+    tick_seconds(10);                 /* inactivity was 10 s */
+    control_diag_mode(&ctx);
+    TEST_ASSERT_EQUAL_INT(OP_OFF, ctx.op_state);
+    TEST_ASSERT_FALSE(ctx.out.condenser_fan);
+}
+
+static void test_out_write_refreshes_inactivity(void) {
+    mb_reg_write(49, 1);
+    mb_reg_write(50, (OUT_HEAT_REVERSER << 8) | 1);
+    tick_seconds(9);
+    mb_reg_write(50, (OUT_HEAT_REVERSER << 8) | 1);   /* heartbeat resets to 10 */
+    tick_seconds(9);
+    control_diag_mode(&ctx);
+    TEST_ASSERT_EQUAL_INT(OP_DIAG, ctx.op_state);      /* still alive */
+    TEST_ASSERT_TRUE(ctx.out.heat_reverse);
+}
+
+static void test_engine_pulse_cap_drops_relay_but_stays(void) {
+    mb_reg_write(49, 1);
+    mb_reg_write(50, (OUT_STARTER << 8) | 1);          /* cap 4 s */
+    control_diag_mode(&ctx);
+    TEST_ASSERT_TRUE(ctx.out.starter);
+    tick_seconds(4);
+    control_diag_mode(&ctx);
+    TEST_ASSERT_FALSE(ctx.out.starter);                /* dropped */
+    TEST_ASSERT_EQUAL_INT(OP_DIAG, ctx.op_state);      /* mode still active */
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_enter_from_off_ok);
@@ -140,5 +176,8 @@ int main(void) {
     RUN_TEST(test_index_out_of_range_illegal);
     RUN_TEST(test_engine_relay_refused_when_ignition_on);
     RUN_TEST(test_engine_relay_allowed_when_off);
+    RUN_TEST(test_inactivity_timeout_exits);
+    RUN_TEST(test_out_write_refreshes_inactivity);
+    RUN_TEST(test_engine_pulse_cap_drops_relay_but_stays);
     return UNITY_END();
 }
