@@ -54,8 +54,14 @@ do_install:append() {
     cfg=${D}${sysconfdir}/swupdate/ecofleet.cfg
     grep -qE '^[[:space:]]*public-key-file[[:space:]]*=[[:space:]]*"/etc/swupdate/sign.pub"[[:space:]]*;' "$cfg" || \
         bbfatal "swupdate ecofleet.cfg has no uncommented public-key-file=/etc/swupdate/sign.pub — signed-images OTA would abort 'provide a public key file'"
-    if grep -q '\[' "$cfg"; then
-        bbfatal "swupdate ecofleet.cfg contains '[' — libconfig groups need a list '( )', an array '[ ]' makes swupdate fail to parse the whole file"
+    # The identify block holds { } groups, so it MUST open with a libconfig list
+    # "(", never an array "[" (arrays can't hold groups -> swupdate fails to parse
+    # the whole file). Check the first delimiter after the `identify :` keyword,
+    # ignoring any preceding comments (so a literal "[" in a comment, and any
+    # legitimate scalar array elsewhere, don't false-positive).
+    ident_open=$(sed -n '/identify[[:space:]]*:/,$p' "$cfg" | tr -d '[:space:]' | sed 's/^identify://' | cut -c1)
+    if [ "$ident_open" = "[" ]; then
+        bbfatal "swupdate ecofleet.cfg: identify uses an array '[ ]' — it must be a list '( )' (arrays can't hold { } groups; swupdate then fails to parse the file)"
     fi
 
     # Disable the stock suricatta daemon (swupdate.service) in the shipped image
