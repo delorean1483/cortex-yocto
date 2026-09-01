@@ -65,6 +65,13 @@
 #define REG_RPM            37   /* fw 38 engine RPM                        R  */
 #define REG_EXT_TEMP_F     50   /* fw 51 external temp, degF (int16)       R  */
 
+/* Component Test (Plan B) — see docs/.../2026-09-01-apu-component-test-*.md.
+ * These are OPTIONAL: on firmware without them a read returns exception 0x02,
+ * handled best-effort (never a reconnect). */
+#define REG_DIAG_STATUS    40   /* fw 41 energized-output bitmask (bit i = OUT i) R */
+#define REG_DIAG_MODE      48   /* fw 49 component-test mode 0/1                 R/W */
+/* fw 50 DIAG_OUT is write-only via mb_write_reg(50, (index<<8)|state) — no read define */
+
 /* ── SQLite offline buffer ───────────────────────────────────────────────── */
 #define SQLITE_DB_PATH      "/var/lib/ecofleet/telemetry.db"
 /* Always-current telemetry snapshot for the local display (gobi-ui), written
@@ -76,7 +83,9 @@
  * here; the agent applies it to the Modbus holding registers each poll cycle,
  * then removes it. gobi-ui can't drive Modbus itself — the agent is the sole
  * RTU master on the serial port. Keys (any subset): "mode" (off|climate|
- * battery), "setpoint_f" (int), "fan" (0|1|2), "reset_oil" (true). */
+ * battery), "setpoint_f" (int), "fan" (0-100), "reset_oil" (true),
+ * "diag_mode" (0|1 → enter/exit Component Test, reg 49),
+ * "diag_out" (int (index<<8)|state → actuate one output, reg 50). */
 #define COMMAND_JSON_PATH   "/var/lib/ecofleet/command.json"
 #define SQLITE_MAX_ROWS     8640    /* ~12 h at 5 s poll — then oldest is dropped */
 #define SQLITE_FLUSH_BATCH  50      /* rows to flush per MQTT reconnect cycle     */
