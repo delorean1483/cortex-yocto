@@ -1,12 +1,16 @@
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
-# swupdate.cfg = runtime config (globals: public-key-file); signing.cfg =
-# Kconfig fragment that should compile in bundle signature verification.
+# ecofleet-swupdate.cfg = runtime config (globals: public-key-file); signing.cfg
+# = Kconfig fragment that should compile in bundle signature verification.
 # NOTE: this bbappend previously lived one directory too shallow
 # (recipes-swupdate/swupdate_%.bbappend) so BitBake's recipes-*/*/*.bbappend
 # glob never matched it and NONE of this applied — the device shipped the stock
 # swupdate.cfg with no signing. Now under recipes-swupdate/swupdate/ it applies.
-SRC_URI += "file://swupdate.cfg"
+# Our config MUST NOT be named swupdate.cfg: meta-swupdate's base recipe ships
+# its own files/swupdate.cfg, and the basename collision means the stock file
+# wins in ${WORKDIR} regardless of FILESEXTRAPATHS — which is how the keyless
+# config shipped to the device. A unique name (ecofleet-swupdate.cfg) is the fix.
+SRC_URI += "file://ecofleet-swupdate.cfg"
 SRC_URI += "file://signing.cfg"
 SRC_URI += "file://10-ecofleet-swupdate.preset"
 
@@ -36,7 +40,7 @@ do_configure:append() {
 # to the baked-in /etc/swupdate/sign.pub for signature verification.
 do_install:append() {
     install -d ${D}${sysconfdir}/swupdate
-    install -m 0644 ${WORKDIR}/swupdate.cfg ${D}${sysconfdir}/swupdate/ecofleet.cfg
+    install -m 0644 ${WORKDIR}/ecofleet-swupdate.cfg ${D}${sysconfdir}/swupdate/ecofleet.cfg
 
     # HARD GATE on the installed config's CONTENT, not just its presence. Twice
     # now a broken ecofleet.cfg reached a device and silently killed OTA, each
