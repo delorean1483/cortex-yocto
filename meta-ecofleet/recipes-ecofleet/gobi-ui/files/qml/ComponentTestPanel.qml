@@ -21,13 +21,21 @@ Item {
         }
     }
     Timer {   // entry watchdog: if firmware doesn't confirm, treat as refused/unsupported
-        id: entryTimeout; interval: 3000; repeat: false
-        onTriggered: if (panel.gate === "entering") panel.gate = "refused"
+        id: entryTimeout; interval: 5000; repeat: false
+        onTriggered: if (panel.gate === "entering") {
+            panel.gate = "refused"
+            // A late-accepting firmware may have entered diag mode after the watchdog
+            // fired (poll ~2s + apply ~1s can approach the window). Send the
+            // compensating exit so it doesn't strand in OP_DIAG; a no-op if it truly
+            // never entered.
+            if (panel.telemetry) panel.telemetry.exitComponentTest()
+        }
     }
 
     function requestEnter() { gate = "keypad" }
     function submitPin(code) {
         if (!MaintController.verify(code)) { gate = "badpin"; return }
+        if (!telemetry) return
         gate = "entering"; telemetry.enterComponentTest(); entryTimeout.restart()
     }
     function leave() {
