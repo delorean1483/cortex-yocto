@@ -4,6 +4,7 @@
 #include "app_timers.h"
 #include "bsp_io.h"
 #include "bsp_pwm.h"
+#include "board_pins.h"
 #include "mb_regmodel.h"
 #include "fake_bsp_io.h"
 #include "fake_bsp_pwm.h"
@@ -50,10 +51,27 @@ static void test_off_keeps_outputs_deenergized(void) {
     TEST_ASSERT_EQUAL_UINT16(0, fake_bsp_pwm_duty(PWM_EVAP_FAN));
 }
 
+static void test_diag_end_to_end(void) {
+    apu_ctx_t *c = control_app_ctx();
+    /* land in OFF, engine stopped, ignition off */
+    c->op_state = OP_OFF; c->engine_op_status = ST_OFF;
+    c->out.fuel_pump = false; c->in_truck_ignition = false; c->standby_override = false;
+
+    TEST_ASSERT_EQUAL_INT(MB_EXC_NONE, mb_reg_write(49, 1));
+    TEST_ASSERT_EQUAL_INT(OP_DIAG, c->op_state);
+    TEST_ASSERT_EQUAL_INT(MB_EXC_NONE, mb_reg_write(50, (OUT_CONDENSER_FAN << 8) | 1));
+    control_10ms_slot();                         /* dispatches OP_DIAG -> outputs_apply */
+    uint16_t o = 0; mb_reg_read(41, &o);
+    TEST_ASSERT_EQUAL_UINT16((1u << OUT_CONDENSER_FAN), o);
+    TEST_ASSERT_EQUAL_INT(MB_EXC_NONE, mb_reg_write(49, 0));
+    TEST_ASSERT_EQUAL_INT(OP_OFF, c->op_state);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_powerup_transitions_to_off_via_timer);
     RUN_TEST(test_op_mode_write_drives_off_to_climate);
     RUN_TEST(test_off_keeps_outputs_deenergized);
+    RUN_TEST(test_diag_end_to_end);
     return UNITY_END();
 }
