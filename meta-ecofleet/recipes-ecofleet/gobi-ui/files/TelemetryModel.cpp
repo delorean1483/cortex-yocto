@@ -75,6 +75,8 @@ void TelemetryModel::poll()
     m_error         = o[u"error"].toString(QStringLiteral("none"));
     m_oilChange     = o[u"oil_change"].toString(QStringLiteral("good"));
     m_tsMs          = static_cast<qint64>(o[u"ts"].toDouble());
+    m_diagActive    = o[u"diag_active"].toBool();
+    m_diagOutputs   = static_cast<int>(o[u"diag_outputs"].toDouble());
     m_stale         = (QDateTime::currentMSecsSinceEpoch() - m_tsMs) > STALE_MS;
 
     emit dataChanged();
@@ -84,3 +86,7 @@ void TelemetryModel::setMode(const QString &mode)   { writeCommand(QStringLitera
 void TelemetryModel::setSetpoint(int degF)          { writeCommand(QStringLiteral("setpoint_f"), degF); }
 void TelemetryModel::setFan(int speed)              { writeCommand(QStringLiteral("fan"), speed); }
 void TelemetryModel::resetOil()                     { writeCommand(QStringLiteral("reset_oil"), true); }
+
+void TelemetryModel::enterComponentTest()              { writeCommand(QStringLiteral("diag_mode"), 1); }
+void TelemetryModel::exitComponentTest()               { writeCommand(QStringLiteral("diag_mode"), 0); }
+void TelemetryModel::setTestRelay(int index, bool on)  { writeCommand(QStringLiteral("diag_out"), (index << 8) | (on ? 1 : 0)); }

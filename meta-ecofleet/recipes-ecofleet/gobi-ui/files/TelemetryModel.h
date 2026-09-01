@@ -31,6 +31,8 @@ class TelemetryModel : public QObject
     Q_PROPERTY(QString oilChange     READ oilChange     NOTIFY dataChanged)
     Q_PROPERTY(bool    stale         READ stale         NOTIFY dataChanged)
     Q_PROPERTY(qint64  tsMs          READ tsMs          NOTIFY dataChanged)
+    Q_PROPERTY(bool    diagActive    READ diagActive    NOTIFY dataChanged)
+    Q_PROPERTY(int     diagOutputs   READ diagOutputs   NOTIFY dataChanged)
 
 public:
     explicit TelemetryModel(QObject *parent = nullptr);
@@ -42,6 +44,9 @@ public:
     Q_INVOKABLE void setSetpoint(int degF);          // climate target, degF
     Q_INVOKABLE void setFan(int speed);              // percent 0-100 (0 = off)
     Q_INVOKABLE void resetOil();                     // zero oil hours + change state
+    Q_INVOKABLE void enterComponentTest();               // diag_mode = 1
+    Q_INVOKABLE void exitComponentTest();                // diag_mode = 0
+    Q_INVOKABLE void setTestRelay(int index, bool on);   // diag_out = (index<<8)|state
 
     double  cabinTempF()    const { return m_cabinTempF; }
     double  extTempF()      const { return m_extTempF; }
@@ -64,6 +69,8 @@ public:
     QString oilChange()     const { return m_oilChange; }
     bool    stale()         const { return m_stale; }
     qint64  tsMs()          const { return m_tsMs; }
+    bool    diagActive()    const { return m_diagActive; }
+    int     diagOutputs()   const { return m_diagOutputs; }
 
 signals:
     void dataChanged();
@@ -86,4 +93,6 @@ private:
     QString m_oilChange     = QStringLiteral("good");
     bool    m_stale         = true;
     qint64  m_tsMs          = 0;
+    bool    m_diagActive    = false;
+    int     m_diagOutputs   = 0;
 };
