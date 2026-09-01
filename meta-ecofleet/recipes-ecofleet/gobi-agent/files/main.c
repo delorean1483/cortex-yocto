@@ -293,8 +293,8 @@ static void ota_trigger(const char *version)
      * every bundle's signature is verified before flashing. The verification
      * key could be given on the CLI (-k <pubkey>; -K is AES decryption, unused
      * here) but we instead drive it from `public-key-file` in the config we
-     * ship at /etc/swupdate/ecofleet.cfg (see recipes-swupdate swupdate.cfg),
-     * so the key path lives in one place. */
+     * ship at /etc/swupdate/ecofleet.cfg (from recipes-swupdate
+     * ecofleet-swupdate.cfg), so the key path lives in one place. */
     const char *swu_argv[] = { "swupdate", "-i", local,
                                "-f", "/etc/swupdate/ecofleet.cfg", NULL };
     pid_t swu_pid = fork();
