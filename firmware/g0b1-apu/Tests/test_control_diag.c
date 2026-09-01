@@ -64,6 +64,67 @@ static void test_bad_mode_value_illegal(void) {
     TEST_ASSERT_EQUAL_INT(MB_EXC_ILLEGAL_VALUE, mb_reg_write(49, 2));
 }
 
+static void test_out_refused_when_not_in_diag(void) {
+    /* not entered */
+    TEST_ASSERT_EQUAL_INT(MB_EXC_ILLEGAL_VALUE, mb_reg_write(50, (OUT_CONDENSER_FAN << 8) | 1));
+}
+
+static void test_low_risk_energize_sets_output_and_status(void) {
+    mb_reg_write(49, 1);
+    TEST_ASSERT_EQUAL_INT(MB_EXC_NONE, mb_reg_write(50, (OUT_CONDENSER_FAN << 8) | 1));
+    control_diag_mode(&ctx);
+    TEST_ASSERT_TRUE(ctx.out.condenser_fan);
+    TEST_ASSERT_EQUAL_UINT16(1000, ctx.out.condenser_duty);
+    uint16_t o = 0;
+    mb_reg_read(41, &o);
+    TEST_ASSERT_EQUAL_UINT16((1u << OUT_CONDENSER_FAN), o);
+}
+
+static void test_single_active_releases_previous(void) {
+    mb_reg_write(49, 1);
+    mb_reg_write(50, (OUT_CONDENSER_FAN << 8) | 1);
+    control_diag_mode(&ctx);
+    TEST_ASSERT_TRUE(ctx.out.condenser_fan);
+    mb_reg_write(50, (OUT_HEAT_REVERSER << 8) | 1);
+    control_diag_mode(&ctx);
+    TEST_ASSERT_FALSE(ctx.out.condenser_fan);
+    TEST_ASSERT_TRUE(ctx.out.heat_reverse);
+    uint16_t o = 0;
+    mb_reg_read(41, &o);
+    TEST_ASSERT_EQUAL_UINT16((1u << OUT_HEAT_REVERSER), o);
+}
+
+static void test_off_clears_active(void) {
+    mb_reg_write(49, 1);
+    mb_reg_write(50, (OUT_EVAP_FAN << 8) | 1);
+    control_diag_mode(&ctx);
+    TEST_ASSERT_TRUE(ctx.out.evap_fan);
+    mb_reg_write(50, (OUT_EVAP_FAN << 8) | 0);
+    control_diag_mode(&ctx);
+    TEST_ASSERT_FALSE(ctx.out.evap_fan);
+    uint16_t o = 9;
+    mb_reg_read(41, &o);
+    TEST_ASSERT_EQUAL_UINT16(0, o);
+}
+
+static void test_index_out_of_range_illegal(void) {
+    mb_reg_write(49, 1);
+    TEST_ASSERT_EQUAL_INT(MB_EXC_ILLEGAL_VALUE, mb_reg_write(50, (OUT_COUNT << 8) | 1));
+}
+
+static void test_engine_relay_refused_when_ignition_on(void) {
+    mb_reg_write(49, 1);
+    ctx.in_truck_ignition = true;   /* becomes true after entry */
+    TEST_ASSERT_EQUAL_INT(MB_EXC_ILLEGAL_VALUE, mb_reg_write(50, (OUT_STARTER << 8) | 1));
+}
+
+static void test_engine_relay_allowed_when_off(void) {
+    mb_reg_write(49, 1);
+    TEST_ASSERT_EQUAL_INT(MB_EXC_NONE, mb_reg_write(50, (OUT_STARTER << 8) | 1));
+    control_diag_mode(&ctx);
+    TEST_ASSERT_TRUE(ctx.out.starter);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_enter_from_off_ok);
@@ -72,5 +133,12 @@ int main(void) {
     RUN_TEST(test_enter_refused_when_not_off);
     RUN_TEST(test_exit_returns_to_off);
     RUN_TEST(test_bad_mode_value_illegal);
+    RUN_TEST(test_out_refused_when_not_in_diag);
+    RUN_TEST(test_low_risk_energize_sets_output_and_status);
+    RUN_TEST(test_single_active_releases_previous);
+    RUN_TEST(test_off_clears_active);
+    RUN_TEST(test_index_out_of_range_illegal);
+    RUN_TEST(test_engine_relay_refused_when_ignition_on);
+    RUN_TEST(test_engine_relay_allowed_when_off);
     return UNITY_END();
 }
