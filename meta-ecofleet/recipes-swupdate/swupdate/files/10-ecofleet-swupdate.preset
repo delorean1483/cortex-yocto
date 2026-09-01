@@ -1,0 +1,12 @@
+# EcoFleet: disable the stock SWUpdate suricatta daemon.
+#
+# swupdate.service is the upstream daemon that polls a hawkBit/suricatta server
+# (the stock config points at a nonexistent varupdate:8080). EcoFleet does not
+# use it — OTA runs entirely through gobi-agent's one-shot `swupdate -i <bundle>
+# -f /etc/swupdate/ecofleet.cfg`. Left enabled it only ever surfaces as a failed
+# unit at boot ("provide a public key file"), so turn it off in the image.
+#
+# This file's "10-" prefix sorts before the recipe's own 98-swupdate.preset, so
+# for swupdate.service this "disable" is the first match and wins. swupdate.socket
+# has no line here and falls through to 98-swupdate.preset (left as-is).
+disable swupdate.service
