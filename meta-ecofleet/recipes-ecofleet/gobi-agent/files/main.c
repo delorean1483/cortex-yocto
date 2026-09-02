@@ -92,6 +92,9 @@ typedef struct {
     uint8_t  control_status; /* reg 23 */
     uint8_t  oil_change;     /* reg 18 */
     uint8_t  fan_speed;      /* reg 12 */
+    uint8_t  diag_mode;      /* reg 49  component-test mode 0/1 (best-effort) */
+    uint16_t diag_outputs;   /* reg 41  energized-output bitmask (best-effort) */
+    bool     fan_auto;       /* reg 9   auto-fan flag 0/1 (best-effort) */
     uint64_t ts_ms;
 } telemetry_t;
 
@@ -431,6 +434,28 @@ static int modbus_read_telemetry(telemetry_t *t)
     return 0;
 }
 
+/* Best-effort single-register read: returns the register value on success,
+ * or dflt if the register is unbound on old firmware (exception 0x02) or the
+ * read otherwise fails. Unlike RD() in modbus_read_telemetry(), this never
+ * returns -1 / drives the reconnect path — modbus_read_telemetry remains the
+ * sole link-health authority. Used for optional registers that may be
+ * absent on older firmware (Component Test diag regs, fan_auto). */
+static uint16_t modbus_read_reg_besteffort(modbus_t *ctx, int wire_addr, uint16_t dflt)
+{
+    uint16_t v;
+    return (modbus_read_registers(ctx, wire_addr, 1, &v) == 1) ? v : dflt;
+}
+
+/* Best-effort telemetry: Component Test diag regs and fan_auto are optional.
+ * A failure here (unbound on old firmware, or a transient) leaves the field
+ * at its default and never forces a reconnect. */
+static void modbus_read_besteffort(telemetry_t *t)
+{
+    t->diag_mode    = (uint8_t)  modbus_read_reg_besteffort(g_modbus, REG_DIAG_MODE,   0);
+    t->diag_outputs =            modbus_read_reg_besteffort(g_modbus, REG_DIAG_STATUS, 0);
+    t->fan_auto     = modbus_read_reg_besteffort(g_modbus, REG_FAN_AUTO, 0) ? true : false;
+}
+
 /* ── JSON payload builders ───────────────────────────────────────────────── */
 static char *build_telemetry_json(const telemetry_t *t)
 {
@@ -465,6 +490,9 @@ static char *build_telemetry_json(const telemetry_t *t)
     cJSON_AddNumberToObject(root, "clmt_setpoint_f",  t->clmt_set_f);
     cJSON_AddNumberToObject(root, "batt_setpoint_v",  t->batt_set_v);
     cJSON_AddNumberToObject(root, "fan_speed",        t->fan_speed);
+    cJSON_AddBoolToObject  (root, "fan_auto",         t->fan_auto);
+    cJSON_AddBoolToObject  (root, "diag_active",  t->diag_mode != 0);
+    cJSON_AddNumberToObject(root, "diag_outputs", t->diag_outputs);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -559,11 +587,43 @@ static void apply_command_file(void)
         if (v >= 0 && v <= 100) mb_write_reg(12, v, "fan");
     }
 
+    /* fan_auto: 0|1 -> reg 9 (auto-fan flag) */
+    const cJSON *fan_auto = cJSON_GetObjectItemCaseSensitive(root, "fan_auto");
+    if (cJSON_IsNumber(fan_auto)) {
+        int v = fan_auto->valueint;
+        if (v == 0 || v == 1) mb_write_reg(9, v, "fan_auto");
+    }
+
+    /* batt_setpoint centivolts (10.0-15.0 V) -> reg 13 (battery auto-charge
+     * threshold; firmware auto-starts the APU to charge below this) */
+    const cJSON *bsp = cJSON_GetObjectItemCaseSensitive(root, "batt_setpoint");
+    if (cJSON_IsNumber(bsp)) {
+        int v = (int)bsp->valuedouble;
+        if (v >= 1000 && v <= 1500) mb_write_reg(13, v, "batt_setpoint");
+    }
+
     /* reset_oil -> zero engine-oil hours (reg 20) + oil-change state (reg 18) */
     const cJSON *ro = cJSON_GetObjectItemCaseSensitive(root, "reset_oil");
     if (cJSON_IsTrue(ro)) {
         mb_write_reg(20, 0, "reset_oil_hours");
         mb_write_reg(18, 0, "reset_oil_state");
+    }
+
+    /* diag_mode: 0|1 -> reg 49 (enter/exit Component Test) */
+    const cJSON *dmode = cJSON_GetObjectItemCaseSensitive(root, "diag_mode");
+    if (cJSON_IsNumber(dmode)) {
+        int v = (int)dmode->valuedouble;
+        if (v == 0 || v == 1) mb_write_reg(49, v, "diag_mode");
+    }
+
+    /* diag_out: (index<<8)|state -> reg 50 (actuate one output) */
+    const cJSON *dout = cJSON_GetObjectItemCaseSensitive(root, "diag_out");
+    if (cJSON_IsNumber(dout)) {
+        int v   = (int)dout->valuedouble;
+        int idx = (v >> 8) & 0xFF;
+        int st  = v & 0xFF;
+        if (idx <= 6 && st <= 1) mb_write_reg(50, v, "diag_out");
+        else syslog(LOG_WARNING, "control: bad diag_out 0x%04x", v);
     }
 
     cJSON_Delete(root);
@@ -674,6 +734,7 @@ int main(void)
 
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
+            modbus_read_besteffort(&t);
 
             /* (Touchscreen commands are applied in the 1 Hz wait loop below, in
              * this same thread — the libmodbus context is never touched

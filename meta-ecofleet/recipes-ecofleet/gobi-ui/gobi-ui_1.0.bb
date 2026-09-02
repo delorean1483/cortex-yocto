@@ -1,6 +1,6 @@
 SUMMARY = "EcoFleet Gobi APU touchscreen dashboard"
 LICENSE = "CLOSED"
-PR = "r9"
+PR = "r10"
 
 SRC_URI = " \
     file://CMakeLists.txt \
@@ -20,6 +20,9 @@ SRC_URI = " \
     file://qml/Header.qml \
     file://qml/LockController.qml \
     file://qml/LockOverlay.qml \
+    file://qml/MaintController.qml \
+    file://qml/StatusLabels.qml \
+    file://qml/ComponentTestPanel.qml \
     file://qml/atoms/StatusPill.qml \
     file://qml/atoms/FaultBanner.qml \
     file://qml/atoms/StatCard.qml \
@@ -34,6 +37,7 @@ SRC_URI = " \
     file://qml/screens/BatteryScreen.qml \
     file://qml/screens/MenuScreen.qml \
     file://qml/screens/DiagnosticsScreen.qml \
+    file://qml/screens/ComponentTestScreen.qml \
     file://qml/screens/UserMaintScreen.qml \
     file://qml/screens/UnitInfoScreen.qml \
     file://qml/screens/AlertsScreen.qml \
@@ -81,6 +85,9 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/qml/Header.qml          ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/LockController.qml  ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/LockOverlay.qml     ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/MaintController.qml   ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/StatusLabels.qml       ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/ComponentTestPanel.qml ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/WeatherStrip.qml    ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/WeatherIcon.qml     ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/atoms/*.qml         ${D}${datadir}/gobi-ui/qml/atoms/

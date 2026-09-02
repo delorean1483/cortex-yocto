@@ -1,5 +1,6 @@
 #include "TelemetryModel.h"
 
+#include <cmath>
 #include <QFile>
 #include <QSaveFile>
 #include <QJsonDocument>
@@ -64,6 +65,7 @@ void TelemetryModel::poll()
     m_battSetpointV = o[u"batt_setpoint_v"].toDouble();
     m_rpm           = static_cast<int>(o[u"rpm"].toDouble());
     m_fanSpeed      = static_cast<int>(o[u"fan_speed"].toDouble());
+    m_fanAuto       = o[u"fan_auto"].toBool();
     m_engineHrs     = static_cast<int>(o[u"engine_hrs"].toDouble());
     m_machineHrs    = static_cast<int>(o[u"machine_hrs"].toDouble());
     m_oilHrs        = static_cast<int>(o[u"oil_hrs"].toDouble());
@@ -75,6 +77,8 @@ void TelemetryModel::poll()
     m_error         = o[u"error"].toString(QStringLiteral("none"));
     m_oilChange     = o[u"oil_change"].toString(QStringLiteral("good"));
     m_tsMs          = static_cast<qint64>(o[u"ts"].toDouble());
+    m_diagActive    = o[u"diag_active"].toBool();
+    m_diagOutputs   = static_cast<int>(o[u"diag_outputs"].toDouble());
     m_stale         = (QDateTime::currentMSecsSinceEpoch() - m_tsMs) > STALE_MS;
 
     emit dataChanged();
@@ -83,4 +87,10 @@ void TelemetryModel::poll()
 void TelemetryModel::setMode(const QString &mode)   { writeCommand(QStringLiteral("mode"), mode); }
 void TelemetryModel::setSetpoint(int degF)          { writeCommand(QStringLiteral("setpoint_f"), degF); }
 void TelemetryModel::setFan(int speed)              { writeCommand(QStringLiteral("fan"), speed); }
+void TelemetryModel::setFanAuto(bool on)            { writeCommand(QStringLiteral("fan_auto"), on ? 1 : 0); }
+void TelemetryModel::setBattSetpoint(double volts)  { writeCommand(QStringLiteral("batt_setpoint"), (int)std::round(volts * 100.0)); }
 void TelemetryModel::resetOil()                     { writeCommand(QStringLiteral("reset_oil"), true); }
+
+void TelemetryModel::enterComponentTest()              { writeCommand(QStringLiteral("diag_mode"), 1); }
+void TelemetryModel::exitComponentTest()               { writeCommand(QStringLiteral("diag_mode"), 0); }
+void TelemetryModel::setTestRelay(int index, bool on)  { writeCommand(QStringLiteral("diag_out"), (index << 8) | (on ? 1 : 0)); }

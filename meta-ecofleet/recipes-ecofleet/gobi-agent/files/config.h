@@ -51,10 +51,11 @@
 #define REG_BATT_CV         5   /* fw 6  battery voltage, centivolts (/100) R  */
 #define REG_OIL_OK          6   /* fw 7  oil-pressure switch OK, 0/1        R  */
 #define REG_IGNITION        7   /* fw 8  truck ignition, 0/1               R  */
+#define REG_FAN_AUTO        8   /* fw 9  auto-fan flag 0/1 (wire = fw-1)   R/W */
 #define REG_MODE            9   /* fw 10 mode: 0=Off 1=Climate 2=Battery   R  */
 #define REG_ENGINE_HRS     10   /* fw 11 engine runtime, hours             R  */
 #define REG_FAN_SPEED      11   /* fw 12 evap fan speed, 0-100 %           R  */
-#define REG_BATT_SET_CV    12   /* fw 13 batt monitor setpoint, centivolts R  */
+#define REG_BATT_SET_CV    12   /* fw 13 batt monitor setpoint, centivolts R/W */
 #define REG_CLMT_SET_F     13   /* fw 14 climate temp setpoint, degF       R  */
 #define REG_ERROR          16   /* fw 17 error state, 0-10 (control_error_t) R */
 #define REG_OIL_CHANGE     17   /* fw 18 oil-change state, 0-4             R  */
@@ -64,6 +65,13 @@
 #define REG_CONTROL_STATUS 22   /* fw 23 control status (control_status_t) R  */
 #define REG_RPM            37   /* fw 38 engine RPM                        R  */
 #define REG_EXT_TEMP_F     50   /* fw 51 external temp, degF (int16)       R  */
+
+/* Component Test (Plan B) — see docs/.../2026-09-01-apu-component-test-*.md.
+ * These are OPTIONAL: on firmware without them a read returns exception 0x02,
+ * handled best-effort (never a reconnect). */
+#define REG_DIAG_STATUS    40   /* fw 41 energized-output bitmask (bit i = OUT i) R */
+#define REG_DIAG_MODE      48   /* fw 49 component-test mode 0/1                 R/W */
+/* fw 50 DIAG_OUT is write-only via mb_write_reg(50, (index<<8)|state) — no read define */
 
 /* ── SQLite offline buffer ───────────────────────────────────────────────── */
 #define SQLITE_DB_PATH      "/var/lib/ecofleet/telemetry.db"
@@ -76,7 +84,11 @@
  * here; the agent applies it to the Modbus holding registers each poll cycle,
  * then removes it. gobi-ui can't drive Modbus itself — the agent is the sole
  * RTU master on the serial port. Keys (any subset): "mode" (off|climate|
- * battery), "setpoint_f" (int), "fan" (0|1|2), "reset_oil" (true). */
+ * battery), "setpoint_f" (int), "fan" (0-100), "fan_auto" (0|1, reg 9),
+ * "batt_setpoint" (int, centivolts 1000-1500 = 10.0-15.0V, reg 13 — battery
+ * auto-charge threshold; firmware auto-starts the APU to charge below it),
+ * "reset_oil" (true), "diag_mode" (0|1 → enter/exit Component Test, reg 49),
+ * "diag_out" (int (index<<8)|state → actuate one output, reg 50). */
 #define COMMAND_JSON_PATH   "/var/lib/ecofleet/command.json"
 #define SQLITE_MAX_ROWS     8640    /* ~12 h at 5 s poll — then oldest is dropped */
 #define SQLITE_FLUSH_BATCH  50      /* rows to flush per MQTT reconnect cycle     */
