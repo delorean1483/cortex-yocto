@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-02-home-climate-control-design.md` (§3 register contract, §4 control law).
 
-**Repo/branch:** `g0b1-firmware`, branch `feat/stm32g0-apu-port` (local; the working copy is at `firmware/g0b1-apu/` in the cortex-yocto checkout). All paths below are relative to `firmware/g0b1-apu/`.
+**Repo/branch:** `g0b1-firmware` (github.com/delorean1483/g0b1-firmware), branch `feat/home-climate-fan-auto` off `main`. The firmware lives at the **repo root**. All paths below are relative to the repo root (e.g. `App/services/fan_speed.c`, `Tests/…`). Local clone: `/Users/sungkang/Documents/github/g0b1-firmware`.
 
 ## Global Constraints
 

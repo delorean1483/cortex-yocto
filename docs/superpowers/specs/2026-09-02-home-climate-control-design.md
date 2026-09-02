@@ -95,7 +95,7 @@ rail item and its screen are removed.
   - **Active-segment highlight:** AUTO when `fan_auto=1`; otherwise the preset whose % equals
     the current `fanSpeed`; if `fanSpeed` matches no preset (e.g. a value set elsewhere),
     no preset is highlighted.
-- **Agent:** new command key `fan_auto` (0/1) → reg 15; read reg 15 into `latest.json`
+- **Agent:** new command key `fan_auto` (0/1) → reg 9 (wire addr 8); read reg 9 into `latest.json`
   as `fan_auto` (bool). `fanSpeed` (reg 12 readback) already exists; presets reuse the
   existing `fan` command key (reg 12).
 - **TelemetryModel:** add `Q_PROPERTY bool fanAuto` and `Q_INVOKABLE void setFanAuto(bool)`
