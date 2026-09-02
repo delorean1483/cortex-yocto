@@ -68,7 +68,8 @@ Item {
                             Text { anchors.centerIn: parent; text:"▼"; color: Theme.accentBlue } MouseArea { anchors.fill: parent; onClicked: home.bump(-1) } } } } }
         }
         // 3. fan presets: AUTO / LOW / MED / HIGH  (AUTO hidden if firmware lacks fan_auto — see note)
-        RowLayout { Layout.fillWidth: true; Layout.preferredHeight: 52; spacing: 8
+        // maximumHeight caps the row so the buttons' fillHeight can't steal the body's vertical space.
+        RowLayout { Layout.fillWidth: true; Layout.preferredHeight: 64; Layout.maximumHeight: 64; spacing: 8
             Text { text: "FAN"; color: Theme.textMute; font.pixelSize: 12; Layout.preferredWidth: 34 }
             Text { text: telemetry.fanSpeed + "%"; color: Theme.textDim; font.pixelSize: 10; Layout.preferredWidth: 30 }
             Rectangle { id: fanAutoBtn; Layout.fillWidth: true; Layout.fillHeight: true; radius: 10

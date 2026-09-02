@@ -48,6 +48,7 @@
  * register (exception 0x02), so the agent reads ONLY these, one at a time.
  * The firmware exposes no coils — there is no start/stop coil. */
 #define REG_CABIN_TEMP_F    0   /* fw 1  enclosure/cabin temp, degF (int16) R  */
+#define REG_FW_VERSION      1   /* fw 2  APU firmware version, encoded R  */
 #define REG_BATT_CV         5   /* fw 6  battery voltage, centivolts (/100) R  */
 #define REG_OIL_OK          6   /* fw 7  oil-pressure switch OK, 0/1        R  */
 #define REG_IGNITION        7   /* fw 8  truck ignition, 0/1               R  */
