@@ -51,6 +51,7 @@
 #define REG_BATT_CV         5   /* fw 6  battery voltage, centivolts (/100) R  */
 #define REG_OIL_OK          6   /* fw 7  oil-pressure switch OK, 0/1        R  */
 #define REG_IGNITION        7   /* fw 8  truck ignition, 0/1               R  */
+#define REG_FAN_AUTO        8   /* fw 9  auto-fan flag 0/1 (wire = fw-1)   R/W */
 #define REG_MODE            9   /* fw 10 mode: 0=Off 1=Climate 2=Battery   R  */
 #define REG_ENGINE_HRS     10   /* fw 11 engine runtime, hours             R  */
 #define REG_FAN_SPEED      11   /* fw 12 evap fan speed, 0-100 %           R  */
@@ -83,8 +84,8 @@
  * here; the agent applies it to the Modbus holding registers each poll cycle,
  * then removes it. gobi-ui can't drive Modbus itself — the agent is the sole
  * RTU master on the serial port. Keys (any subset): "mode" (off|climate|
- * battery), "setpoint_f" (int), "fan" (0-100), "reset_oil" (true),
- * "diag_mode" (0|1 → enter/exit Component Test, reg 49),
+ * battery), "setpoint_f" (int), "fan" (0-100), "fan_auto" (0|1, reg 9),
+ * "reset_oil" (true), "diag_mode" (0|1 → enter/exit Component Test, reg 49),
  * "diag_out" (int (index<<8)|state → actuate one output, reg 50). */
 #define COMMAND_JSON_PATH   "/var/lib/ecofleet/command.json"
 #define SQLITE_MAX_ROWS     8640    /* ~12 h at 5 s poll — then oldest is dropped */

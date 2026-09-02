@@ -94,6 +94,7 @@ typedef struct {
     uint8_t  fan_speed;      /* reg 12 */
     uint8_t  diag_mode;      /* reg 49  component-test mode 0/1 (best-effort) */
     uint16_t diag_outputs;   /* reg 41  energized-output bitmask (best-effort) */
+    bool     fan_auto;       /* reg 9   auto-fan flag 0/1 (best-effort) */
     uint64_t ts_ms;
 } telemetry_t;
 
@@ -433,14 +434,26 @@ static int modbus_read_telemetry(telemetry_t *t)
     return 0;
 }
 
-/* Best-effort: Component Test regs are optional. A failure here (unbound on old
- * firmware, or a transient) leaves diag inactive and never forces a reconnect —
- * modbus_read_telemetry remains the sole link-health authority. */
-static void modbus_read_diag(telemetry_t *t)
+/* Best-effort single-register read: returns the register value on success,
+ * or dflt if the register is unbound on old firmware (exception 0x02) or the
+ * read otherwise fails. Unlike RD() in modbus_read_telemetry(), this never
+ * returns -1 / drives the reconnect path — modbus_read_telemetry remains the
+ * sole link-health authority. Used for optional registers that may be
+ * absent on older firmware (Component Test diag regs, fan_auto). */
+static uint16_t modbus_read_reg_besteffort(modbus_t *ctx, int wire_addr, uint16_t dflt)
 {
     uint16_t v;
-    t->diag_mode    = (modbus_read_registers(g_modbus, REG_DIAG_MODE,   1, &v) == 1) ? (uint8_t)v  : 0;
-    t->diag_outputs = (modbus_read_registers(g_modbus, REG_DIAG_STATUS, 1, &v) == 1) ? (uint16_t)v : 0;
+    return (modbus_read_registers(ctx, wire_addr, 1, &v) == 1) ? v : dflt;
+}
+
+/* Best-effort telemetry: Component Test diag regs and fan_auto are optional.
+ * A failure here (unbound on old firmware, or a transient) leaves the field
+ * at its default and never forces a reconnect. */
+static void modbus_read_besteffort(telemetry_t *t)
+{
+    t->diag_mode    = (uint8_t)  modbus_read_reg_besteffort(g_modbus, REG_DIAG_MODE,   0);
+    t->diag_outputs =            modbus_read_reg_besteffort(g_modbus, REG_DIAG_STATUS, 0);
+    t->fan_auto     = modbus_read_reg_besteffort(g_modbus, REG_FAN_AUTO, 0) ? true : false;
 }
 
 /* ── JSON payload builders ───────────────────────────────────────────────── */
@@ -477,6 +490,7 @@ static char *build_telemetry_json(const telemetry_t *t)
     cJSON_AddNumberToObject(root, "clmt_setpoint_f",  t->clmt_set_f);
     cJSON_AddNumberToObject(root, "batt_setpoint_v",  t->batt_set_v);
     cJSON_AddNumberToObject(root, "fan_speed",        t->fan_speed);
+    cJSON_AddBoolToObject  (root, "fan_auto",         t->fan_auto);
     cJSON_AddBoolToObject  (root, "diag_active",  t->diag_mode != 0);
     cJSON_AddNumberToObject(root, "diag_outputs", t->diag_outputs);
 
@@ -571,6 +585,13 @@ static void apply_command_file(void)
     if (cJSON_IsNumber(fan)) {
         int v = (int)fan->valuedouble;
         if (v >= 0 && v <= 100) mb_write_reg(12, v, "fan");
+    }
+
+    /* fan_auto: 0|1 -> reg 9 (auto-fan flag) */
+    const cJSON *fan_auto = cJSON_GetObjectItemCaseSensitive(root, "fan_auto");
+    if (cJSON_IsNumber(fan_auto)) {
+        int v = fan_auto->valueint;
+        if (v == 0 || v == 1) mb_write_reg(9, v, "fan_auto");
     }
 
     /* reset_oil -> zero engine-oil hours (reg 20) + oil-change state (reg 18) */
@@ -705,7 +726,7 @@ int main(void)
 
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
-            modbus_read_diag(&t);
+            modbus_read_besteffort(&t);
 
             /* (Touchscreen commands are applied in the 1 Hz wait loop below, in
              * this same thread — the libmodbus context is never touched
