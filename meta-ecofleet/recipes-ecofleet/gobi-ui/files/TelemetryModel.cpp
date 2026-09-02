@@ -64,6 +64,7 @@ void TelemetryModel::poll()
     m_battSetpointV = o[u"batt_setpoint_v"].toDouble();
     m_rpm           = static_cast<int>(o[u"rpm"].toDouble());
     m_fanSpeed      = static_cast<int>(o[u"fan_speed"].toDouble());
+    m_fanAuto       = o[u"fan_auto"].toBool();
     m_engineHrs     = static_cast<int>(o[u"engine_hrs"].toDouble());
     m_machineHrs    = static_cast<int>(o[u"machine_hrs"].toDouble());
     m_oilHrs        = static_cast<int>(o[u"oil_hrs"].toDouble());
@@ -85,6 +86,7 @@ void TelemetryModel::poll()
 void TelemetryModel::setMode(const QString &mode)   { writeCommand(QStringLiteral("mode"), mode); }
 void TelemetryModel::setSetpoint(int degF)          { writeCommand(QStringLiteral("setpoint_f"), degF); }
 void TelemetryModel::setFan(int speed)              { writeCommand(QStringLiteral("fan"), speed); }
+void TelemetryModel::setFanAuto(bool on)            { writeCommand(QStringLiteral("fan_auto"), on ? 1 : 0); }
 void TelemetryModel::resetOil()                     { writeCommand(QStringLiteral("reset_oil"), true); }
 
 void TelemetryModel::enterComponentTest()              { writeCommand(QStringLiteral("diag_mode"), 1); }
