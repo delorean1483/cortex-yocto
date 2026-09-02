@@ -5,6 +5,8 @@ import ".."
 Item {
     id: page
 
+    function apuVer(v) { return v>0 ? (Math.floor(v/10000)+"."+(Math.floor(v/100)%100)+"."+(v%100)) : "—" }
+
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 14; spacing: 10
 
@@ -15,7 +17,7 @@ Item {
 
         // ── Identity card ─────────────────────────────────────────────────────
         Rectangle {
-            Layout.fillWidth: true; Layout.preferredHeight: 118
+            Layout.fillWidth: true; Layout.preferredHeight: 142
             radius: 12; color: Theme.surface
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 12; spacing: 6
@@ -28,6 +30,8 @@ Item {
                     Text { text: devinfo.hostname;  color: Theme.textDim; font.pixelSize: 13; font.weight: Font.Medium }
                     Text { text: "Firmware"; color: Theme.textMute; font.pixelSize: 13 }
                     Text { text: devinfo.fwVersion; color: Theme.textDim; font.pixelSize: 13; font.weight: Font.Medium }
+                    Text { text: "APU Firmware"; color: Theme.textMute; font.pixelSize: 13 }
+                    Text { text: apuVer(telemetry.apuFwVersion); color: Theme.textDim; font.pixelSize: 13; font.weight: Font.Medium }
                 }
             }
         }

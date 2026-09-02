@@ -79,6 +79,7 @@ void TelemetryModel::poll()
     m_tsMs          = static_cast<qint64>(o[u"ts"].toDouble());
     m_diagActive    = o[u"diag_active"].toBool();
     m_diagOutputs   = static_cast<int>(o[u"diag_outputs"].toDouble());
+    m_apuFwVersion  = static_cast<int>(o[u"apu_fw_version"].toDouble());
     m_stale         = (QDateTime::currentMSecsSinceEpoch() - m_tsMs) > STALE_MS;
 
     emit dataChanged();

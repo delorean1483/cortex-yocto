@@ -34,6 +34,7 @@ class TelemetryModel : public QObject
     Q_PROPERTY(qint64  tsMs          READ tsMs          NOTIFY dataChanged)
     Q_PROPERTY(bool    diagActive    READ diagActive    NOTIFY dataChanged)
     Q_PROPERTY(int     diagOutputs   READ diagOutputs   NOTIFY dataChanged)
+    Q_PROPERTY(int     apuFwVersion  READ apuFwVersion  NOTIFY dataChanged)
 
 public:
     explicit TelemetryModel(QObject *parent = nullptr);
@@ -75,6 +76,7 @@ public:
     qint64  tsMs()          const { return m_tsMs; }
     bool    diagActive()    const { return m_diagActive; }
     int     diagOutputs()   const { return m_diagOutputs; }
+    int     apuFwVersion()  const { return m_apuFwVersion; }
 
 signals:
     void dataChanged();
@@ -100,4 +102,5 @@ private:
     qint64  m_tsMs          = 0;
     bool    m_diagActive    = false;
     int     m_diagOutputs   = 0;
+    int     m_apuFwVersion  = 0;
 };

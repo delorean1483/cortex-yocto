@@ -95,6 +95,7 @@ typedef struct {
     uint8_t  diag_mode;      /* reg 49  component-test mode 0/1 (best-effort) */
     uint16_t diag_outputs;   /* reg 41  energized-output bitmask (best-effort) */
     bool     fan_auto;       /* reg 9   auto-fan flag 0/1 (best-effort) */
+    uint16_t fw_version;     /* reg 2   APU firmware version, encoded (best-effort) */
     uint64_t ts_ms;
 } telemetry_t;
 
@@ -446,14 +447,15 @@ static uint16_t modbus_read_reg_besteffort(modbus_t *ctx, int wire_addr, uint16_
     return (modbus_read_registers(ctx, wire_addr, 1, &v) == 1) ? v : dflt;
 }
 
-/* Best-effort telemetry: Component Test diag regs and fan_auto are optional.
- * A failure here (unbound on old firmware, or a transient) leaves the field
- * at its default and never forces a reconnect. */
+/* Best-effort telemetry: Component Test diag regs, fan_auto, and fw_version
+ * are optional. A failure here (unbound on old firmware, or a transient)
+ * leaves the field at its default and never forces a reconnect. */
 static void modbus_read_besteffort(telemetry_t *t)
 {
     t->diag_mode    = (uint8_t)  modbus_read_reg_besteffort(g_modbus, REG_DIAG_MODE,   0);
     t->diag_outputs =            modbus_read_reg_besteffort(g_modbus, REG_DIAG_STATUS, 0);
     t->fan_auto     = modbus_read_reg_besteffort(g_modbus, REG_FAN_AUTO, 0) ? true : false;
+    t->fw_version   =            modbus_read_reg_besteffort(g_modbus, REG_FW_VERSION,  0);
 }
 
 /* ── JSON payload builders ───────────────────────────────────────────────── */
@@ -493,6 +495,7 @@ static char *build_telemetry_json(const telemetry_t *t)
     cJSON_AddBoolToObject  (root, "fan_auto",         t->fan_auto);
     cJSON_AddBoolToObject  (root, "diag_active",  t->diag_mode != 0);
     cJSON_AddNumberToObject(root, "diag_outputs", t->diag_outputs);
+    cJSON_AddNumberToObject(root, "apu_fw_version", t->fw_version);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
