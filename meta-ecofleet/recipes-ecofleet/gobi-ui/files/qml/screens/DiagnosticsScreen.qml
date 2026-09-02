@@ -10,14 +10,15 @@ Item {
 
     property var sections: [
         { name: "STATUS", tiles: [
-            ["Mode", telemetry.mode, false], ["Control Status", telemetry.controlStatus, false],
-            ["Engine Status", telemetry.engineStatus, false], ["Error", telemetry.error, telemetry.hasError] ] },
+            ["Mode", telemetry.mode, false], ["Control Status", StatusLabels.control(telemetry.controlStatus), false],
+            ["Engine Status", StatusLabels.control(telemetry.engineStatus), false], ["Error", StatusLabels.error(telemetry.error), telemetry.hasError] ] },
         { name: "CLIMATE", tiles: [
             ["Cabin Temp", telemetry.cabinTempF.toFixed(0)+" °F", false], ["Setpoint", telemetry.clmtSetpointF.toFixed(0)+" °F", false],
             ["External Temp", telemetry.extTempF.toFixed(0)+" °F", false], ["Fan Speed", telemetry.fanSpeed>0?telemetry.fanSpeed+"%":"Off", false] ] },
         { name: "POWER & ENGINE", tiles: [
             ["Battery", telemetry.battV.toFixed(2)+" V", false], ["Engine RPM", telemetry.rpm+"", false],
-            ["Oil Pressure", telemetry.oilOk?"OK":"LOW", !telemetry.oilOk], ["Ignition", telemetry.ignition?"On":"Off", false] ] },
+            ["Oil Pressure", telemetry.oilOk?"OK":"LOW", !telemetry.oilOk], ["Ignition", telemetry.ignition?"On":"Off", false],
+            ["Batt Target", telemetry.battSetpointV.toFixed(1)+" V", false] ] },
         { name: "SERVICE", tiles: [
             ["Engine Hours", telemetry.engineHrs+" h", false], ["Oil Hours", telemetry.oilHrs+" h", false],
             ["Machine Hours", telemetry.machineHrs+" h", false], ["Oil Change", telemetry.oilChange, telemetry.oilChange!=="good"] ] }
@@ -45,9 +46,9 @@ Item {
                 Repeater { model: page.sections
                     ColumnLayout { Layout.fillWidth: true; spacing: 3
                         Text { text: modelData.name; color: Theme.textMute; font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold }
-                        RowLayout { Layout.fillWidth: true; Layout.preferredHeight: 56; spacing: 8
+                        GridLayout { Layout.fillWidth: true; columns: 4; columnSpacing: 8; rowSpacing: 8
                             Repeater { model: modelData.tiles
-                                Rectangle { Layout.fillWidth: true; Layout.fillHeight: true; radius: 10; color: Theme.surface
+                                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 56; radius: 10; color: Theme.surface
                                     border.color: modelData[2] ? Theme.fault : "transparent"; border.width: modelData[2] ? 1 : 0
                                     Column { anchors.left: parent.left; anchors.leftMargin: 14; anchors.right: parent.right; anchors.rightMargin: 10
                                              anchors.verticalCenter: parent.verticalCenter; spacing: 2
