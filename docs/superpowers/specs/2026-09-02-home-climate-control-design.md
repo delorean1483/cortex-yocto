@@ -78,9 +78,11 @@ rail item and its screen are removed.
 
 ## 3. Fan control contract (NEW register)
 
-- **New firmware holding register `fan_auto`** (R/W). **Proposed = fw reg 15**
-  (wire addr 14) — free in the agent map; **must be confirmed free in the g0b1 firmware
-  reg model** during implementation.
+- **New firmware holding register `fan_auto`** (R/W). **= fw reg 9** (agent wire addr 8) —
+  confirmed free in the g0b1 register census (free: 2/4/5/9; note fw15 is **not** free — it
+  is the cold-storage temp setting). A live ctx flag (Pattern B, like reg 32 standby), not
+  NVM-backed: it resets to `0` on firmware reboot, which is fine since the APU also boots to
+  `OFF` and the UI re-asserts `fan_auto=1` whenever AUTO is (re)selected.
   - `1` = **auto**: firmware computes fan from the temp delta (§4); reg 12 write ignored.
   - `0` = **manual**: firmware drives the fan at the reg 12 value.
 - reg 12 remains the **manual fan %** command and the **fan-speed readback**.
@@ -156,13 +158,13 @@ A single UI mapping renders friendly labels for `control_status`, `engine_status
 ## 7. Data flow (summary)
 
 ```
-UI command.json { mode, setpoint_f, fan, fan_auto } → gobi-agent → regs 10/14/12/15 → firmware
+UI command.json { mode, setpoint_f, fan, fan_auto } → gobi-agent → regs 10/14/12/9 → firmware
 firmware regs (cabin, setpoint, fan speed, control_status, fan_auto) → gobi-agent latest.json → TelemetryModel → UI
 ```
 
 ## Decomposition (two implementation plans)
 
-- **Plan A — firmware (`g0b1-firmware`):** `fan_auto` register (fw15) + auto-fan control
+- **Plan A — firmware (`g0b1-firmware`):** `fan_auto` register (fw9) + auto-fan control
   law in climate mode. Self-contained, host-testable control-law unit + on-target reg
   wiring. Local branch, flashed at the bench.
 - **Plan B — agent + UI (`cortex-yocto`):** agent `fan_auto` command key + telemetry read;
