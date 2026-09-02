@@ -20,7 +20,7 @@ Item {
     function pickPreset(v) { telemetry.setFanAuto(false); telemetry.setFan(v) }
     function activeFan() { return telemetry.fanAuto ? "AUTO" : (function(){ for (var i=0;i<home.presets.length;i++) if (home.presets[i].v===telemetry.fanSpeed) return home.presets[i].k; return "" })() }
     // glow bar color + label from control_status
-    function glowColor(s){ return s==="cooling"?"#2F81F7": (s==="warming_up"||s==="starting")?"#F0883E": s==="chillin"?"#39B0C4": s==="charging"?Theme.ok: "transparent" }
+    function glowColor(s){ return s==="cooling"?"#2F81F7": (s==="warming_up"||s==="starting")?"#F0883E": s==="chillin"?"#39B0C4": s==="charging"?Theme.ok: (s==="running"||s==="defrost")?Theme.textDim: "transparent" }
     readonly property bool glowOn: telemetry.controlStatus !== "off" && home.on
     // setpoint caption from control_status
     function caption(){ var s=telemetry.controlStatus; if(!home.on)return "OFF"; if(s==="cooling")return "COOLING TO"; if(s==="warming_up"||s==="starting")return "WARMING UP"; if(s==="chillin")return "AT TARGET"; if(s==="charging")return "CHARGING"; return StatusLabels.control(s,true) }
@@ -70,6 +70,7 @@ Item {
         // 3. fan presets: AUTO / LOW / MED / HIGH  (AUTO hidden if firmware lacks fan_auto — see note)
         RowLayout { Layout.fillWidth: true; Layout.preferredHeight: 52; spacing: 8
             Text { text: "FAN"; color: Theme.textMute; font.pixelSize: 12; Layout.preferredWidth: 34 }
+            Text { text: telemetry.fanSpeed + "%"; color: Theme.textDim; font.pixelSize: 10; Layout.preferredWidth: 30 }
             Rectangle { id: fanAutoBtn; Layout.fillWidth: true; Layout.fillHeight: true; radius: 10
                 property bool sel: home.activeFan()==="AUTO"
                 color: sel?Qt.rgba(0.25,0.72,0.31,0.18):Theme.surface; border.color: sel?Theme.ok:Theme.border; border.width: 1
