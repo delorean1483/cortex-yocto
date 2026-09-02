@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
 import ".."
-import "../atoms"
 Item {
     id: batt
 
@@ -16,9 +15,9 @@ Item {
     property real target: telemetry.battSetpointV
     property bool dirty: false
     Component.onCompleted: batt.target = telemetry.battSetpointV
-    Timer { id: spSend; interval: 350; onTriggered: { batt.dirty = true; telemetry.setBattSetpoint(batt.target) } }
+    Timer { id: spSend; interval: 350; onTriggered: telemetry.setBattSetpoint(batt.target) }
     function round1(v) { return Math.round(v * 10) / 10 }
-    function bump(d) { batt.target = round1(Math.max(11.0, Math.min(13.0, batt.target + d))); spSend.restart() }
+    function bump(d) { batt.dirty = true; batt.target = round1(Math.max(11.0, Math.min(13.0, batt.target + d))); spSend.restart() }
 
     Connections {
         target: telemetry
