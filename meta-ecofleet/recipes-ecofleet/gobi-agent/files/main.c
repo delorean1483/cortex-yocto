@@ -594,6 +594,14 @@ static void apply_command_file(void)
         if (v == 0 || v == 1) mb_write_reg(9, v, "fan_auto");
     }
 
+    /* batt_setpoint centivolts (10.0-15.0 V) -> reg 13 (battery auto-charge
+     * threshold; firmware auto-starts the APU to charge below this) */
+    const cJSON *bsp = cJSON_GetObjectItemCaseSensitive(root, "batt_setpoint");
+    if (cJSON_IsNumber(bsp)) {
+        int v = (int)bsp->valuedouble;
+        if (v >= 1000 && v <= 1500) mb_write_reg(13, v, "batt_setpoint");
+    }
+
     /* reset_oil -> zero engine-oil hours (reg 20) + oil-change state (reg 18) */
     const cJSON *ro = cJSON_GetObjectItemCaseSensitive(root, "reset_oil");
     if (cJSON_IsTrue(ro)) {

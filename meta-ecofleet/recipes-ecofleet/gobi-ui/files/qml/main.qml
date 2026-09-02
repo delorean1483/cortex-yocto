@@ -19,8 +19,8 @@ ApplicationWindow {
             id: shell
             anchors.centerIn: parent   // AppShell is fixed 800x480; ScaleRoot scales it
             railModel: [ {key:"home",label:"Home",icon:"home"}, {key:"mode",label:"Mode",icon:"mode"},
-                         {key:"menu",label:"Menu",icon:"menu"} ]
-            railScreens: [ homeC, modeC, menuC ]
+                         {key:"batt",label:"Battery",icon:"battery"}, {key:"menu",label:"Menu",icon:"menu"} ]
+            railScreens: [ homeC, modeC, battC, menuC ]
         }
         LockOverlay { anchors.fill: parent }   // covers the rail too when locked
     }

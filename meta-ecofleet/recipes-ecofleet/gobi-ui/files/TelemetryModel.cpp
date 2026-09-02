@@ -1,5 +1,6 @@
 #include "TelemetryModel.h"
 
+#include <cmath>
 #include <QFile>
 #include <QSaveFile>
 #include <QJsonDocument>
@@ -87,6 +88,7 @@ void TelemetryModel::setMode(const QString &mode)   { writeCommand(QStringLitera
 void TelemetryModel::setSetpoint(int degF)          { writeCommand(QStringLiteral("setpoint_f"), degF); }
 void TelemetryModel::setFan(int speed)              { writeCommand(QStringLiteral("fan"), speed); }
 void TelemetryModel::setFanAuto(bool on)            { writeCommand(QStringLiteral("fan_auto"), on ? 1 : 0); }
+void TelemetryModel::setBattSetpoint(double volts)  { writeCommand(QStringLiteral("batt_setpoint"), (int)std::round(volts * 100.0)); }
 void TelemetryModel::resetOil()                     { writeCommand(QStringLiteral("reset_oil"), true); }
 
 void TelemetryModel::enterComponentTest()              { writeCommand(QStringLiteral("diag_mode"), 1); }

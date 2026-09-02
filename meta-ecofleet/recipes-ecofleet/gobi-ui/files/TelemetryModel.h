@@ -45,6 +45,7 @@ public:
     Q_INVOKABLE void setSetpoint(int degF);          // climate target, degF
     Q_INVOKABLE void setFan(int speed);              // percent 0-100 (0 = off)
     Q_INVOKABLE void setFanAuto(bool on);            // fan-auto on/off
+    Q_INVOKABLE void setBattSetpoint(double volts);  // battery auto-charge threshold, volts
     Q_INVOKABLE void resetOil();                     // zero oil hours + change state
     Q_INVOKABLE void enterComponentTest();               // diag_mode = 1
     Q_INVOKABLE void exitComponentTest();                // diag_mode = 0

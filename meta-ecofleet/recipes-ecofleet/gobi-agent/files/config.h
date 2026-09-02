@@ -55,7 +55,7 @@
 #define REG_MODE            9   /* fw 10 mode: 0=Off 1=Climate 2=Battery   R  */
 #define REG_ENGINE_HRS     10   /* fw 11 engine runtime, hours             R  */
 #define REG_FAN_SPEED      11   /* fw 12 evap fan speed, 0-100 %           R  */
-#define REG_BATT_SET_CV    12   /* fw 13 batt monitor setpoint, centivolts R  */
+#define REG_BATT_SET_CV    12   /* fw 13 batt monitor setpoint, centivolts R/W */
 #define REG_CLMT_SET_F     13   /* fw 14 climate temp setpoint, degF       R  */
 #define REG_ERROR          16   /* fw 17 error state, 0-10 (control_error_t) R */
 #define REG_OIL_CHANGE     17   /* fw 18 oil-change state, 0-4             R  */
@@ -85,6 +85,8 @@
  * then removes it. gobi-ui can't drive Modbus itself — the agent is the sole
  * RTU master on the serial port. Keys (any subset): "mode" (off|climate|
  * battery), "setpoint_f" (int), "fan" (0-100), "fan_auto" (0|1, reg 9),
+ * "batt_setpoint" (int, centivolts 1000-1500 = 10.0-15.0V, reg 13 — battery
+ * auto-charge threshold; firmware auto-starts the APU to charge below it),
  * "reset_oil" (true), "diag_mode" (0|1 → enter/exit Component Test, reg 49),
  * "diag_out" (int (index<<8)|state → actuate one output, reg 50). */
 #define COMMAND_JSON_PATH   "/var/lib/ecofleet/command.json"
