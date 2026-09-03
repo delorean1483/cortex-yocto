@@ -53,3 +53,9 @@ IMAGE_INSTALL:append = " \
     ecofleet-bootscript \
     swupdate-keys \
 "
+
+# STM32 (g0b1/APU) firmware delivery — RELEASE-pending.
+# Uncomment once real g0b1-apu-<ver>-slot{A,B}.bin are placed in
+# recipes-ecofleet/g0b1-apu-firmware/files/ (from sub-project #1 build-slots.sh).
+# Enabling before then breaks the rootfs build (do_fetch: missing file://...bin).
+#IMAGE_INSTALL:append = " g0b1-apu-firmware"
