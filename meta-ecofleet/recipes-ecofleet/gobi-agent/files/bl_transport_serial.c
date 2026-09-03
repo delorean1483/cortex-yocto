@@ -38,19 +38,18 @@ typedef struct {
 
 static bl_transport_serial_ctx_t g_serial_ctx;
 
-/* Send req and collect exactly one RTU response frame, delimited by an
- * inter-byte idle gap of >= BL_IDLE_GAP_MS, honoring the overall
- * timeout_ms deadline for how long we wait for the response to begin
- * and complete. Returns the framed response length (bl_frame_check()
- * already validated) or -1 on timeout / bus error / invalid frame /
- * overflow. */
+/* Send req (retrying the write on EINTR/partial write) and collect
+ * exactly one RTU response frame, delimited by an inter-byte idle gap of
+ * >= BL_IDLE_GAP_MS. timeout_ms is one deadline for the whole exchange --
+ * send plus how long we wait for the response to begin and complete.
+ * Returns the framed response length (bl_frame_check() already
+ * validated) or -1 on timeout / bus error / invalid frame / overflow. */
 static int bl_transport_serial_xfer(void *ctx_, const uint8_t *req,
                                      uint16_t req_len, uint8_t *resp,
                                      uint16_t resp_cap, uint32_t timeout_ms)
 {
     const bl_transport_serial_ctx_t *sc = (const bl_transport_serial_ctx_t *)ctx_;
     int fd;
-    ssize_t wn;
     uint16_t n = 0u;
     struct timespec t0;
 
@@ -63,15 +62,49 @@ static int bl_transport_serial_xfer(void *ctx_, const uint8_t *req,
         return -1;
     }
 
-    wn = write(fd, req, (size_t)req_len);
-    if (wn < 0 || (uint16_t)wn != req_len) {
-        /* Short or failed write: the request was never fully sent, so
-         * there is nothing worth waiting for a reply to. */
+    /* Captured once, up front, and reused by both the write loop below
+     * and the read loop further down: timeout_ms bounds the whole xfer
+     * (send + receive), not each phase separately. */
+    if (clock_gettime(CLOCK_MONOTONIC, &t0) != 0) {
         return -1;
     }
 
-    if (clock_gettime(CLOCK_MONOTONIC, &t0) != 0) {
-        return -1;
+    {
+        const uint8_t *wp = req;
+        size_t wremaining = (size_t)req_len;
+
+        while (wremaining > 0u) {
+            struct timespec tnow;
+            long elapsed_ms;
+            long left_ms;
+            ssize_t wn;
+
+            if (clock_gettime(CLOCK_MONOTONIC, &tnow) != 0) {
+                return -1;
+            }
+            elapsed_ms = (tnow.tv_sec - t0.tv_sec) * 1000L +
+                         (tnow.tv_nsec - t0.tv_nsec) / 1000000L;
+            left_ms = (long)timeout_ms - elapsed_ms;
+            if (left_ms <= 0L) {
+                /* Deadline elapsed while still trying to get the request
+                 * out -- a wedged write must not loop forever. */
+                return -1;
+            }
+
+            wn = write(fd, wp, wremaining);
+            if (wn < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+                return -1;
+            }
+            if (wn == 0) {
+                /* No forward progress; avoid spinning. */
+                return -1;
+            }
+            wp += wn;
+            wremaining -= (size_t)wn;
+        }
     }
 
     for (;;) {
