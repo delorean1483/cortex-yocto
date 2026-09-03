@@ -11,6 +11,7 @@
 
 #include "config.h"
 #include "shadow.h"
+#include "stm32_flash_task.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -496,6 +497,8 @@ static char *build_telemetry_json(const telemetry_t *t)
     cJSON_AddBoolToObject  (root, "diag_active",  t->diag_mode != 0);
     cJSON_AddNumberToObject(root, "diag_outputs", t->diag_outputs);
     cJSON_AddNumberToObject(root, "apu_fw_version", t->fw_version);
+    cJSON_AddStringToObject(root, "stm32_update_status", stu_status_str(stm32_flash_status()));
+    cJSON_AddNumberToObject(root, "stm32_update_pct", stm32_flash_status_pct());
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -693,6 +696,8 @@ int main(void)
         /* Non-fatal: we'll retry in the loop */
     }
 
+    stm32_flash_task_init(g_modbus);
+
     /* ── 5. Mosquitto ────────────────────────────────────────────────────── */
     mosquitto_lib_init();
 
@@ -738,6 +743,7 @@ int main(void)
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
             modbus_read_besteffort(&t);
+            stm32_flash_tick(t.fw_version, t.mode, t.engine_status);
 
             /* (Touchscreen commands are applied in the 1 Hz wait loop below, in
              * this same thread — the libmodbus context is never touched

@@ -96,3 +96,11 @@
 
 /* ── Config file ──────────────────────────────────────────────────────────── */
 #define AGENT_CONFIG_FILE "/etc/ecofleet/gobi-agent.conf"
+
+/* ── STM32 (g0b1/APU) remote firmware update ── */
+#define G0B1_FW_DIR             "/lib/firmware/g0b1-apu"
+#define G0B1_ENTER_BL_REG       35
+#define G0B1_ENTER_BL_VALUE     0x00A5
+#define G0B1_ERASE_TIMEOUT_MS   10000   /* 112-page slot erase before ACK */
+#define G0B1_AUTO_FLASH_DEFAULT 1       /* auto-flash STM32 when APU idle */
+#define G0B1_APP_SLOT_SIZE      0x38000 /* 224 KB — max .bin read bound */
