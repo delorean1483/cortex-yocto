@@ -20,3 +20,7 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
 
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" "$here/test_bl_frame.c" "$files/bl_frame.c" -o "$here/test_bl_frame" && "$here/test_bl_frame"
+
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" "$here/test_bl_session.c" "$files/bl_session.c" "$files/bl_frame.c" "$files/bl_crc32.c" "$here/fake_bootloader.c" \
+   -o "$here/test_bl_session" && "$here/test_bl_session"
