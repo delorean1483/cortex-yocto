@@ -45,13 +45,14 @@ typedef struct {
     /* fault hooks */
     int refuse_enter;         /* reg-35 enter write -> Modbus exception 0x04 */
     int fail_verify_crc;      /* VERIFY always NAKs with BL_ERR_CRC */
-    int fail_nth_data;        /* 1-based chunk index to NAK once, then succeed on retry; 0 = disabled */
+    int fail_nth_data;        /* 1-based chunk index to NAK fail_nth_data_times times, then succeed; 0 = disabled */
+    int fail_nth_data_times;  /* how many consecutive attempts at that chunk to NAK before allowing success */
 
     /* DATA fault-injection bookkeeping (not test-facing) */
     uint32_t last_data_offset;
     int      last_data_offset_valid;
-    int      chunk_counter;        /* number of distinct offsets seen so far */
-    int      failed_chunk_marker;  /* chunk_counter value already failed once, 0 = none */
+    int      chunk_counter;      /* number of distinct offsets seen so far */
+    int      chunk_fail_count;   /* # of times the CURRENT chunk (chunk_counter) has been NAKed so far */
 } fake_bootloader_t;
 
 void fake_bl_init(fake_bootloader_t *fb);
@@ -59,7 +60,13 @@ void fake_bl_init(fake_bootloader_t *fb);
 /* Fault hooks. */
 void fake_bl_refuse_enter(fake_bootloader_t *fb);
 void fake_bl_fail_verify_crc(fake_bootloader_t *fb);
+/* NAK the n-th DATA chunk exactly once, then succeed on retry. */
 void fake_bl_fail_nth_data(fake_bootloader_t *fb, int n);
+/* NAK the given 1-based chunk index `times` consecutive times, then let it
+ * succeed. fake_bl_fail_nth_data(fb, n) is equivalent to
+ * fake_bl_fail_data_times(fb, n, 1). Used to pin the session's chunk-retry
+ * budget (initial attempt + 3 retries = 4 total attempts). */
+void fake_bl_fail_data_times(fake_bootloader_t *fb, int chunk_index, int times);
 
 /* bl_transport_t callbacks; pass ctx = &fb. */
 int fake_bl_xfer(void *ctx, const uint8_t *req, uint16_t req_len,

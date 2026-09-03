@@ -111,11 +111,62 @@ int main(void){
         CHECK(fb.committed == 1);
     }
 
+    /* ---- data-chunk retry budget, lower boundary: NAK the chunk 3 times,
+     * succeed on the 4th (initial attempt + 3 retries) -> still BLR_OK. ---- */
+    {
+        fake_bootloader_t fb;
+        fake_bl_init(&fb);
+        fake_bl_fail_data_times(&fb, 1, 3); /* single chunk (default chunk_max) */
+        fb.reg2_after_commit = 200u;
+
+        uint8_t img[64];
+        fill_pattern(img, sizeof(img), 0x07u);
+
+        bl_transport_t t = { fake_bl_xfer, fake_bl_wait_reset, &fb };
+        bl_flash_params_t p;
+        memset(&p, 0, sizeof(p));
+        p.img_slotA = img;
+        p.len_slotA = sizeof(img);
+        p.expected_ver_enc = 200u;
+
+        bl_result_t r = bl_session_flash(&t, &p);
+        CHECK(r == BLR_OK);
+        CHECK(memcmp(fb.slotA, img, sizeof(img)) == 0);
+        CHECK(fb.committed == 1);
+    }
+
+    /* ---- data-chunk retry budget, upper boundary: NAK the chunk 4 times
+     * (more than the retry budget can absorb) -> BLR_WRITE_FAIL. ---- */
+    {
+        fake_bootloader_t fb;
+        fake_bl_init(&fb);
+        fake_bl_fail_data_times(&fb, 1, 4);
+        fb.reg2_after_commit = 200u;
+
+        uint8_t img[64];
+        fill_pattern(img, sizeof(img), 0x08u);
+
+        bl_transport_t t = { fake_bl_xfer, fake_bl_wait_reset, &fb };
+        bl_flash_params_t p;
+        memset(&p, 0, sizeof(p));
+        p.img_slotA = img;
+        p.len_slotA = sizeof(img);
+        p.expected_ver_enc = 200u;
+
+        bl_result_t r = bl_session_flash(&t, &p);
+        CHECK(r == BLR_WRITE_FAIL);
+        CHECK(fb.committed == 0);
+    }
+
     /* ---- slot pick: inactive_slot=1 -> slotB bytes streamed, not slotA. ---- */
     {
         fake_bootloader_t fb;
         fake_bl_init(&fb);
         fb.inactive_slot = 1u;
+        fb.active_slot = 0u; /* force away from fake_bl_init's default of 1, so the
+                               * post-commit flip to 1 below is actually exercised
+                               * (fake_bl_init already defaults active_slot=1, which
+                               * would make CHECK(active_slot==1) pass vacuously). */
         fb.reg2_after_commit = 200u;
 
         uint8_t imgA[300];

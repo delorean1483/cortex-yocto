@@ -70,7 +70,15 @@ void fake_bl_init(fake_bootloader_t *fb){
 
 void fake_bl_refuse_enter(fake_bootloader_t *fb){ fb->refuse_enter = 1; }
 void fake_bl_fail_verify_crc(fake_bootloader_t *fb){ fb->fail_verify_crc = 1; }
-void fake_bl_fail_nth_data(fake_bootloader_t *fb, int n){ fb->fail_nth_data = n; }
+
+void fake_bl_fail_data_times(fake_bootloader_t *fb, int chunk_index, int times){
+    fb->fail_nth_data = chunk_index;
+    fb->fail_nth_data_times = times;
+}
+
+void fake_bl_fail_nth_data(fake_bootloader_t *fb, int n){
+    fake_bl_fail_data_times(fb, n, 1);
+}
 
 /* ---- bl_transport_t callbacks -------------------------------------------- */
 
@@ -125,7 +133,7 @@ int fake_bl_xfer(void *ctx, const uint8_t *req, uint16_t req_len,
             fb->written_len = 0u;
             fb->last_data_offset_valid = 0;
             fb->chunk_counter = 0;
-            fb->failed_chunk_marker = 0;
+            fb->chunk_fail_count = 0;
             return reply_ack(resp, BL_FC_CONTROL, (uint8_t)BL_SUB_ERASE);
         }
         case BL_SUB_VERIFY: {
@@ -184,11 +192,12 @@ int fake_bl_xfer(void *ctx, const uint8_t *req, uint16_t req_len,
             fb->chunk_counter++;
             fb->last_data_offset = off;
             fb->last_data_offset_valid = 1;
+            fb->chunk_fail_count = 0; /* fresh chunk -> fresh fail budget */
         }
 
         if(fb->fail_nth_data != 0 && fb->chunk_counter == fb->fail_nth_data &&
-           fb->failed_chunk_marker != fb->chunk_counter){
-            fb->failed_chunk_marker = fb->chunk_counter;
+           fb->chunk_fail_count < fb->fail_nth_data_times){
+            fb->chunk_fail_count++;
             return reply_nak(resp, BL_FC_DATA, BL_ERR_FLASH);
         }
 

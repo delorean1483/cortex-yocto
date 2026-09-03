@@ -9,7 +9,12 @@
 #define BL_ENTER_REG         35u
 #define BL_ENTER_VAL         0x00A5u
 #define BL_VERSION_REG       2u
-#define BL_DATA_RETRY_MAX    3
+/* Plan wording: "retry the chunk up to 3x on timeout/NAK, else
+ * BLR_WRITE_FAIL" -- read as 3 RETRIES after the initial send (4 total
+ * attempts), since the point on a noisy 9600 RS-485 bus is transient-error
+ * recovery. BL_DATA_MAX_ATTEMPTS = 1 initial attempt + BL_DATA_MAX_RETRIES. */
+#define BL_DATA_MAX_RETRIES  3
+#define BL_DATA_MAX_ATTEMPTS (1 + BL_DATA_MAX_RETRIES)
 #define BL_INFO_RETRY_MAX    5
 #define BL_VERSION_RETRY_MAX 5
 
@@ -94,7 +99,8 @@ bl_result_t bl_session_flash(const bl_transport_t *t, const bl_flash_params_t *p
         }
     }
 
-    /* 5. Stream DATA, retrying each chunk up to 3x. */
+    /* 5. Stream DATA: initial attempt + up to 3 retries (4 total attempts)
+     * per chunk on timeout/NAK/offset-mismatch. */
     {
         uint32_t off;
         for(off = 0; off < len; off += chunk){
@@ -102,7 +108,7 @@ bl_result_t bl_session_flash(const bl_transport_t *t, const bl_flash_params_t *p
             uint8_t n_bytes = (uint8_t)((remaining < chunk) ? remaining : chunk);
             int ok = 0;
             int attempt;
-            for(attempt = 0; attempt < BL_DATA_RETRY_MAX && !ok; attempt++){
+            for(attempt = 0; attempt < BL_DATA_MAX_ATTEMPTS && !ok; attempt++){
                 uint16_t n = bl_req_data(req, off, img + off, n_bytes);
                 n = bl_frame_finalize(req, n);
                 rlen = t->xfer(t->ctx, req, n, resp, sizeof(resp), BL_SHORT_TIMEOUT_MS);
