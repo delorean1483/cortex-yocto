@@ -51,5 +51,6 @@ IMAGE_INSTALL:append = " \
     libubootenv \
     libubootenv-bin \
     ecofleet-bootscript \
+    ecofleet-boot-confirm \
     swupdate-keys \
 "

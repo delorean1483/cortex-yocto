@@ -1,0 +1,13 @@
+[Unit]
+Description=EcoFleet A/B boot-health confirm (clears u-boot rollback trial)
+After=gobi-ui.service gobi-agent.service
+Wants=gobi-ui.service gobi-agent.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 45
+ExecStart=/usr/bin/ecofleet-boot-confirm.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
