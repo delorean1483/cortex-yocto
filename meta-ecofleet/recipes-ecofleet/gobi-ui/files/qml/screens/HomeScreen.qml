@@ -87,7 +87,7 @@ Item {
         // 4. divider + passive stats
         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.border }
         RowLayout { Layout.fillWidth: true; spacing: 16
-            Repeater { model: [ {l:"OUTSIDE", v: telemetry.extTempF.toFixed(0)+"°F"},
+            Repeater { model: [ {l:"COOLANT", v: telemetry.extTempF.toFixed(0)+"°F"},
                                 {l:"BATTERY", v: telemetry.battV.toFixed(1)+" V"},
                                 {l:"ENGINE HRS", v: telemetry.engineHrs+""} ]
                 RowLayout { spacing: 6
