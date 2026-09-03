@@ -315,7 +315,15 @@ void stm32_flash_tick(uint16_t running_ver_enc, uint8_t mode, uint8_t engine)
     }
 
     if (have_outcome_for_current) {
-        g_status = g_outcome_status;      /* persist last OK/FAILED outcome */
+        /* Don't keep reporting a stale FAILED once the device has caught
+         * up to (or passed) the bundled version -- e.g. bl_session_flash()
+         * returned BLR_VERSION_MISMATCH because the post-commit reg-2
+         * re-read failed transiently even though the device did commit.
+         * Ordinary telemetry polls will eventually show the new version;
+         * once they do, report OK instead of the stale recorded outcome.
+         * The retry guard itself is untouched -- the bundled version is
+         * still never re-flashed just because this reports OK now. */
+        g_status = !newer ? STU_OK : g_outcome_status;
     } else if (newer) {
         g_status = G0B1_AUTO_FLASH_DEFAULT ? STU_AVAILABLE : STU_DISABLED;
     } else {

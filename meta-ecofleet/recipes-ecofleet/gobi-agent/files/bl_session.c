@@ -94,7 +94,7 @@ bl_result_t bl_session_flash(const bl_transport_t *t, const bl_flash_params_t *p
             return BLR_ERASE_FAIL;
         }
         uint8_t nak_err = 0;
-        if(bl_resp_ack(resp, (uint16_t)rlen, BL_FC_CONTROL, &nak_err) != 0){
+        if(bl_resp_ack(resp, (uint16_t)rlen, BL_FC_CONTROL, BL_SUB_ERASE, &nak_err) != 0){
             return BLR_ERASE_FAIL;
         }
     }
@@ -115,7 +115,9 @@ bl_result_t bl_session_flash(const bl_transport_t *t, const bl_flash_params_t *p
                 if(rlen < 0) continue;
                 if(bl_frame_check(resp, (uint16_t)rlen) != 0) continue;
                 uint8_t nak_err = 0;
-                if(bl_resp_ack(resp, (uint16_t)rlen, BL_FC_DATA, &nak_err) != 0) continue;
+                /* expect_sub is ignored on the FC 0x42 path; BL_SUB_INFO is
+                 * a harmless placeholder here. */
+                if(bl_resp_ack(resp, (uint16_t)rlen, BL_FC_DATA, BL_SUB_INFO, &nak_err) != 0) continue;
                 /* bl_resp_ack only confirms ACK-vs-NAK for FC 0x42; the
                  * echoed offset must be checked here (ruling: a mismatched
                  * or short ACK counts as a failed chunk). */
@@ -144,7 +146,7 @@ bl_result_t bl_session_flash(const bl_transport_t *t, const bl_flash_params_t *p
             return BLR_WRITE_FAIL;
         }
         uint8_t nak_err = 0;
-        int r = bl_resp_ack(resp, (uint16_t)rlen, BL_FC_CONTROL, &nak_err);
+        int r = bl_resp_ack(resp, (uint16_t)rlen, BL_FC_CONTROL, BL_SUB_VERIFY, &nak_err);
         if(r == 1){
             bl_send_abort(t);
             if(nak_err == BL_ERR_CRC) return BLR_VERIFY_CRC;
@@ -165,7 +167,7 @@ bl_result_t bl_session_flash(const bl_transport_t *t, const bl_flash_params_t *p
         rlen = t->xfer(t->ctx, req, n, resp, sizeof(resp), BL_SHORT_TIMEOUT_MS);
         if(rlen >= 0 && bl_frame_check(resp, (uint16_t)rlen) == 0){
             uint8_t nak_err = 0;
-            if(bl_resp_ack(resp, (uint16_t)rlen, BL_FC_CONTROL, &nak_err) == 1){
+            if(bl_resp_ack(resp, (uint16_t)rlen, BL_FC_CONTROL, BL_SUB_COMMIT, &nak_err) == 1){
                 bl_send_abort(t);
                 return BLR_COMMIT_FAIL;
             }

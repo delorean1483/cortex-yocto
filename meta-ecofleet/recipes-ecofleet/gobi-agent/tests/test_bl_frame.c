@@ -27,9 +27,14 @@ int main(void){
       CHECK(bl_resp_info(r,rl,&info)==0 && info.inactive_slot==1 && info.slot_size==0x38000u && info.chunk_max==240 && info.crc_algo==1); }
     /* parse ACK vs NAK */
     { uint8_t a[]={1,0x41,0x02,0x00,0,0}; uint16_t al=bl_frame_finalize(a,4); uint8_t e=0;
-      CHECK(bl_resp_ack(a,al,0x41,&e)==0); }
+      CHECK(bl_resp_ack(a,al,0x41,BL_SUB_ERASE,&e)==0); }
     { uint8_t nk[]={1,0xC1,BL_ERR_CRC,0,0}; uint16_t nl=bl_frame_finalize(nk,3); uint8_t e=0;
-      CHECK(bl_resp_ack(nk,nl,0x41,&e)==1 && e==BL_ERR_CRC); }
+      CHECK(bl_resp_ack(nk,nl,0x41,BL_SUB_ERASE,&e)==1 && e==BL_ERR_CRC); }
+    /* wrong echoed sub-code must be rejected as malformed, even though fc
+     * and the trailing 0x00 both look correct (an ERASE-ack must not
+     * satisfy a COMMIT check) */
+    { uint8_t a[]={1,0x41,0x02,0x00,0,0}; uint16_t al=bl_frame_finalize(a,4); uint8_t e=0;
+      CHECK(bl_resp_ack(a,al,0x41,BL_SUB_COMMIT,&e)==-1); }
     /* read-reg reply parse: reg 2 = 10100 */
     { uint8_t rr[]={1,0x03,0x02,0x27,0x74,0,0}; uint16_t rl=bl_frame_finalize(rr,5); uint16_t v=0;
       CHECK(mb_resp_read_reg(rr,rl,&v)==0 && v==10100); }

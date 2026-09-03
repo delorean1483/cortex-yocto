@@ -50,7 +50,13 @@ int bl_resp_info(const uint8_t *f, uint16_t len, bl_info_t *info);
 /* Generic ACK/NAK reply for FC 0x41 (sub-ACK body [1][0x41][sub][0x00]) or
  * FC 0x42 (data-ACK body [1][0x42][offset:4 BE]), selected by expect_fc.
  * expect_fc|0x80 is recognized as a NAK (body [1][fc|0x80][err]).
+ * When expect_fc == BL_FC_CONTROL, expect_sub is also checked against the
+ * echoed sub-code (f[2]) -- a mismatch (e.g. an ERASE ack received while
+ * expecting a COMMIT ack) is treated as malformed. expect_sub is ignored
+ * when expect_fc == BL_FC_DATA (the caller validates the echoed offset
+ * itself); pass any bl_sub_t value in that case.
  * Returns 0 = ACK, 1 = NAK (*nak_err set), -1 = malformed. */
-int bl_resp_ack(const uint8_t *f, uint16_t len, uint8_t expect_fc, uint8_t *nak_err);
+int bl_resp_ack(const uint8_t *f, uint16_t len, uint8_t expect_fc,
+                bl_sub_t expect_sub, uint8_t *nak_err);
 
 #endif

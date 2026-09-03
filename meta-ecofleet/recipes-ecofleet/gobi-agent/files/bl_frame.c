@@ -117,7 +117,8 @@ int bl_resp_info(const uint8_t *f, uint16_t len, bl_info_t *info){
     return 0;
 }
 
-int bl_resp_ack(const uint8_t *f, uint16_t len, uint8_t expect_fc, uint8_t *nak_err){
+int bl_resp_ack(const uint8_t *f, uint16_t len, uint8_t expect_fc,
+                bl_sub_t expect_sub, uint8_t *nak_err){
     if(len < 5u) return -1;
     if(f[0] != 1u) return -1;
     uint8_t fc = f[1];
@@ -128,6 +129,7 @@ int bl_resp_ack(const uint8_t *f, uint16_t len, uint8_t expect_fc, uint8_t *nak_
     if(fc != expect_fc) return -1;
     if(expect_fc == BL_FC_CONTROL){
         if(len < 6u) return -1;
+        if(f[2] != (uint8_t)expect_sub) return -1;
         if(f[3] != 0u) return -1;
         return 0;
     }

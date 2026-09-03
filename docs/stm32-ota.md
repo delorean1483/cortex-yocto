@@ -121,6 +121,13 @@ re-attempts the flash. A device reboot also clears the in-process latch, so
 a power cycle plus the same version will retry too — but don't rely on that
 as the primary remediation path for a fleet-wide re-push.
 
+If `stm32_update_status` is lingering on "failed" and you're not sure
+whether the flash actually worked, check the live `apu_fw_version`
+telemetry: if it already matches the bundled version, the flash actually
+succeeded (the recorded failure was likely a transient post-commit
+version-read glitch) and the status will read "ok" once the device
+version is re-read — no action needed.
+
 ## Recipe verification
 
 Recipe/bitbake syntax cannot be parsed on the dev host — there is no Yocto

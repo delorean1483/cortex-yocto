@@ -22,10 +22,14 @@
  *   req  [1][0x42][offset:4 BE][len:1][data:len]
  *   resp ACK [1][0x42][offset:4 BE]   NAK [1][0xC2][err]
  *
- * All bl_build_* functions write the response BODY only (no CRC16); the
- * caller appends modbus_crc16 exactly like mb_engine's finalize convention.
- * All bl_parse_* functions operate on the PDU WITHOUT the trailing CRC16
- * (the caller already validated it via mb_check_frame).
+ * This header holds only the shared wire-contract constants and types
+ * (FC codes, bl_sub_t, BL_ERR_ codes, BL_CHUNK_MAX, bl_info_t) -- no
+ * functions are declared here. The host-side frame/request builders and
+ * response parsers that implement this contract live in bl_frame.h and
+ * bl_frame.c: see bl_frame.h for bl_frame_check(), the request builders
+ * (bl_req_ctrl, bl_req_verify, bl_req_data, mb_req_read_reg,
+ * mb_req_write_reg), and the response parsers (bl_resp_info, bl_resp_ack,
+ * mb_resp_read_reg).
  */
 
 #define BL_FC_CONTROL 0x41u
