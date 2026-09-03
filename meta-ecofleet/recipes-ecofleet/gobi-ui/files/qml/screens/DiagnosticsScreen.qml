@@ -12,9 +12,13 @@ Item {
         { name: "STATUS", tiles: [
             ["Mode", telemetry.mode, false], ["Control Status", StatusLabels.control(telemetry.controlStatus), false],
             ["Engine Status", StatusLabels.control(telemetry.engineStatus), false], ["Error", StatusLabels.error(telemetry.error), telemetry.hasError] ] },
+        // Cabin Temp is a stand-in reading the APU-enclosure PTC (reg 1) until the
+        // cortex has its own cab sensor; Enclosure Temp shows the same PA0 value
+        // explicitly. Coolant is the PA4 sender (reg 51).
         { name: "CLIMATE", tiles: [
             ["Cabin Temp", telemetry.cabinTempF.toFixed(0)+" °F", false], ["Setpoint", telemetry.clmtSetpointF.toFixed(0)+" °F", false],
-            ["External Temp", telemetry.extTempF.toFixed(0)+" °F", false], ["Fan Speed", telemetry.fanSpeed>0?telemetry.fanSpeed+"%":"Off", false] ] },
+            ["Enclosure Temp", telemetry.cabinTempF.toFixed(0)+" °F", false], ["Coolant", telemetry.extTempF.toFixed(0)+" °F", false],
+            ["Fan Speed", telemetry.fanSpeed>0?telemetry.fanSpeed+"%":"Off", false] ] },
         { name: "POWER & ENGINE", tiles: [
             ["Battery", telemetry.battV.toFixed(2)+" V", false], ["Engine RPM", telemetry.rpm+"", false],
             ["Oil Pressure", telemetry.oilOk?"OK":"LOW", !telemetry.oilOk], ["Ignition", telemetry.ignition?"On":"Off", false],
