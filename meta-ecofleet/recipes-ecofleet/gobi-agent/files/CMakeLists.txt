@@ -37,6 +37,12 @@ add_executable(gobi-agent)
 target_sources(gobi-agent PRIVATE
     main.c
     shadow.c
+    bl_crc32.c
+    bl_frame.c
+    bl_session.c
+    stm32_update.c
+    bl_transport_serial.c
+    stm32_flash_task.c
 )
 
 target_include_directories(gobi-agent PRIVATE

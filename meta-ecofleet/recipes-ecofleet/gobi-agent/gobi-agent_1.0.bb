@@ -12,6 +12,19 @@ SRC_URI = " \
     file://weather.h \
     file://weather.c \
     file://weather-fetch.c \
+    file://bl_crc32.c \
+    file://bl_crc32.h \
+    file://bl_frame.c \
+    file://bl_frame.h \
+    file://bl_proto.h \
+    file://bl_session.c \
+    file://bl_session.h \
+    file://stm32_update.c \
+    file://stm32_update.h \
+    file://bl_transport_serial.c \
+    file://bl_transport_serial.h \
+    file://stm32_flash_task.c \
+    file://stm32_flash_task.h \
     file://CMakeLists.txt \
     file://gobi-agent.service \
     file://weather-fetch.service \
