@@ -14,3 +14,6 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -o "$here/test_weather"
 
 "$here/test_weather"
+
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" "$here/test_bl_crc32.c" "$files/bl_crc32.c" -o "$here/test_bl_crc32" && "$here/test_bl_crc32"
