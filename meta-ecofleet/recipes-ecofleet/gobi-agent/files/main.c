@@ -880,7 +880,32 @@ int main(void)
             };
             strncpy(srep.apu_state, status_name(t.control_status), sizeof(srep.apu_state) - 1);
             snprintf(srep.fault, sizeof(srep.fault), "0x%04X", t.error);
+
+            /* VEVOR heater block — mirrors build_telemetry_json()'s heater_*
+             * derivations exactly (heater_level is the ACTIVE level, not the
+             * target). */
+            strncpy(srep.heater_state, heater_state_name(t.heater_state),
+                    sizeof(srep.heater_state) - 1);
+            srep.heater_level   = t.heater_active_level;
+            srep.heater_error   = t.heater_error;
+            srep.heater_fan_rpm = t.heater_fan_rpm;
+            srep.heater_safe_off = heater_flag(t.heater_flags, HEATER_FLAG_SAFE_OFF);
+            srep.heater_comms_ok = heater_flag(t.heater_flags, HEATER_FLAG_FRESH) &&
+                                    !heater_flag(t.heater_flags, HEATER_FLAG_COMMS_FAULT);
+
             shadow_publish_reported(g_mosq, &srep);
+
+            /* Heater-scoped remote start/stop/level via AWS shadow desired
+             * state. This is a deliberate, narrower remote-control surface
+             * than the deferred whole-APU apu_command (see on_shadow_config()
+             * below) — level is written before the on/off transition so the
+             * level lands before or with the request. */
+            int hon, hlvl;
+            if (shadow_peek_heater_cmd(&hon, &hlvl)) {
+                mb_write_reg(54, hlvl, "heater_level(shadow)");
+                mb_write_reg(53, hon,  "heater_on(shadow)");
+                shadow_ack_heater_cmd();
+            }
 
         } else {
             /* Modbus read failed — try reconnecting the serial port */

@@ -32,6 +32,10 @@ typedef struct {
     char     apu_command[8];     /* one-shot: "start" | "stop" | "" — applied by the
                                   * telemetry loop, then cleared via
                                   * shadow_ack_apu_command() once it lands */
+    bool     heater_desired_valid; /* true while a heater on/level pair from
+                                    * desired.heater is pending application */
+    int      heater_on;          /* pending: 0|1 — applied to reg 53             */
+    int      heater_level;       /* pending: 1..10 — applied to reg 54           */
 } shadow_config_t;
 
 /* ── Reported telemetry fields included in shadow update ────────────────── */
@@ -42,6 +46,16 @@ typedef struct {
     char     fault[10];          /* hex string, e.g. "0x0000"                    */
     char     firmware_version[32];
     uint64_t last_seen_ts;       /* epoch ms                                     */
+
+    /* VEVOR heater (Sub-project #1 firmware, frozen regs 53..67) — mirrors
+     * the heater_* fields in build_telemetry_json(). */
+    char     heater_state[16];   /* "off" | "preheat" | "ignition" | "running" |
+                                  * "cooldown" | "unknown"                       */
+    int      heater_level;       /* active level (not target), 0 if off/absent   */
+    int      heater_error;       /* raw error code, reg 57                       */
+    int      heater_fan_rpm;     /* raw fan RPM, reg 59                          */
+    bool     heater_safe_off;    /* HEATER_FLAG_SAFE_OFF set                     */
+    bool     heater_comms_ok;    /* fresh & no HEATER_FLAG_COMMS_FAULT           */
 } shadow_reported_t;
 
 /* ── Callbacks ────────────────────────────────────────────────────────────── */
@@ -104,6 +118,21 @@ bool shadow_peek_apu_command(char *out, size_t out_len);
 /* Mark the pending APU command as applied: clear it and schedule a
  * desired=null update so the cloud shadow is cleared too. Thread-safe. */
 void shadow_ack_apu_command(void);
+
+/* ── Heater-scoped start/stop/level command ─────────────────────────────────
+ * Same one-shot idiom as the APU command above, scoped to the VEVOR heater
+ * only (regs 53/54). This is a deliberate, narrower remote-control surface
+ * than the deferred whole-APU apu_command — it stays wired while apu_command
+ * does not. Applied from the telemetry thread, never the MQTT callback
+ * thread, for the same libmodbus-concurrency reason. */
+
+/* Copy any pending heater on/level command into *on / *level without
+ * clearing it. Returns true if a command is pending. Thread-safe. */
+bool shadow_peek_heater_cmd(int *on, int *level);
+
+/* Mark the pending heater command as applied: clear it and schedule a
+ * desired.heater=null update so the cloud shadow is cleared too. Thread-safe. */
+void shadow_ack_heater_cmd(void);
 
 /* Cleanup. */
 void shadow_cleanup(void);

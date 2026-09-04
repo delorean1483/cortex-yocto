@@ -42,6 +42,11 @@ static struct {
      * reported update nulls it in the cloud desired state. Protected by mutex. */
     bool clear_apu_cmd_desired;
 
+    /* Set once a heater command has been applied to the hardware, so the
+     * next reported update nulls desired.heater in the cloud shadow.
+     * Protected by mutex. */
+    bool clear_heater_desired;
+
     bool initialised;
 } s = {0};
 
@@ -54,6 +59,9 @@ static void set_default_config(shadow_config_t *cfg)
     strncpy(cfg->report_mode,      "normal", sizeof(cfg->report_mode) - 1);
     strncpy(cfg->firmware_target,  "",       sizeof(cfg->firmware_target) - 1);
     strncpy(cfg->apu_command,      "",       sizeof(cfg->apu_command) - 1);
+    cfg->heater_desired_valid = false;
+    cfg->heater_on            = 0;
+    cfg->heater_level         = 0;
 }
 
 /* ── Topic helpers ───────────────────────────────────────────────────────── */
@@ -125,6 +133,37 @@ static bool apply_desired(const cJSON *desired)
             strncpy(s.config.apu_command, cmd, sizeof(s.config.apu_command) - 1);
         else
             fprintf(stderr, "[shadow] unknown apu_command '%s' — ignored\n", cmd);
+    }
+
+    /* Heater-scoped remote control: desired.heater = { "on": 0|1, "level": 1..10 }.
+     * Deliberately narrower than the deferred whole-APU apu_command above —
+     * this is the only remote-control surface wired to the heater. */
+    const cJSON *h = cJSON_GetObjectItemCaseSensitive(desired, "heater");
+    if (cJSON_IsObject(h)) {
+        const cJSON *hon   = cJSON_GetObjectItemCaseSensitive(h, "on");
+        const cJSON *hlvl  = cJSON_GetObjectItemCaseSensitive(h, "level");
+        bool have_on = false, have_level = false;
+        int on_val = 0, level_val = 0;
+
+        if (cJSON_IsNumber(hon)) {
+            on_val = (int)hon->valuedouble;
+            if (on_val == 0 || on_val == 1)
+                have_on = true;
+            else
+                fprintf(stderr, "[shadow] heater.on %d out of range {0,1} — ignored\n", on_val);
+        }
+        if (cJSON_IsNumber(hlvl)) {
+            level_val = (int)hlvl->valuedouble;
+            if (level_val >= 1 && level_val <= 10)
+                have_level = true;
+            else
+                fprintf(stderr, "[shadow] heater.level %d out of range [1,10] — ignored\n", level_val);
+        }
+        if (have_on && have_level) {
+            s.config.heater_on            = on_val;
+            s.config.heater_level         = level_val;
+            s.config.heater_desired_valid = true;
+        }
     }
 
     bool changed = memcmp(&prev, &s.config, sizeof(shadow_config_t)) != 0;
@@ -316,25 +355,40 @@ int shadow_publish_reported(struct mosquitto *mosq,
     cJSON_AddStringToObject(rep, "fault",            reported->fault);
     cJSON_AddNumberToObject(rep, "last_seen_ts",     (double)reported->last_seen_ts);
 
+    /* VEVOR heater sub-object — emitted every cycle, mirrors the heater_*
+     * keys in build_telemetry_json(). */
+    cJSON *heater = cJSON_AddObjectToObject(rep, "heater");
+    cJSON_AddStringToObject(heater, "state",    reported->heater_state);
+    cJSON_AddNumberToObject(heater, "level",    reported->heater_level);
+    cJSON_AddNumberToObject(heater, "error",    reported->heater_error);
+    cJSON_AddNumberToObject(heater, "fan_rpm",  reported->heater_fan_rpm);
+    cJSON_AddBoolToObject  (heater, "safe_off", reported->heater_safe_off);
+    cJSON_AddBoolToObject  (heater, "comms_ok", reported->heater_comms_ok);
+
     /* Clear one-shot flags: include desired nulls so the cloud shadow is also
-     * cleared. The APU command is nulled only once it has actually been applied
-     * to the hardware (shadow_ack_apu_command), so a command is never lost while
-     * a Modbus write is still pending or retrying. */
+     * cleared. The APU command and heater command are nulled only once they
+     * have actually been applied to the hardware (shadow_ack_apu_command /
+     * shadow_ack_heater_cmd), so a command is never lost while a Modbus
+     * write is still pending or retrying. */
     pthread_mutex_lock(&s.config_mutex);
     bool clear_reboot  = s.config.reboot_requested;
     bool clear_apu_cmd = s.clear_apu_cmd_desired;
+    bool clear_heater  = s.clear_heater_desired;
     if (clear_reboot) {
         cJSON_AddBoolToObject(rep, "reboot", false);
         s.config.reboot_requested = false;
     }
     if (clear_apu_cmd)
         s.clear_apu_cmd_desired = false;
+    if (clear_heater)
+        s.clear_heater_desired = false;
     pthread_mutex_unlock(&s.config_mutex);
 
-    if (clear_reboot || clear_apu_cmd) {
+    if (clear_reboot || clear_apu_cmd || clear_heater) {
         cJSON *des = cJSON_AddObjectToObject(state, "desired");
         if (clear_reboot)  cJSON_AddNullToObject(des, "reboot");
         if (clear_apu_cmd) cJSON_AddNullToObject(des, "apu_command");
+        if (clear_heater)  cJSON_AddNullToObject(des, "heater");
     }
 
     char *json = cJSON_PrintUnformatted(root);
@@ -380,6 +434,30 @@ void shadow_ack_apu_command(void)
     pthread_mutex_lock(&s.config_mutex);
     s.config.apu_command[0]   = '\0';
     s.clear_apu_cmd_desired   = true;
+    pthread_mutex_unlock(&s.config_mutex);
+}
+
+bool shadow_peek_heater_cmd(int *on, int *level)
+{
+    if (!s.initialised || !on || !level) return false;
+
+    pthread_mutex_lock(&s.config_mutex);
+    bool pending = s.config.heater_desired_valid;
+    if (pending) {
+        *on    = s.config.heater_on;
+        *level = s.config.heater_level;
+    }
+    pthread_mutex_unlock(&s.config_mutex);
+    return pending;
+}
+
+void shadow_ack_heater_cmd(void)
+{
+    if (!s.initialised) return;
+
+    pthread_mutex_lock(&s.config_mutex);
+    s.config.heater_desired_valid = false;
+    s.clear_heater_desired        = true;
     pthread_mutex_unlock(&s.config_mutex);
 }
 
