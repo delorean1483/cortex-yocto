@@ -626,14 +626,21 @@ static void write_latest_snapshot(const char *payload)
  * it. Called from the telemetry thread so the libmodbus context is never
  * touched concurrently. Register numbers are 1-based; the wire address is
  * (reg - 1). Best-effort: a bad file or a failed write is logged and the file
- * removed so it can't wedge the queue. */
-static void mb_write_reg(int reg1based, int value, const char *what)
+ * removed so it can't wedge the queue.
+ *
+ * Returns 0 on a successful write, -1 on failure. The local command-file
+ * callers below all ignore this (fire-and-forget, matching prior behaviour
+ * unchanged); the shadow heater apply path uses it to decide whether to ack
+ * the pending command or leave it pending for a retry next cycle. */
+static int mb_write_reg(int reg1based, int value, const char *what)
 {
-    if (modbus_write_register(g_modbus, reg1based - 1, value) == 1)
+    if (modbus_write_register(g_modbus, reg1based - 1, value) == 1) {
         syslog(LOG_INFO, "control: %s -> reg %d = %d", what, reg1based, value);
-    else
-        syslog(LOG_WARNING, "control: %s write reg %d failed: %s",
-               what, reg1based, modbus_strerror(errno));
+        return 0;
+    }
+    syslog(LOG_WARNING, "control: %s write reg %d failed: %s",
+           what, reg1based, modbus_strerror(errno));
+    return -1;
 }
 
 static void apply_command_file(void)
@@ -903,12 +910,18 @@ int main(void)
              * "not provided", from shadow.c's apply_desired()) — so a bare
              * remote stop ({"on":0}) is never dropped for lack of a level.
              * Level is written before the on/off transition so a combined
-             * start+level lands together. */
+             * start+level lands together. Ack (which clears the pending
+             * command and nulls the cloud desired.heater) fires only if every
+             * write issued here succeeded — same idiom as apu_command: on a
+             * failed Modbus write the command stays pending and is retried
+             * next cycle, so a remote stop is never dropped on a transient
+             * RS-485 error. */
             int hon, hlvl;
             if (shadow_peek_heater_cmd(&hon, &hlvl)) {
-                if (hlvl >= 1) mb_write_reg(54, hlvl, "heater_level(shadow)");
-                if (hon  >= 0) mb_write_reg(53, hon,  "heater_on(shadow)");
-                shadow_ack_heater_cmd();
+                int rc = 0;
+                if (hlvl >= 1) rc |= mb_write_reg(54, hlvl, "heater_level(shadow)");
+                if (hon  >= 0) rc |= mb_write_reg(53, hon,  "heater_on(shadow)");
+                if (rc == 0) shadow_ack_heater_cmd();
             }
 
         } else {

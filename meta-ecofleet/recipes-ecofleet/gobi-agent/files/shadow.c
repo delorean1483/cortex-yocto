@@ -142,12 +142,22 @@ static bool apply_desired(const cJSON *desired)
      * is stored as the sentinel -1 (main.c only writes a register when its
      * value is >= its valid floor). Deliberately narrower than the deferred
      * whole-APU apu_command above — this is the only remote-control surface
-     * wired to the heater. */
+     * wired to the heater.
+     *
+     * If a command is already pending (not yet applied+acked by the
+     * telemetry thread), seed on_val/level_val from the still-pending values
+     * instead of -1, so a second partial message (e.g. a bare {"level":N}
+     * arriving while an earlier {"on":0} stop is still pending) AUGMENTS the
+     * pending command per-field rather than clobbering the other field back
+     * to -1 and silently dropping it. Last writer wins per field; once
+     * shadow_ack_heater_cmd() clears heater_desired_valid, the next message
+     * again starts fresh at -1. */
     const cJSON *h = cJSON_GetObjectItemCaseSensitive(desired, "heater");
     if (cJSON_IsObject(h)) {
         const cJSON *hon  = cJSON_GetObjectItemCaseSensitive(h, "on");
         const cJSON *hlvl = cJSON_GetObjectItemCaseSensitive(h, "level");
-        int on_val = -1, level_val = -1;
+        int on_val    = s.config.heater_desired_valid ? s.config.heater_on    : -1;
+        int level_val = s.config.heater_desired_valid ? s.config.heater_level : -1;
         bool have_on = false, have_level = false;
 
         if (cJSON_IsNumber(hon)) {
