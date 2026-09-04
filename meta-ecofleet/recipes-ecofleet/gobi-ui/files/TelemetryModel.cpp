@@ -80,6 +80,21 @@ void TelemetryModel::poll()
     m_diagActive    = o[u"diag_active"].toBool();
     m_diagOutputs   = static_cast<int>(o[u"diag_outputs"].toDouble());
     m_apuFwVersion  = static_cast<int>(o[u"apu_fw_version"].toDouble());
+
+    m_heaterPresent      = o[u"heater_present"].toBool();
+    m_heaterState        = o[u"heater_state"].toString(QStringLiteral("off"));
+    m_heaterTargetLevel  = static_cast<int>(o[u"heater_target_level"].toDouble());
+    m_heaterActiveLevel  = static_cast<int>(o[u"heater_active_level"].toDouble());
+    m_heaterError        = static_cast<int>(o[u"heater_error"].toDouble());
+    m_heaterFanRpm       = static_cast<int>(o[u"heater_fan_rpm"].toDouble());
+    m_heaterSupplyV      = o[u"heater_supply_v"].toDouble();
+    m_heaterExchanger    = static_cast<int>(o[u"heater_exchanger"].toDouble());
+    m_heaterStateSeconds = static_cast<int>(o[u"heater_state_seconds"].toDouble());
+    m_heaterAgeMs        = static_cast<int>(o[u"heater_age_ms"].toDouble());
+    m_heaterFlags        = static_cast<int>(o[u"heater_flags"].toDouble());
+    m_heaterSafeOff      = o[u"heater_safe_off"].toBool();
+    m_heaterCommsOk      = o[u"heater_comms_ok"].toBool();
+
     m_stale         = (QDateTime::currentMSecsSinceEpoch() - m_tsMs) > STALE_MS;
 
     emit dataChanged();
@@ -95,3 +110,6 @@ void TelemetryModel::resetOil()                     { writeCommand(QStringLitera
 void TelemetryModel::enterComponentTest()              { writeCommand(QStringLiteral("diag_mode"), 1); }
 void TelemetryModel::exitComponentTest()               { writeCommand(QStringLiteral("diag_mode"), 0); }
 void TelemetryModel::setTestRelay(int index, bool on)  { writeCommand(QStringLiteral("diag_out"), (index << 8) | (on ? 1 : 0)); }
+
+void TelemetryModel::setHeaterOn(bool on)    { writeCommand(QStringLiteral("heater_on"), on ? 1 : 0); }
+void TelemetryModel::setHeaterLevel(int level) { writeCommand(QStringLiteral("heater_level"), level); }

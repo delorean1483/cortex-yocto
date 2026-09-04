@@ -35,6 +35,19 @@ class TelemetryModel : public QObject
     Q_PROPERTY(bool    diagActive    READ diagActive    NOTIFY dataChanged)
     Q_PROPERTY(int     diagOutputs   READ diagOutputs   NOTIFY dataChanged)
     Q_PROPERTY(int     apuFwVersion  READ apuFwVersion  NOTIFY dataChanged)
+    Q_PROPERTY(bool    heaterPresent     READ heaterPresent     NOTIFY dataChanged)
+    Q_PROPERTY(QString heaterState       READ heaterState       NOTIFY dataChanged)
+    Q_PROPERTY(int     heaterTargetLevel READ heaterTargetLevel NOTIFY dataChanged)
+    Q_PROPERTY(int     heaterActiveLevel READ heaterActiveLevel NOTIFY dataChanged)
+    Q_PROPERTY(int     heaterError       READ heaterError       NOTIFY dataChanged)
+    Q_PROPERTY(int     heaterFanRpm      READ heaterFanRpm      NOTIFY dataChanged)
+    Q_PROPERTY(double  heaterSupplyV     READ heaterSupplyV     NOTIFY dataChanged)
+    Q_PROPERTY(int     heaterExchanger   READ heaterExchanger   NOTIFY dataChanged)
+    Q_PROPERTY(int     heaterStateSeconds READ heaterStateSeconds NOTIFY dataChanged)
+    Q_PROPERTY(int     heaterAgeMs       READ heaterAgeMs       NOTIFY dataChanged)
+    Q_PROPERTY(bool    heaterSafeOff     READ heaterSafeOff     NOTIFY dataChanged)
+    Q_PROPERTY(bool    heaterCommsOk     READ heaterCommsOk     NOTIFY dataChanged)
+    Q_PROPERTY(int     heaterFlags       READ heaterFlags       NOTIFY dataChanged)
 
 public:
     explicit TelemetryModel(QObject *parent = nullptr);
@@ -51,6 +64,8 @@ public:
     Q_INVOKABLE void enterComponentTest();               // diag_mode = 1
     Q_INVOKABLE void exitComponentTest();                // diag_mode = 0
     Q_INVOKABLE void setTestRelay(int index, bool on);   // diag_out = (index<<8)|state
+    Q_INVOKABLE void setHeaterOn(bool on);               // heater_on 0|1
+    Q_INVOKABLE void setHeaterLevel(int level);          // heater_level 1..10
 
     double  cabinTempF()    const { return m_cabinTempF; }
     double  extTempF()      const { return m_extTempF; }
@@ -77,6 +92,19 @@ public:
     bool    diagActive()    const { return m_diagActive; }
     int     diagOutputs()   const { return m_diagOutputs; }
     int     apuFwVersion()  const { return m_apuFwVersion; }
+    bool    heaterPresent()      const { return m_heaterPresent; }
+    QString heaterState()        const { return m_heaterState; }
+    int     heaterTargetLevel()  const { return m_heaterTargetLevel; }
+    int     heaterActiveLevel()  const { return m_heaterActiveLevel; }
+    int     heaterError()        const { return m_heaterError; }
+    int     heaterFanRpm()       const { return m_heaterFanRpm; }
+    double  heaterSupplyV()      const { return m_heaterSupplyV; }
+    int     heaterExchanger()    const { return m_heaterExchanger; }
+    int     heaterStateSeconds() const { return m_heaterStateSeconds; }
+    int     heaterAgeMs()        const { return m_heaterAgeMs; }
+    bool    heaterSafeOff()      const { return m_heaterSafeOff; }
+    bool    heaterCommsOk()      const { return m_heaterCommsOk; }
+    int     heaterFlags()        const { return m_heaterFlags; }
 
 signals:
     void dataChanged();
@@ -103,4 +131,18 @@ private:
     bool    m_diagActive    = false;
     int     m_diagOutputs   = 0;
     int     m_apuFwVersion  = 0;
+
+    bool    m_heaterPresent     = false;
+    QString m_heaterState       = QStringLiteral("off");
+    int     m_heaterTargetLevel = 0;
+    int     m_heaterActiveLevel = 0;
+    int     m_heaterError       = 0;
+    int     m_heaterFanRpm      = 0;
+    double  m_heaterSupplyV     = 0;
+    int     m_heaterExchanger   = 0;
+    int     m_heaterStateSeconds = 0;
+    int     m_heaterAgeMs       = 0;
+    bool    m_heaterSafeOff     = false;
+    bool    m_heaterCommsOk     = false;
+    int     m_heaterFlags       = 0;
 };
