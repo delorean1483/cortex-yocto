@@ -6,7 +6,7 @@ const char *heater_state_name(unsigned state)
 {
     switch (state) {
         case 0: return "off";
-        case 1: return "priming";
+        case 1: return "preheat";
         case 2: return "ignition";
         case 3: return "running";
         case 4: return "cooldown";

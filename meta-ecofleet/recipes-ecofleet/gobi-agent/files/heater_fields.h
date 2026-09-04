@@ -17,7 +17,7 @@
 #define HEATER_FLAG_XPORT_FAULT 0x10u   /* bit4: transport/frame fault        */
 
 /* Heater state (fw reg 55 / wire REG_HEATER_STATE) name, 0..4:
- * 0=off 1=priming 2=ignition 3=running 4=cooldown, else "unknown".
+ * 0=off 1=preheat 2=ignition 3=running 4=cooldown, else "unknown".
  * Never returns NULL. */
 const char *heater_state_name(unsigned state);
 

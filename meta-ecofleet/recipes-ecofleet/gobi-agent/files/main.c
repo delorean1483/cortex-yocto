@@ -460,24 +460,17 @@ static int modbus_read_telemetry(telemetry_t *t)
     return 0;
 }
 
-/* Best-effort single-register read: returns the register value on success,
- * or dflt if the register is unbound on old firmware (exception 0x02) or the
- * read otherwise fails. Unlike RD() in modbus_read_telemetry(), this never
- * returns -1 / drives the reconnect path — modbus_read_telemetry remains the
- * sole link-health authority. Used for optional registers that may be
- * absent on older firmware (Component Test diag regs, fan_auto). */
-static uint16_t modbus_read_reg_besteffort(modbus_t *ctx, int wire_addr, uint16_t dflt)
-{
-    uint16_t v;
-    return (modbus_read_registers(ctx, wire_addr, 1, &v) == 1) ? v : dflt;
-}
-
-/* Identical to modbus_read_reg_besteffort(), but also reports whether the
- * read actually succeeded via *ok. Needed where the caller must distinguish
- * "read a genuine zero" from "register unbound/read failed, returned the
- * default" — e.g. deriving heater_present from an actual successful read
- * rather than from the value read (a present-but-off heater reads all-zero
- * but must still report present). */
+/* Best-effort single-register read that also reports whether the read
+ * actually succeeded via *ok (NULL if the caller doesn't care). Returns the
+ * register value on success, or dflt if the register is unbound on old
+ * firmware (exception 0x02) or the read otherwise fails. Unlike RD() in
+ * modbus_read_telemetry(), this never returns -1 / drives the reconnect
+ * path — modbus_read_telemetry remains the sole link-health authority.
+ * Needed where the caller must distinguish "read a genuine zero" from
+ * "register unbound/read failed, returned the default" — e.g. deriving
+ * heater_present from an actual successful read rather than from the value
+ * read (a present-but-off heater reads all-zero but must still report
+ * present). */
 static uint16_t modbus_read_reg_besteffort_ok(modbus_t *ctx, int wire_addr,
                                                uint16_t dflt, bool *ok)
 {
@@ -485,6 +478,16 @@ static uint16_t modbus_read_reg_besteffort_ok(modbus_t *ctx, int wire_addr,
     int rc = modbus_read_registers(ctx, wire_addr, 1, &v);
     if (ok) *ok = (rc == 1);
     return (rc == 1) ? v : dflt;
+}
+
+/* Best-effort single-register read: returns the register value on success,
+ * or dflt if the register is unbound on old firmware (exception 0x02) or the
+ * read otherwise fails. Thin wrapper over modbus_read_reg_besteffort_ok()
+ * for callers that don't need the success flag. Used for optional registers
+ * that may be absent on older firmware (Component Test diag regs, fan_auto). */
+static uint16_t modbus_read_reg_besteffort(modbus_t *ctx, int wire_addr, uint16_t dflt)
+{
+    return modbus_read_reg_besteffort_ok(ctx, wire_addr, dflt, NULL);
 }
 
 /* Best-effort telemetry: Component Test diag regs, fan_auto, fw_version, and

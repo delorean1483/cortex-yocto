@@ -5,6 +5,8 @@ static int fails;
 #define CHECK(c) do{ if(!(c)){ printf("FAIL %s:%d %s\n",__FILE__,__LINE__,#c); fails++; } }while(0)
 int main(void){
     CHECK(strcmp(heater_state_name(0),"off")==0);
+    CHECK(strcmp(heater_state_name(1),"preheat")==0);
+    CHECK(strcmp(heater_state_name(2),"ignition")==0);
     CHECK(strcmp(heater_state_name(3),"running")==0);
     CHECK(strcmp(heater_state_name(4),"cooldown")==0);
     CHECK(strcmp(heater_state_name(9),"unknown")==0);
