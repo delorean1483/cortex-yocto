@@ -716,6 +716,20 @@ static void apply_command_file(void)
         else syslog(LOG_WARNING, "control: bad diag_out 0x%04x", v);
     }
 
+    /* heater_on -> reg 53 (heater_request, 0|1) */
+    const cJSON *hon = cJSON_GetObjectItemCaseSensitive(root, "heater_on");
+    if (cJSON_IsNumber(hon)) {
+        int v = (int)hon->valuedouble;
+        if (v == 0 || v == 1) mb_write_reg(53, v, "heater_on");
+    }
+
+    /* heater_level -> reg 54 (1..10) */
+    const cJSON *hlv = cJSON_GetObjectItemCaseSensitive(root, "heater_level");
+    if (cJSON_IsNumber(hlv)) {
+        int v = (int)hlv->valuedouble;
+        if (v >= 1 && v <= 10) mb_write_reg(54, v, "heater_level");
+    }
+
     cJSON_Delete(root);
 }
 
