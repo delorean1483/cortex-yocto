@@ -14,7 +14,7 @@ Emitted by `gobi-agent` via `build_telemetry_json()`. The `heater_present` flag 
 
 | Key | Type | Range / Values | Source | Notes |
 |-----|------|-----------------|--------|-------|
-| `heater_present` | bool | — | Register 55/64 successful read | Hides the UI card when `false` |
+| `heater_present` | bool | — | Register 55 successful read | Hides the UI card when `false` |
 | `heater_state` | string | `off`, `preheat`, `ignition`, `running`, `cooldown`, `unknown` | Register 55 decoded | Heater-reported state (0–4, 5=unknown) |
 | `heater_target_level` | int | 1–10 | Register 54 readback | Last commanded level |
 | `heater_active_level` | int | 0–10 | Register 56 | Heater-reported active level |

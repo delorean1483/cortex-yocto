@@ -74,7 +74,6 @@ Rectangle {
             spacing: 8
             Text { text: "HEATER"; color: Theme.textMute; font.pixelSize: 12; font.letterSpacing: 1; font.weight: Font.Bold }
             Rectangle {
-                id: onOffBtn
                 Layout.preferredWidth: 52; Layout.preferredHeight: 24; radius: 12
                 color: card.effOn ? Qt.rgba(0.25,0.72,0.31,0.18) : Theme.surface2
                 border.color: card.effOn ? Theme.ok : Theme.border; border.width: 1
@@ -93,7 +92,6 @@ Rectangle {
                 font.pixelSize: 12; font.weight: Font.Bold; font.letterSpacing: 1
             }
             Rectangle {
-                id: faultBadge
                 visible: card.showFault
                 Layout.preferredHeight: 18
                 Layout.preferredWidth: faultText.implicitWidth + 14
