@@ -60,8 +60,8 @@ static void set_default_config(shadow_config_t *cfg)
     strncpy(cfg->firmware_target,  "",       sizeof(cfg->firmware_target) - 1);
     strncpy(cfg->apu_command,      "",       sizeof(cfg->apu_command) - 1);
     cfg->heater_desired_valid = false;
-    cfg->heater_on            = 0;
-    cfg->heater_level         = 0;
+    cfg->heater_on            = -1;  /* sentinel: not provided/invalid */
+    cfg->heater_level         = -1;  /* sentinel: not provided/invalid */
 }
 
 /* ── Topic helpers ───────────────────────────────────────────────────────── */
@@ -135,31 +135,34 @@ static bool apply_desired(const cJSON *desired)
             fprintf(stderr, "[shadow] unknown apu_command '%s' — ignored\n", cmd);
     }
 
-    /* Heater-scoped remote control: desired.heater = { "on": 0|1, "level": 1..10 }.
-     * Deliberately narrower than the deferred whole-APU apu_command above —
-     * this is the only remote-control surface wired to the heater. */
+    /* Heater-scoped remote control: desired.heater = { "on": 0|1, "level": 1..10 },
+     * with "on" and "level" each INDEPENDENTLY optional so a bare stop
+     * ({"on":0}) is never blocked on a level also being supplied — dropping a
+     * remote stop would be a safety issue. Whichever field is absent/invalid
+     * is stored as the sentinel -1 (main.c only writes a register when its
+     * value is >= its valid floor). Deliberately narrower than the deferred
+     * whole-APU apu_command above — this is the only remote-control surface
+     * wired to the heater. */
     const cJSON *h = cJSON_GetObjectItemCaseSensitive(desired, "heater");
     if (cJSON_IsObject(h)) {
-        const cJSON *hon   = cJSON_GetObjectItemCaseSensitive(h, "on");
-        const cJSON *hlvl  = cJSON_GetObjectItemCaseSensitive(h, "level");
+        const cJSON *hon  = cJSON_GetObjectItemCaseSensitive(h, "on");
+        const cJSON *hlvl = cJSON_GetObjectItemCaseSensitive(h, "level");
+        int on_val = -1, level_val = -1;
         bool have_on = false, have_level = false;
-        int on_val = 0, level_val = 0;
 
         if (cJSON_IsNumber(hon)) {
-            on_val = (int)hon->valuedouble;
-            if (on_val == 0 || on_val == 1)
-                have_on = true;
+            int v = (int)hon->valuedouble;
+            if (v == 0 || v == 1) { on_val = v; have_on = true; }
             else
-                fprintf(stderr, "[shadow] heater.on %d out of range {0,1} — ignored\n", on_val);
+                fprintf(stderr, "[shadow] heater.on %d out of range {0,1} — ignored\n", v);
         }
         if (cJSON_IsNumber(hlvl)) {
-            level_val = (int)hlvl->valuedouble;
-            if (level_val >= 1 && level_val <= 10)
-                have_level = true;
+            int v = (int)hlvl->valuedouble;
+            if (v >= 1 && v <= 10) { level_val = v; have_level = true; }
             else
-                fprintf(stderr, "[shadow] heater.level %d out of range [1,10] — ignored\n", level_val);
+                fprintf(stderr, "[shadow] heater.level %d out of range [1,10] — ignored\n", v);
         }
-        if (have_on && have_level) {
+        if (have_on || have_level) {
             s.config.heater_on            = on_val;
             s.config.heater_level         = level_val;
             s.config.heater_desired_valid = true;

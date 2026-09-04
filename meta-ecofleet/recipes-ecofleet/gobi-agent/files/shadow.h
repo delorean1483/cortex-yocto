@@ -32,10 +32,13 @@ typedef struct {
     char     apu_command[8];     /* one-shot: "start" | "stop" | "" — applied by the
                                   * telemetry loop, then cleared via
                                   * shadow_ack_apu_command() once it lands */
-    bool     heater_desired_valid; /* true while a heater on/level pair from
-                                    * desired.heater is pending application */
-    int      heater_on;          /* pending: 0|1 — applied to reg 53             */
-    int      heater_level;       /* pending: 1..10 — applied to reg 54           */
+    bool     heater_desired_valid; /* true while at least one of heater_on /
+                                    * heater_level from desired.heater is
+                                    * pending application */
+    int      heater_on;          /* pending: 0|1, or -1 = not provided/invalid —
+                                  * applied to reg 53 only when >= 0             */
+    int      heater_level;       /* pending: 1..10, or -1 = not provided/invalid —
+                                  * applied to reg 54 only when >= 1             */
 } shadow_config_t;
 
 /* ── Reported telemetry fields included in shadow update ────────────────── */
@@ -124,10 +127,19 @@ void shadow_ack_apu_command(void);
  * only (regs 53/54). This is a deliberate, narrower remote-control surface
  * than the deferred whole-APU apu_command — it stays wired while apu_command
  * does not. Applied from the telemetry thread, never the MQTT callback
- * thread, for the same libmodbus-concurrency reason. */
+ * thread, for the same libmodbus-concurrency reason.
+ *
+ * `on` and `level` are independently optional in desired.heater: a command
+ * is pending as soon as at least one of them is valid, so a bare stop
+ * ({"on":0}) or a bare level change ({"level":N}) is never blocked on the
+ * other field being present. The unset field comes back as the sentinel -1
+ * (never written) so a remote STOP can't be dropped just because no level
+ * was supplied alongside it. */
 
 /* Copy any pending heater on/level command into *on / *level without
- * clearing it. Returns true if a command is pending. Thread-safe. */
+ * clearing it, as-is (including the -1 "not provided" sentinel on whichever
+ * field wasn't part of the desired.heater payload). Returns true if a
+ * command is pending (at least one of on/level valid). Thread-safe. */
 bool shadow_peek_heater_cmd(int *on, int *level);
 
 /* Mark the pending heater command as applied: clear it and schedule a

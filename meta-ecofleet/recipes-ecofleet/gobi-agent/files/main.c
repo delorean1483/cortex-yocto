@@ -898,12 +898,16 @@ int main(void)
             /* Heater-scoped remote start/stop/level via AWS shadow desired
              * state. This is a deliberate, narrower remote-control surface
              * than the deferred whole-APU apu_command (see on_shadow_config()
-             * below) — level is written before the on/off transition so the
-             * level lands before or with the request. */
+             * below). `on` and `level` are independently optional — each is
+             * only written if actually provided (>= its valid floor; -1 =
+             * "not provided", from shadow.c's apply_desired()) — so a bare
+             * remote stop ({"on":0}) is never dropped for lack of a level.
+             * Level is written before the on/off transition so a combined
+             * start+level lands together. */
             int hon, hlvl;
             if (shadow_peek_heater_cmd(&hon, &hlvl)) {
-                mb_write_reg(54, hlvl, "heater_level(shadow)");
-                mb_write_reg(53, hon,  "heater_on(shadow)");
+                if (hlvl >= 1) mb_write_reg(54, hlvl, "heater_level(shadow)");
+                if (hon  >= 0) mb_write_reg(53, hon,  "heater_on(shadow)");
                 shadow_ack_heater_cmd();
             }
 
