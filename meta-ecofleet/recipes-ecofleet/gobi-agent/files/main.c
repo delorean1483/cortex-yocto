@@ -576,10 +576,9 @@ static char *build_telemetry_json(const telemetry_t *t)
     cJSON_AddNumberToObject(root, "heater_age_ms",        t->heater_age_ms);
     cJSON_AddNumberToObject(root, "heater_flags",         t->heater_flags);
     cJSON_AddBoolToObject  (root, "heater_safe_off",
-        heater_flag(t->heater_flags, HEATER_FLAG_SAFE_OFF));
+        heater_safe_off(t->heater_flags));
     cJSON_AddBoolToObject  (root, "heater_comms_ok",
-        heater_flag(t->heater_flags, HEATER_FLAG_FRESH) &&
-        !heater_flag(t->heater_flags, HEATER_FLAG_COMMS_FAULT));
+        heater_comms_ok(t->heater_flags));
     cJSON_AddNumberToObject(root, "heater_valid_frames",      t->heater_valid_frames);
     cJSON_AddNumberToObject(root, "heater_checksum_failures", t->heater_csum_fail);
     cJSON_AddNumberToObject(root, "heater_transport_errors",  t->heater_xport_err);
@@ -890,15 +889,17 @@ int main(void)
 
             /* VEVOR heater block — mirrors build_telemetry_json()'s heater_*
              * derivations exactly (heater_level is the ACTIVE level, not the
-             * target). */
+             * target). heater_present gates whether shadow_publish_reported()
+             * emits the "heater" sub-object at all — heaterless units must
+             * not publish it. */
+            srep.heater_present = t.heater_present;
             strncpy(srep.heater_state, heater_state_name(t.heater_state),
                     sizeof(srep.heater_state) - 1);
             srep.heater_level   = t.heater_active_level;
             srep.heater_error   = t.heater_error;
             srep.heater_fan_rpm = t.heater_fan_rpm;
-            srep.heater_safe_off = heater_flag(t.heater_flags, HEATER_FLAG_SAFE_OFF);
-            srep.heater_comms_ok = heater_flag(t.heater_flags, HEATER_FLAG_FRESH) &&
-                                    !heater_flag(t.heater_flags, HEATER_FLAG_COMMS_FAULT);
+            srep.heater_safe_off = heater_safe_off(t.heater_flags);
+            srep.heater_comms_ok = heater_comms_ok(t.heater_flags);
 
             shadow_publish_reported(g_mosq, &srep);
 
@@ -915,13 +916,22 @@ int main(void)
              * write issued here succeeded — same idiom as apu_command: on a
              * failed Modbus write the command stays pending and is retried
              * next cycle, so a remote stop is never dropped on a transient
-             * RS-485 error. */
+             * RS-485 error.
+             *
+             * The peek→write→ack sequence spans the (slow) Modbus writes
+             * with the mutex released, so a new desired.heater command can
+             * land via the MQTT thread in that window. The seq captured by
+             * peek is passed to ack so the ack only clears the command that
+             * was actually applied here — if a newer one arrived meanwhile,
+             * ack is a no-op and the newer command is retried next cycle
+             * instead of being wiped. */
             int hon, hlvl;
-            if (shadow_peek_heater_cmd(&hon, &hlvl)) {
+            unsigned hseq;
+            if (shadow_peek_heater_cmd(&hon, &hlvl, &hseq)) {
                 int rc = 0;
                 if (hlvl >= 1) rc |= mb_write_reg(54, hlvl, "heater_level(shadow)");
                 if (hon  >= 0) rc |= mb_write_reg(53, hon,  "heater_on(shadow)");
-                if (rc == 0) shadow_ack_heater_cmd();
+                if (rc == 0) shadow_ack_heater_cmd(hseq);
             }
 
         } else {

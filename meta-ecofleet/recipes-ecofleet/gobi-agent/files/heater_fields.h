@@ -24,6 +24,14 @@ const char *heater_state_name(unsigned state);
 /* 1 if bit `bit` (one of the HEATER_FLAG_* masks) is set in `flags`, else 0. */
 int heater_flag(unsigned flags, unsigned bit);
 
+/* 1 if the heater reading is usable — fresh (bit0) and not flagged with a
+ * one-wire comms fault (bit3) — else 0. The composite the telemetry JSON
+ * and shadow reported state both publish as heater_comms_ok. */
+int heater_comms_ok(unsigned flags);
+
+/* 1 if the heater has been forced to safe-off (bit2), else 0. */
+int heater_safe_off(unsigned flags);
+
 /* Supply voltage in volts from raw millivolts (fw reg 58). */
 double heater_supply_volts(unsigned mv);
 

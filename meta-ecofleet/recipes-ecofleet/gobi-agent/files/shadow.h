@@ -51,7 +51,11 @@ typedef struct {
     uint64_t last_seen_ts;       /* epoch ms                                     */
 
     /* VEVOR heater (Sub-project #1 firmware, frozen regs 53..67) — mirrors
-     * the heater_* fields in build_telemetry_json(). */
+     * the heater_* fields in build_telemetry_json(). The whole "heater"
+     * sub-object is omitted from the published update when heater_present
+     * is false, so heaterless firmware (no VEVOR block) never publishes a
+     * permanent heater.comms_ok:false — see shadow_publish_reported(). */
+    bool     heater_present;
     char     heater_state[16];   /* "off" | "preheat" | "ignition" | "running" |
                                   * "cooldown" | "unknown"                       */
     int      heater_level;       /* active level (not target), 0 if off/absent   */
@@ -138,13 +142,22 @@ void shadow_ack_apu_command(void);
 
 /* Copy any pending heater on/level command into *on / *level without
  * clearing it, as-is (including the -1 "not provided" sentinel on whichever
- * field wasn't part of the desired.heater payload). Returns true if a
- * command is pending (at least one of on/level valid). Thread-safe. */
-bool shadow_peek_heater_cmd(int *on, int *level);
+ * field wasn't part of the desired.heater payload). Also copies the current
+ * heater-desired sequence number into *seq (guard NULL like the other
+ * out-params) — pass it back unchanged to shadow_ack_heater_cmd() so the ack
+ * only clears the command it actually saw. Returns true if a command is
+ * pending (at least one of on/level valid). Thread-safe. */
+bool shadow_peek_heater_cmd(int *on, int *level, unsigned *seq);
 
-/* Mark the pending heater command as applied: clear it and schedule a
- * desired.heater=null update so the cloud shadow is cleared too. Thread-safe. */
-void shadow_ack_heater_cmd(void);
+/* Mark the pending heater command as applied IF it is still the same
+ * command that was peeked: clears it and schedules a desired.heater=null
+ * update so the cloud shadow is cleared too, only when `seq` still matches
+ * the live heater-desired sequence number. If apply_desired() accepted a
+ * newer heater update in the meantime (bumping the sequence), this is a
+ * no-op — the newer command stays pending and is retried next cycle rather
+ * than being wiped by a stale ack (TOCTOU: peek → slow Modbus write → ack).
+ * Thread-safe. */
+void shadow_ack_heater_cmd(unsigned seq);
 
 /* Cleanup. */
 void shadow_cleanup(void);

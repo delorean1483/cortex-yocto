@@ -19,6 +19,17 @@ int heater_flag(unsigned flags, unsigned bit)
     return (flags & bit) ? 1 : 0;
 }
 
+int heater_comms_ok(unsigned flags)
+{
+    return (heater_flag(flags, HEATER_FLAG_FRESH) &&
+            !heater_flag(flags, HEATER_FLAG_COMMS_FAULT)) ? 1 : 0;
+}
+
+int heater_safe_off(unsigned flags)
+{
+    return heater_flag(flags, HEATER_FLAG_SAFE_OFF);
+}
+
 double heater_supply_volts(unsigned mv)
 {
     return mv / 1000.0;
