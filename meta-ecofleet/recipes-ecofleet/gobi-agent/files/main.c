@@ -11,6 +11,7 @@
 
 #include "config.h"
 #include "shadow.h"
+#include "heater_fields.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -96,6 +97,30 @@ typedef struct {
     uint16_t diag_outputs;   /* reg 41  energized-output bitmask (best-effort) */
     bool     fan_auto;       /* reg 9   auto-fan flag 0/1 (best-effort) */
     uint16_t fw_version;     /* reg 2   APU firmware version, encoded (best-effort) */
+
+    /* VEVOR heater (Sub-project #1 firmware, frozen regs 53..67, all
+     * best-effort). heater_present is derived from an ACTUAL successful read
+     * of REG_HEATER_STATE, not from register values — a present-but-off
+     * heater whose registers read all-zero is still heater_present=true;
+     * heater_present=false only when the block itself is absent (old
+     * firmware, exception 0x02). */
+    bool     heater_present;      /* derived from state-read success  */
+    uint16_t heater_request;      /* reg 53  0/1                      */
+    uint16_t heater_target_level; /* reg 54  1..10                    */
+    uint16_t heater_state;        /* reg 55                           */
+    uint16_t heater_active_level; /* reg 56                           */
+    uint16_t heater_error;        /* reg 57                           */
+    uint16_t heater_supply_mv;    /* reg 58                           */
+    uint16_t heater_fan_rpm;      /* reg 59                           */
+    uint16_t heater_pump_hz_x10;  /* reg 60                           */
+    uint16_t heater_exchanger;    /* reg 61                           */
+    uint16_t heater_state_secs;   /* reg 62                           */
+    uint16_t heater_age_ms;       /* reg 63                           */
+    uint16_t heater_flags;        /* reg 64                           */
+    uint16_t heater_valid_frames; /* reg 65                           */
+    uint16_t heater_csum_fail;    /* reg 66                           */
+    uint16_t heater_xport_err;    /* reg 67                           */
+
     uint64_t ts_ms;
 } telemetry_t;
 
@@ -447,15 +472,51 @@ static uint16_t modbus_read_reg_besteffort(modbus_t *ctx, int wire_addr, uint16_
     return (modbus_read_registers(ctx, wire_addr, 1, &v) == 1) ? v : dflt;
 }
 
-/* Best-effort telemetry: Component Test diag regs, fan_auto, and fw_version
- * are optional. A failure here (unbound on old firmware, or a transient)
- * leaves the field at its default and never forces a reconnect. */
+/* Identical to modbus_read_reg_besteffort(), but also reports whether the
+ * read actually succeeded via *ok. Needed where the caller must distinguish
+ * "read a genuine zero" from "register unbound/read failed, returned the
+ * default" — e.g. deriving heater_present from an actual successful read
+ * rather than from the value read (a present-but-off heater reads all-zero
+ * but must still report present). */
+static uint16_t modbus_read_reg_besteffort_ok(modbus_t *ctx, int wire_addr,
+                                               uint16_t dflt, bool *ok)
+{
+    uint16_t v;
+    int rc = modbus_read_registers(ctx, wire_addr, 1, &v);
+    if (ok) *ok = (rc == 1);
+    return (rc == 1) ? v : dflt;
+}
+
+/* Best-effort telemetry: Component Test diag regs, fan_auto, fw_version, and
+ * the VEVOR heater block are optional. A failure here (unbound on old
+ * firmware, or a transient) leaves the field at its default and never forces
+ * a reconnect. */
 static void modbus_read_besteffort(telemetry_t *t)
 {
     t->diag_mode    = (uint8_t)  modbus_read_reg_besteffort(g_modbus, REG_DIAG_MODE,   0);
     t->diag_outputs =            modbus_read_reg_besteffort(g_modbus, REG_DIAG_STATUS, 0);
     t->fan_auto     = modbus_read_reg_besteffort(g_modbus, REG_FAN_AUTO, 0) ? true : false;
     t->fw_version   =            modbus_read_reg_besteffort(g_modbus, REG_FW_VERSION,  0);
+
+    /* VEVOR heater block (fw regs 53..67) — absent on firmware without the
+     * heater feature (read fails with exception 0x02 on every register). */
+    bool heater_ok = false;
+    t->heater_state = modbus_read_reg_besteffort_ok(g_modbus, REG_HEATER_STATE, 0, &heater_ok);
+    t->heater_present      = heater_ok;
+    t->heater_request      = modbus_read_reg_besteffort(g_modbus, REG_HEATER_REQUEST,     0);
+    t->heater_target_level = modbus_read_reg_besteffort(g_modbus, REG_HEATER_LEVEL,       0);
+    t->heater_active_level = modbus_read_reg_besteffort(g_modbus, REG_HEATER_ACTIVE_LVL,  0);
+    t->heater_error        = modbus_read_reg_besteffort(g_modbus, REG_HEATER_ERROR,       0);
+    t->heater_supply_mv    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_SUPPLY_MV,   0);
+    t->heater_fan_rpm      = modbus_read_reg_besteffort(g_modbus, REG_HEATER_FAN_RPM,     0);
+    t->heater_pump_hz_x10  = modbus_read_reg_besteffort(g_modbus, REG_HEATER_PUMP_HZ_X10, 0);
+    t->heater_exchanger    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_EXCH_RAW,    0);
+    t->heater_state_secs   = modbus_read_reg_besteffort(g_modbus, REG_HEATER_STATE_SECS,  0);
+    t->heater_age_ms       = modbus_read_reg_besteffort(g_modbus, REG_HEATER_AGE_MS,      0);
+    t->heater_flags        = modbus_read_reg_besteffort(g_modbus, REG_HEATER_FLAGS,       0);
+    t->heater_valid_frames = modbus_read_reg_besteffort(g_modbus, REG_HEATER_VALID_FR,    0);
+    t->heater_csum_fail    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_CSUM_FAIL,   0);
+    t->heater_xport_err    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_XPORT_ERR,   0);
 }
 
 /* ── JSON payload builders ───────────────────────────────────────────────── */
@@ -496,6 +557,29 @@ static char *build_telemetry_json(const telemetry_t *t)
     cJSON_AddBoolToObject  (root, "diag_active",  t->diag_mode != 0);
     cJSON_AddNumberToObject(root, "diag_outputs", t->diag_outputs);
     cJSON_AddNumberToObject(root, "apu_fw_version", t->fw_version);
+
+    /* VEVOR heater (best-effort; heater_present=false on firmware without
+     * the block — every heater register then reads its zero default). */
+    cJSON_AddBoolToObject  (root, "heater_present",       t->heater_present);
+    cJSON_AddStringToObject(root, "heater_state",         heater_state_name(t->heater_state));
+    cJSON_AddNumberToObject(root, "heater_target_level",  t->heater_target_level);
+    cJSON_AddNumberToObject(root, "heater_active_level",  t->heater_active_level);
+    cJSON_AddNumberToObject(root, "heater_error",         t->heater_error);
+    cJSON_AddNumberToObject(root, "heater_supply_v",      heater_supply_volts(t->heater_supply_mv));
+    cJSON_AddNumberToObject(root, "heater_fan_rpm",       t->heater_fan_rpm);
+    cJSON_AddNumberToObject(root, "heater_pump_hz",       heater_pump_hz(t->heater_pump_hz_x10));
+    cJSON_AddNumberToObject(root, "heater_exchanger",     t->heater_exchanger);
+    cJSON_AddNumberToObject(root, "heater_state_seconds", t->heater_state_secs);
+    cJSON_AddNumberToObject(root, "heater_age_ms",        t->heater_age_ms);
+    cJSON_AddNumberToObject(root, "heater_flags",         t->heater_flags);
+    cJSON_AddBoolToObject  (root, "heater_safe_off",
+        heater_flag(t->heater_flags, HEATER_FLAG_SAFE_OFF));
+    cJSON_AddBoolToObject  (root, "heater_comms_ok",
+        heater_flag(t->heater_flags, HEATER_FLAG_FRESH) &&
+        !heater_flag(t->heater_flags, HEATER_FLAG_COMMS_FAULT));
+    cJSON_AddNumberToObject(root, "heater_valid_frames",      t->heater_valid_frames);
+    cJSON_AddNumberToObject(root, "heater_checksum_failures", t->heater_csum_fail);
+    cJSON_AddNumberToObject(root, "heater_transport_errors",  t->heater_xport_err);
 
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);

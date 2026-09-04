@@ -37,6 +37,7 @@ add_executable(gobi-agent)
 target_sources(gobi-agent PRIVATE
     main.c
     shadow.c
+    heater_fields.c
 )
 
 target_include_directories(gobi-agent PRIVATE

@@ -74,6 +74,26 @@
 #define REG_DIAG_MODE      48   /* fw 49 component-test mode 0/1                 R/W */
 /* fw 50 DIAG_OUT is write-only via mb_write_reg(50, (index<<8)|state) — no read define */
 
+/* VEVOR XMZ-F-D5 diesel heater (Sub-project #1 firmware, frozen block).
+ * These are OPTIONAL: on firmware without the heater block a read returns
+ * exception 0x02, handled best-effort (never a reconnect) — see
+ * modbus_read_besteffort() in main.c. */
+#define REG_HEATER_REQUEST     52   /* fw 53 heater_request 0/1              RW */
+#define REG_HEATER_LEVEL       53   /* fw 54 heater_level 1..10              RW */
+#define REG_HEATER_STATE       54   /* fw 55                                 R  */
+#define REG_HEATER_ACTIVE_LVL  55   /* fw 56 */
+#define REG_HEATER_ERROR       56   /* fw 57 */
+#define REG_HEATER_SUPPLY_MV   57   /* fw 58 */
+#define REG_HEATER_FAN_RPM     58   /* fw 59 */
+#define REG_HEATER_PUMP_HZ_X10 59   /* fw 60 */
+#define REG_HEATER_EXCH_RAW    60   /* fw 61 */
+#define REG_HEATER_STATE_SECS  61   /* fw 62 */
+#define REG_HEATER_AGE_MS      62   /* fw 63 */
+#define REG_HEATER_FLAGS       63   /* fw 64 */
+#define REG_HEATER_VALID_FR    64   /* fw 65 */
+#define REG_HEATER_CSUM_FAIL   65   /* fw 66 */
+#define REG_HEATER_XPORT_ERR   66   /* fw 67 */
+
 /* ── SQLite offline buffer ───────────────────────────────────────────────── */
 #define SQLITE_DB_PATH      "/var/lib/ecofleet/telemetry.db"
 /* Always-current telemetry snapshot for the local display (gobi-ui), written
