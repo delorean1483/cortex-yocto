@@ -42,6 +42,19 @@ static struct {
      * reported update nulls it in the cloud desired state. Protected by mutex. */
     bool clear_apu_cmd_desired;
 
+    /* Set once a heater command has been applied to the hardware, so the
+     * next reported update nulls desired.heater in the cloud shadow.
+     * Protected by mutex. */
+    bool clear_heater_desired;
+
+    /* Monotonic sequence bumped every time apply_desired() ACCEPTS a heater
+     * update (sets heater_desired_valid = true). Lets shadow_ack_heater_cmd()
+     * tell whether the command it is about to clear is still the one that
+     * was peeked, or whether a newer one landed while the (slow) Modbus
+     * write was in flight — see shadow.h. Protected by mutex; internal only,
+     * never exposed via shadow_config_t. */
+    unsigned heater_desired_seq;
+
     bool initialised;
 } s = {0};
 
@@ -54,6 +67,9 @@ static void set_default_config(shadow_config_t *cfg)
     strncpy(cfg->report_mode,      "normal", sizeof(cfg->report_mode) - 1);
     strncpy(cfg->firmware_target,  "",       sizeof(cfg->firmware_target) - 1);
     strncpy(cfg->apu_command,      "",       sizeof(cfg->apu_command) - 1);
+    cfg->heater_desired_valid = false;
+    cfg->heater_on            = -1;  /* sentinel: not provided/invalid */
+    cfg->heater_level         = -1;  /* sentinel: not provided/invalid */
 }
 
 /* ── Topic helpers ───────────────────────────────────────────────────────── */
@@ -125,6 +141,51 @@ static bool apply_desired(const cJSON *desired)
             strncpy(s.config.apu_command, cmd, sizeof(s.config.apu_command) - 1);
         else
             fprintf(stderr, "[shadow] unknown apu_command '%s' — ignored\n", cmd);
+    }
+
+    /* Heater-scoped remote control: desired.heater = { "on": 0|1, "level": 1..10 },
+     * with "on" and "level" each INDEPENDENTLY optional so a bare stop
+     * ({"on":0}) is never blocked on a level also being supplied — dropping a
+     * remote stop would be a safety issue. Whichever field is absent/invalid
+     * is stored as the sentinel -1 (main.c only writes a register when its
+     * value is >= its valid floor). Deliberately narrower than the deferred
+     * whole-APU apu_command above — this is the only remote-control surface
+     * wired to the heater.
+     *
+     * If a command is already pending (not yet applied+acked by the
+     * telemetry thread), seed on_val/level_val from the still-pending values
+     * instead of -1, so a second partial message (e.g. a bare {"level":N}
+     * arriving while an earlier {"on":0} stop is still pending) AUGMENTS the
+     * pending command per-field rather than clobbering the other field back
+     * to -1 and silently dropping it. Last writer wins per field; once
+     * shadow_ack_heater_cmd() clears heater_desired_valid, the next message
+     * again starts fresh at -1. */
+    const cJSON *h = cJSON_GetObjectItemCaseSensitive(desired, "heater");
+    if (cJSON_IsObject(h)) {
+        const cJSON *hon  = cJSON_GetObjectItemCaseSensitive(h, "on");
+        const cJSON *hlvl = cJSON_GetObjectItemCaseSensitive(h, "level");
+        int on_val    = s.config.heater_desired_valid ? s.config.heater_on    : -1;
+        int level_val = s.config.heater_desired_valid ? s.config.heater_level : -1;
+        bool have_on = false, have_level = false;
+
+        if (cJSON_IsNumber(hon)) {
+            int v = (int)hon->valuedouble;
+            if (v == 0 || v == 1) { on_val = v; have_on = true; }
+            else
+                fprintf(stderr, "[shadow] heater.on %d out of range {0,1} — ignored\n", v);
+        }
+        if (cJSON_IsNumber(hlvl)) {
+            int v = (int)hlvl->valuedouble;
+            if (v >= 1 && v <= 10) { level_val = v; have_level = true; }
+            else
+                fprintf(stderr, "[shadow] heater.level %d out of range [1,10] — ignored\n", v);
+        }
+        if (have_on || have_level) {
+            s.config.heater_on            = on_val;
+            s.config.heater_level         = level_val;
+            s.config.heater_desired_valid = true;
+            s.heater_desired_seq++;
+        }
     }
 
     bool changed = memcmp(&prev, &s.config, sizeof(shadow_config_t)) != 0;
@@ -316,25 +377,46 @@ int shadow_publish_reported(struct mosquitto *mosq,
     cJSON_AddStringToObject(rep, "fault",            reported->fault);
     cJSON_AddNumberToObject(rep, "last_seen_ts",     (double)reported->last_seen_ts);
 
+    /* VEVOR heater sub-object — mirrors the heater_* keys in
+     * build_telemetry_json(), but only when a heater block is actually
+     * present on this unit. Omitted entirely (not even a "present" key)
+     * when heater_present is false, so heaterless firmware never publishes
+     * a permanent heater.comms_ok:false — this restores the pre-branch
+     * shape for heaterless units. */
+    if (reported->heater_present) {
+        cJSON *heater = cJSON_AddObjectToObject(rep, "heater");
+        cJSON_AddStringToObject(heater, "state",    reported->heater_state);
+        cJSON_AddNumberToObject(heater, "level",    reported->heater_level);
+        cJSON_AddNumberToObject(heater, "error",    reported->heater_error);
+        cJSON_AddNumberToObject(heater, "fan_rpm",  reported->heater_fan_rpm);
+        cJSON_AddBoolToObject  (heater, "safe_off", reported->heater_safe_off);
+        cJSON_AddBoolToObject  (heater, "comms_ok", reported->heater_comms_ok);
+    }
+
     /* Clear one-shot flags: include desired nulls so the cloud shadow is also
-     * cleared. The APU command is nulled only once it has actually been applied
-     * to the hardware (shadow_ack_apu_command), so a command is never lost while
-     * a Modbus write is still pending or retrying. */
+     * cleared. The APU command and heater command are nulled only once they
+     * have actually been applied to the hardware (shadow_ack_apu_command /
+     * shadow_ack_heater_cmd), so a command is never lost while a Modbus
+     * write is still pending or retrying. */
     pthread_mutex_lock(&s.config_mutex);
     bool clear_reboot  = s.config.reboot_requested;
     bool clear_apu_cmd = s.clear_apu_cmd_desired;
+    bool clear_heater  = s.clear_heater_desired;
     if (clear_reboot) {
         cJSON_AddBoolToObject(rep, "reboot", false);
         s.config.reboot_requested = false;
     }
     if (clear_apu_cmd)
         s.clear_apu_cmd_desired = false;
+    if (clear_heater)
+        s.clear_heater_desired = false;
     pthread_mutex_unlock(&s.config_mutex);
 
-    if (clear_reboot || clear_apu_cmd) {
+    if (clear_reboot || clear_apu_cmd || clear_heater) {
         cJSON *des = cJSON_AddObjectToObject(state, "desired");
         if (clear_reboot)  cJSON_AddNullToObject(des, "reboot");
         if (clear_apu_cmd) cJSON_AddNullToObject(des, "apu_command");
+        if (clear_heater)  cJSON_AddNullToObject(des, "heater");
     }
 
     char *json = cJSON_PrintUnformatted(root);
@@ -380,6 +462,38 @@ void shadow_ack_apu_command(void)
     pthread_mutex_lock(&s.config_mutex);
     s.config.apu_command[0]   = '\0';
     s.clear_apu_cmd_desired   = true;
+    pthread_mutex_unlock(&s.config_mutex);
+}
+
+bool shadow_peek_heater_cmd(int *on, int *level, unsigned *seq)
+{
+    if (!s.initialised || !on || !level || !seq) return false;
+
+    pthread_mutex_lock(&s.config_mutex);
+    bool pending = s.config.heater_desired_valid;
+    if (pending) {
+        *on    = s.config.heater_on;
+        *level = s.config.heater_level;
+        *seq   = s.heater_desired_seq;
+    }
+    pthread_mutex_unlock(&s.config_mutex);
+    return pending;
+}
+
+void shadow_ack_heater_cmd(unsigned seq)
+{
+    if (!s.initialised) return;
+
+    pthread_mutex_lock(&s.config_mutex);
+    /* Only clear the command that was actually peeked. If apply_desired()
+     * accepted a newer heater update while the Modbus write for this one
+     * was in flight, s.heater_desired_seq has since moved on — leave the
+     * (newer) pending command alone so it is retried next cycle instead of
+     * being silently wiped by this stale ack. */
+    if (seq == s.heater_desired_seq) {
+        s.config.heater_desired_valid = false;
+        s.clear_heater_desired        = true;
+    }
     pthread_mutex_unlock(&s.config_mutex);
 }
 

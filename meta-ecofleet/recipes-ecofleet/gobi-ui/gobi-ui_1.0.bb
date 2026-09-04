@@ -23,6 +23,7 @@ SRC_URI = " \
     file://qml/MaintController.qml \
     file://qml/StatusLabels.qml \
     file://qml/ComponentTestPanel.qml \
+    file://qml/HeaterCard.qml \
     file://qml/atoms/StatusPill.qml \
     file://qml/atoms/FaultBanner.qml \
     file://qml/atoms/StatCard.qml \
@@ -88,6 +89,7 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/qml/MaintController.qml   ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/StatusLabels.qml       ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/ComponentTestPanel.qml ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/HeaterCard.qml         ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/WeatherStrip.qml    ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/WeatherIcon.qml     ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/atoms/*.qml         ${D}${datadir}/gobi-ui/qml/atoms/

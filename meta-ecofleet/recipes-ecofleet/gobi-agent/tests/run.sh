@@ -14,3 +14,12 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -o "$here/test_weather"
 
 "$here/test_weather"
+
+# Host test runner for the pure heater field helpers (no cJSON dependency).
+cc -std=c11 -Wall -Wextra -Wpedantic -g \
+   -fsanitize=address,undefined \
+   -I"$files" \
+   "$here/test_heater_fields.c" "$files/heater_fields.c" \
+   -o "$here/test_heater_fields"
+
+"$here/test_heater_fields"
