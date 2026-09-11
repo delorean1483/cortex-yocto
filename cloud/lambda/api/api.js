@@ -15,6 +15,7 @@ const { randomUUID }                                               = require('cr
 const { mapTelemetryRow }                                          = require('./telemetry-view');
 const { validateCommand, authorizeCommand }                        = require('./permissions');
 const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./demo');
+const { buildReports }                                             = require('./reports-view');
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const REGION            = process.env.AWS_REGION || 'us-east-1';
@@ -592,19 +593,11 @@ async function handleGetReports(event) {
   await getInfluxToken();
   const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
 
-  const [avgRows, runtimeRows, faultRows] = await Promise.all([
+  const [engineHrsRows, faultRows] = await Promise.all([
     queryApi.collectRows(`
       from(bucket: "telemetry")
         |> range(start: ${safeStart})
-        |> filter(fn: (r) => r._measurement == "telemetry" and
-           (r._field == "dc_v" or r._field == "batt_soc"))
-        |> group(columns: ["unit", "_field"])
-        |> mean()
-    `),
-    queryApi.collectRows(`
-      from(bucket: "telemetry")
-        |> range(start: ${safeStart})
-        |> filter(fn: (r) => r._measurement == "telemetry" and r._field == "runtime_hrs")
+        |> filter(fn: (r) => r._measurement == "telemetry" and r._field == "engine_hrs")
         |> group(columns: ["unit"])
         |> last()
     `),
@@ -617,19 +610,8 @@ async function handleGetReports(event) {
     `),
   ]);
 
-  const unitMap = {};
-  const ensure  = u => { if (!unitMap[u]) unitMap[u] = { unit: u }; return unitMap[u]; };
-
-  avgRows.forEach(r => {
-    const u = ensure(r.unit);
-    if (r._field === 'dc_v')     u.avg_dc_v    = r._value;
-    if (r._field === 'batt_soc') u.avg_batt_soc = r._value;
-  });
-  runtimeRows.forEach(r => { ensure(r.unit).runtime_hrs = r._value; });
-  faultRows.forEach(r =>   { ensure(r.unit).fault_count  = r._value; });
-
-  const units = Object.values(unitMap).sort((a, b) => a.unit.localeCompare(b.unit));
-  return resp(200, { start: safeStart, generated_at: Date.now(), units });
+  const report = buildReports({ engineHrsRows, faultRows });
+  return resp(200, { start: safeStart, generated_at: Date.now(), ...report });
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
