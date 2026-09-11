@@ -49,7 +49,7 @@ export default function AlertsPage() {
     api.listUnits().then(d => {
       const list = d.units || []
       setUnits(list)
-      if (!selectedUnit && list.length > 0) setSelectedUnit(list[0])
+      if (!selectedUnit && list.length > 0) setSelectedUnit(list[0].unit)
     }).catch(() => {})
   }, [])
 
@@ -74,7 +74,7 @@ export default function AlertsPage() {
           style={{ fontSize: 13, border: '0.5px solid var(--color-border-secondary)', borderRadius: 6, padding: '5px 10px', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', cursor: 'pointer' }}
         >
           {!selectedUnit && <option value="">— select unit —</option>}
-          {units.map(u => <option key={u} value={u}>{u}</option>)}
+          {units.map(u => <option key={u.unit} value={u.unit}>{u.unit}{u.demo ? ' (demo)' : ''}</option>)}
         </select>
       </div>
 
@@ -100,17 +100,20 @@ export default function AlertsPage() {
           </div>
         )}
 
-        {activeFaults.map((f, i) => (
-          <div key={i} className={`arow ${faultClass(f.fault) || 'a-warn'}`}>
-            <div className="atxt">
-              <div className="atitle">{faultLabel(f.fault)} — {f.unit || selectedUnit}</div>
-              <div className="asub">
-                {f.fault} · {f.state || ''} {f.description ? `· ${f.description}` : ''}
+        {activeFaults.map((f, i) => {
+          const label = f.error && f.error !== 'none' ? f.error : faultLabel(f.fault)
+          return (
+            <div key={i} className={`arow ${faultClass(f.fault) || 'a-warn'}`}>
+              <div className="atxt">
+                <div className="atitle">{label} — {f.unit || selectedUnit}</div>
+                <div className="asub">
+                  {f.fault} · {f.state || ''} {f.description ? `· ${f.description}` : ''}
+                </div>
               </div>
+              <div className="atime">{fmtAge(f.ts)}</div>
             </div>
-            <div className="atime">{fmtAge(f.ts)}</div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Fault log */}
@@ -131,7 +134,7 @@ export default function AlertsPage() {
                     {new Date(f.ts).toLocaleString()}
                   </td>
                   <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{f.fault}</td>
-                  <td>{f.description || faultLabel(f.fault)}</td>
+                  <td>{f.error && f.error !== 'none' ? f.error : (f.description || faultLabel(f.fault))}</td>
                   <td>
                     <span className={`pill ${f.state === 'active' ? 'p-r' : f.state === 'cleared' ? 'p-g' : 'p-n'}`}>
                       {f.state || '—'}

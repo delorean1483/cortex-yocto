@@ -1,119 +1,96 @@
-import { useState, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '../api/client.js'
-import { useAuth } from '../contexts/AuthContext.jsx'
+import { useUnits, useUnitLatest } from '../data/hooks.js'
+import { unitStatus, statusDotClass, isStale, fmt } from '../api/contract.js'
 
-function statusDot(tele) {
-  if (!tele) return 's-off'
-  if (tele.fault && tele.fault !== 0 && tele.fault !== '0x0000') return 's-err'
-  if (tele.dc_v && tele.dc_v < 25.5) return 's-warn'
-  return 's-on'
-}
+function UnitRow({ u, onStatus }) {
+  const { data: tele } = useUnitLatest(u.unit)
+  const navigate = useNavigate()
+  const status = unitStatus(tele)
 
-function fmtVoltage(v) {
-  return v != null ? `${Number(v).toFixed(1)} V` : '—'
+  useEffect(() => { onStatus(u.unit, status) }, [u.unit, status, onStatus])
+
+  const stale = tele && isStale(tele)
+  return (
+    <div className="urow" onClick={() => navigate('/units/' + encodeURIComponent(u.unit))}>
+      <span className={`sdot ${statusDotClass(status)}`} />
+      <span className="uid">{u.unit}</span>
+      {u.demo && <span className="pill p-n" style={{ marginRight: 4 }}>demo</span>}
+      <span className="umeta">
+        {!tele ? 'no data' : stale ? 'stale' : 'live'}
+      </span>
+      <span className="uval">
+        {fmt.volts(tele?.batt_v)}
+        {tele && Number(tele.error_n) !== 0 && (
+          <span style={{ color: '#E24B4A', fontSize: 10, marginLeft: 6 }}>{tele.error}</span>
+        )}
+      </span>
+    </div>
+  )
 }
 
 export default function DashboardPage() {
-  const { selectedUnit, setSelectedUnit, role } = useAuth()
-  const [units, setUnits]     = useState(null)
-  const [telemap, setTelemap] = useState({})
-  const [error, setError]     = useState('')
-  const navigate = useNavigate()
+  const { data: units, isLoading, error } = useUnits()
+  const [statuses, setStatuses] = useState({})
 
-  useEffect(() => {
-    api.listUnits()
-      .then(data => {
-        setUnits(data.units || [])
-        // Fetch latest telemetry for each unit (limit 1)
-        data.units.forEach(u => {
-          api.getTelemetry(u, { start: '-15m', limit: '1' })
-            .then(r => {
-              const latest = r.telemetry?.[0] || null
-              setTelemap(prev => ({ ...prev, [u]: latest }))
-            })
-            .catch(() => {})
-        })
-      })
-      .catch(err => setError(err.message))
+  const report = useCallback((unit, status) => {
+    setStatuses((s) => (s[unit] === status ? s : { ...s, [unit]: status }))
   }, [])
 
-  function openUnit(unit) {
-    setSelectedUnit(unit)
-    navigate('/remote')
-  }
+  if (error) return <div className="notice" style={{ color: '#E24B4A' }}>⚠ {error.message}</div>
 
-  const online  = units ? units.filter(u => telemap[u] && statusDot(telemap[u]) !== 's-off').length : 0
-  const faulted = units ? units.filter(u => statusDot(telemap[u]) === 's-err').length : 0
-  const warning = units ? units.filter(u => statusDot(telemap[u]) === 's-warn').length : 0
-
-  if (error) return <div className="notice" style={{ color: '#E24B4A' }}>⚠ {error}</div>
+  const list = units || []
+  const vals = Object.values(statuses)
+  const online = vals.filter((s) => s !== 'off').length
+  const faults = vals.filter((s) => s === 'err').length
+  const warnings = vals.filter((s) => s === 'warn').length
 
   return (
     <>
-      {/* Stat cards */}
       <div className="sgrid">
         <div className="scard">
           <div className="scard-lbl">Online units</div>
-          <div className="scard-val" style={{ color: '#1D9E75' }}>
-            {units ? online : <span className="skeleton" style={{ display: 'inline-block', width: 40, height: 26 }} />}
+          <div className="scard-val" style={{ color: 'var(--brand-green-text)' }}>
+            {isLoading ? <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 24 }} /> : online}
           </div>
-          <div className="scard-sub">{units ? `of ${units.length} total` : '…'}</div>
+          <div className="scard-sub">of {list.length} total</div>
         </div>
         <div className="scard">
           <div className="scard-lbl">Active faults</div>
-          <div className="scard-val" style={{ color: faulted > 0 ? '#E24B4A' : 'var(--color-text-primary)' }}>
-            {units ? faulted : <span className="skeleton" style={{ display: 'inline-block', width: 30, height: 26 }} />}
+          <div className="scard-val" style={{ color: faults ? '#E24B4A' : 'var(--color-text-primary)' }}>
+            {isLoading ? <span className="skeleton" style={{ display: 'inline-block', width: 24, height: 24 }} /> : faults}
           </div>
-          <div className="scard-sub">{warning > 0 ? `${warning} warning` : 'none active'}</div>
+          <div className="scard-sub">{faults ? 'attention needed' : 'all clear'}</div>
         </div>
-        {role !== 'eu' && role !== 'maint' && (
-          <div className="scard">
-            <div className="scard-lbl">Fleet efficiency</div>
-            <div className="scard-val">—</div>
-            <div className="scard-sub">requires history data</div>
+        <div className="scard">
+          <div className="scard-lbl">Warnings</div>
+          <div className="scard-val" style={{ color: warnings ? 'var(--brand-orange)' : 'var(--color-text-primary)' }}>
+            {isLoading ? <span className="skeleton" style={{ display: 'inline-block', width: 24, height: 24 }} /> : warnings}
           </div>
-        )}
+          <div className="scard-sub">low batt / oil</div>
+        </div>
+        <div className="scard">
+          <div className="scard-lbl">Fleet size</div>
+          <div className="scard-val">{list.length}</div>
+          <div className="scard-sub">units reporting</div>
+        </div>
       </div>
 
-      {/* Unit list */}
       <div>
         <div className="sec-hd">
           <span className="sec-title">Unit status</span>
-          <span className="sec-sub">{units ? `${units.length} units` : 'loading…'}</span>
+          <span className="sec-sub">{isLoading ? 'loading…' : `${list.length} units`}</span>
         </div>
 
-        {!units && (
-          <>
-            {[1,2,3].map(i => (
-              <div key={i} className="skeleton" style={{ height: 38, marginBottom: 5 }} />
-            ))}
-          </>
-        )}
+        {isLoading && [1, 2, 3].map((i) => (
+          <div key={i} className="skeleton" style={{ height: 38, marginBottom: 5 }} />
+        ))}
 
-        {units && units.length === 0 && (
+        {!isLoading && list.length === 0 && (
           <div className="notice">No units found. Fleet data appears once a device connects to IoT Core and sends telemetry.</div>
         )}
 
-        {units && units.map(unit => {
-          const tele = telemap[unit]
-          const dot = statusDot(tele)
-          return (
-            <div key={unit} className="urow" onClick={() => openUnit(unit)}>
-              <span className={`sdot ${dot}`} />
-              <span className="uid">{unit}</span>
-              <span className="umeta">{tele ? new Date(tele.ts).toLocaleTimeString() : 'no recent data'}</span>
-              <span className="uval">
-                {tele ? fmtVoltage(tele.dc_v) : '—'}
-                {tele?.fault && tele.fault !== '0x0000' && tele.fault !== 0 && (
-                  <span style={{ color: '#E24B4A', fontSize: 10, marginLeft: 6 }}>
-                    {tele.fault}
-                  </span>
-                )}
-              </span>
-            </div>
-          )
-        })}
+        {list.map((u) => <UnitRow key={u.unit} u={u} onStatus={report} />)}
       </div>
     </>
   )

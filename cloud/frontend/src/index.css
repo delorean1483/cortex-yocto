@@ -1,8 +1,15 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --accent: #BA7517;
-  --accent-dark: #854F0B;
+  /* EcoFleet brand palette (sampled from the logo) */
+  --brand-blue: #12A5D6;
+  --brand-blue-dark: #0E86B0;
+  --brand-green: #A8CE1F;
+  --brand-green-text: #7C9E0C;
+  --brand-orange: #F26522;
+  --brand-navy: #1B2A3A;
+  --accent: var(--brand-blue);
+  --accent-dark: var(--brand-blue-dark);
   --color-background-primary: #ffffff;
   --color-background-secondary: #f7f7f6;
   --color-border-tertiary: rgba(0,0,0,0.08);
@@ -57,6 +64,14 @@ button { font-family: inherit; }
 /* Utility */
 .gone { display: none !important; }
 
+/* Official EcoFleet logo. Navy "Eco" reads on light surfaces directly; on dark
+   surfaces it sits on a subtle light plate so the full-color mark stays legible. */
+.brand-logo-wrap { display: inline-block; line-height: 0; }
+.brand-logo-wrap img { display: block; }
+@media (prefers-color-scheme: dark) {
+  .brand-logo-wrap { background: #ffffff; padding: 6px 10px; border-radius: 8px; }
+}
+
 /* Pills */
 .pill { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 10.5px; font-weight: 500; white-space: nowrap; }
 .p-g  { background: #E1F5EE; color: #0F6E56; }
@@ -84,8 +99,8 @@ button { font-family: inherit; }
 }
 .btn:hover { background: var(--color-background-secondary); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-amber { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn-amber:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.btn-amber, .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-amber:hover, .btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
 .btn-red { border-color: #E24B4A; color: #E24B4A; }
 .btn-red:hover { background: var(--color-background-danger); }
 .btn-sm { padding: 3px 8px; font-size: 11px; }
@@ -120,7 +135,7 @@ button { font-family: inherit; }
 .urow:hover { border-color: var(--color-border-secondary); }
 .sdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .s-on   { background: #1D9E75; }
-.s-warn { background: #BA7517; }
+.s-warn { background: var(--brand-orange); }
 .s-err  { background: #E24B4A; }
 .s-off  { background: #888780; }
 .uid    { font-size: 12.5px; font-weight: 500; flex: 1; }
@@ -130,7 +145,7 @@ button { font-family: inherit; }
 /* Alert rows */
 .arow { display: flex; align-items: flex-start; gap: 8px; padding: 9px 10px 9px 12px; border-radius: var(--border-radius-md); margin-bottom: 5px; border: 0.5px solid transparent; }
 .a-crit { background: var(--color-background-danger);  border-left: 3px solid #E24B4A; border-color: var(--color-border-danger); }
-.a-warn { background: var(--color-background-warning); border-left: 3px solid #BA7517; border-color: var(--color-border-warning); }
+.a-warn { background: var(--color-background-warning); border-left: 3px solid var(--brand-orange); border-color: var(--color-border-warning); }
 .a-info { background: var(--color-background-info);    border-left: 3px solid var(--accent); border-color: var(--color-border-info); }
 .a-ok   { background: var(--color-background-success); border-left: 3px solid #1D9E75; border-color: var(--color-border-success); }
 .atxt   { flex: 1; min-width: 0; }

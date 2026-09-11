@@ -39,9 +39,9 @@ resource "aws_iam_role_policy" "lambda" {
         ]
       },
       {
-        Sid    = "SNSPublish"
-        Effect = "Allow"
-        Action = "sns:Publish"
+        Sid      = "SNSPublish"
+        Effect   = "Allow"
+        Action   = "sns:Publish"
         Resource = aws_sns_topic.alerts.arn
       },
       {
@@ -117,11 +117,18 @@ resource "aws_lambda_function" "ingest" {
 
   environment {
     variables = {
-      INFLUX_SECRET_ARN  = aws_secretsmanager_secret.influx_token.arn
-      INFLUX_PRIVATE_IP  = aws_instance.influxdb.private_ip
-      INFLUX_ORG         = "ecofleet"
-      INFLUX_BUCKET      = "telemetry"
+      INFLUX_SECRET_ARN = aws_secretsmanager_secret.influx_token.arn
+      INFLUX_PRIVATE_IP = aws_instance.influxdb.private_ip
+      INFLUX_ORG        = "ecofleet"
+      INFLUX_BUCKET     = "telemetry"
     }
+  }
+
+  # Function code is deployed out-of-band by scripts/deploy-lambda.sh; the
+  # archive here is only a bootstrap stub. Ignore code so terraform apply
+  # (for infra/env changes) never reverts the deployed code to the stub.
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
   }
 
   tags = { Project = var.project }
@@ -145,12 +152,16 @@ resource "aws_lambda_function" "fault_handler" {
 
   environment {
     variables = {
-      INFLUX_SECRET_ARN  = aws_secretsmanager_secret.influx_token.arn
-      INFLUX_PRIVATE_IP  = aws_instance.influxdb.private_ip
-      INFLUX_ORG         = "ecofleet"
-      INFLUX_BUCKET      = "faults"
-      SNS_TOPIC_ARN      = aws_sns_topic.alerts.arn
+      INFLUX_SECRET_ARN = aws_secretsmanager_secret.influx_token.arn
+      INFLUX_PRIVATE_IP = aws_instance.influxdb.private_ip
+      INFLUX_ORG        = "ecofleet"
+      INFLUX_BUCKET     = "faults"
+      SNS_TOPIC_ARN     = aws_sns_topic.alerts.arn
     }
+  }
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
   }
 
   tags = { Project = var.project }
@@ -183,7 +194,14 @@ resource "aws_lambda_function" "api" {
       IOT_ENDPOINT_URL     = "https://aj2h2jnzpcr0z-ats.iot.us-east-1.amazonaws.com"
       MAINTENANCE_TABLE    = aws_dynamodb_table.maintenance.name
       USERS_TABLE          = aws_dynamodb_table.users.name
+      # "on" adds labeled (demo) peer units to fleet screens so they aren't
+      # sparse with a single real device; "off" shows only real units.
+      DEMO_UNITS = "on"
     }
+  }
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
   }
 
   tags = { Project = var.project }

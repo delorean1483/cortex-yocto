@@ -1,0 +1,19 @@
+import { describe, it, expect } from 'vitest'
+import { canWrite } from './permissions.js'
+
+describe('canWrite (frontend mirror)', () => {
+  it('admin/fm all', () => {
+    for (const a of ['heater', 'apu', 'ota']) {
+      expect(canWrite('admin', a)).toBe(true)
+      expect(canWrite('fm', a)).toBe(true)
+    }
+  })
+  it('maint heater only (no apu/ota)', () => {
+    expect(canWrite('maint', 'heater')).toBe(true)
+    expect(canWrite('maint', 'apu')).toBe(false)
+    expect(canWrite('maint', 'ota')).toBe(false)
+  })
+  it('eu none', () => {
+    for (const a of ['heater', 'apu', 'ota']) expect(canWrite('eu', a)).toBe(false)
+  })
+})

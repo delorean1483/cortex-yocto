@@ -10,6 +10,7 @@ import FirmwarePage from './pages/FirmwarePage.jsx'
 import MaintenancePage from './pages/MaintenancePage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
 import ReportsPage from './pages/ReportsPage.jsx'
+import UnitDetailPage from './pages/UnitDetailPage.jsx'
 import StubPage from './pages/StubPage.jsx'
 
 function Protected({ children }) {
@@ -30,6 +31,7 @@ export default function App() {
               <Layout>
                 <Routes>
                   <Route path="/"            element={<DashboardPage />} />
+                  <Route path="/units/:id"   element={<UnitDetailPage />} />
                   <Route path="/remote"      element={<RemoteControlPage />} />
                   <Route path="/alerts"      element={<AlertsPage />} />
                   <Route path="/history"     element={<APUHistoryPage />} />

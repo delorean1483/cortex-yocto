@@ -5,7 +5,7 @@ resource "aws_apigatewayv2_api" "main" {
 
   cors_configuration {
     allow_origins = ["*"]
-    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_methods = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
     allow_headers = ["Content-Type", "Authorization"]
     max_age       = 300
   }
@@ -62,6 +62,62 @@ resource "aws_apigatewayv2_route" "fleet_config" {
   target    = "integrations/${aws_apigatewayv2_integration.api.id}"
 }
 
+# ── Routes added for the full dashboard (latest snapshot, remote control,
+#    reports, users, maintenance). The api Lambda already handles these. ──
+resource "aws_apigatewayv2_route" "fleet_latest" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /fleet/units/{unit}/latest"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_command" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /fleet/units/{unit}/command"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_unit_maintenance" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /fleet/units/{unit}/maintenance"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_maintenance_add" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /fleet/maintenance"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_reports" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /fleet/reports"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_users_list" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /fleet/users"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_users_create" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /fleet/users"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_users_update" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "PATCH /fleet/users/{email}"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_users_delete" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "DELETE /fleet/users/{email}"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
 resource "aws_apigatewayv2_stage" "prod" {
   api_id      = aws_apigatewayv2_api.main.id
   name        = "$default"
@@ -69,7 +125,7 @@ resource "aws_apigatewayv2_stage" "prod" {
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_gw.arn
-    format = "$context.requestId $context.identity.sourceIp $context.requestTime $context.httpMethod $context.routeKey $context.status $context.responseLength"
+    format          = "$context.requestId $context.identity.sourceIp $context.requestTime $context.httpMethod $context.routeKey $context.status $context.responseLength"
   }
 
   default_route_settings {
