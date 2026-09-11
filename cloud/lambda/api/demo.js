@@ -59,7 +59,13 @@ function snapshot(unit, tsMs) {
   };
 }
 
-function demoLatest(unit) { return snapshot(unit, Date.now() - (Date.now() % 3600000)); }
+function demoLatest(unit) {
+  // Use the current hour's deterministic snapshot, but stamp it "now" so the
+  // dashboard shows demo peers as live rather than stale.
+  const s = snapshot(unit, Date.now() - (Date.now() % 3600000));
+  s.ts = Date.now();
+  return s;
+}
 function demoSeries(unit, n) {
   const now = Date.now() - (Date.now() % 3600000);
   const out = [];

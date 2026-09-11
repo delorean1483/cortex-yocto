@@ -33,7 +33,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 4 }}>
           <span className="brand-logo-wrap">
-            <img src={logo} alt="EcoFleet" style={{ height: 40 }} />
+            <img src={logo} alt="EcoFleet" style={{ height: 72 }} />
           </span>
           <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>Fleet management dashboard</div>
         </div>

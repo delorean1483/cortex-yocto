@@ -41,7 +41,7 @@ export default function Layout({ children }) {
         {/* Brand */}
         <div style={{ padding: '14px 14px 12px', borderBottom: '0.5px solid var(--color-border-tertiary)', flexShrink: 0 }}>
           <span className="brand-logo-wrap">
-            <img src={logo} alt="EcoFleet" style={{ height: 22 }} />
+            <img src={logo} alt="EcoFleet" style={{ height: 46, width: '100%', maxWidth: 144, objectFit: 'contain' }} />
           </span>
           <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 144 }}>
             {user?.email}

@@ -14,9 +14,11 @@ check('enabled by env', () => assert.strictEqual(demoEnabled(), true));
 check('lists >=3 demo units', () => assert.ok(listDemoUnits().length >= 3));
 check('isDemoUnit true for a demo id', () => assert.strictEqual(isDemoUnit(listDemoUnits()[0]), true));
 check('isDemoUnit false for real id', () => assert.strictEqual(isDemoUnit('APU-000123'), false));
-check('demoLatest is deterministic', () => {
+check('demoLatest is deterministic (except ts)', () => {
   const u = listDemoUnits()[0];
-  assert.deepStrictEqual(demoLatest(u), demoLatest(u));
+  const a = { ...demoLatest(u) }; delete a.ts;
+  const b = { ...demoLatest(u) }; delete b.ts;
+  assert.deepStrictEqual(a, b);
 });
 check('demoLatest has contract fields', () => {
   const l = demoLatest(listDemoUnits()[0]);
