@@ -38,6 +38,15 @@ export function useFaults(unit) {
   })
 }
 
+export function useShadow(unit) {
+  return useQuery({
+    queryKey: ['shadow', unit],
+    enabled: !!unit,
+    queryFn: () => api.getShadow(unit),
+    refetchInterval: 8000,
+  })
+}
+
 export function useCommand() {
   const qc = useQueryClient()
   return useMutation({

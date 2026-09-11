@@ -20,7 +20,10 @@ vi.mock('../data/hooks.js', () => ({
   useUnitLatest: () => ({ data: SNAP }),
   useTelemetrySeries: () => ({ data: [], isLoading: false }),
   useFaults: () => ({ data: [], isLoading: false }),
+  useCommand: () => ({ mutate: vi.fn(), isPending: false }),
+  useShadow: () => ({ data: null }),
 }))
+vi.mock('../contexts/AuthContext.jsx', () => ({ useAuth: () => ({ role: 'admin' }) }))
 
 import UnitDetailPage from './UnitDetailPage.jsx'
 
