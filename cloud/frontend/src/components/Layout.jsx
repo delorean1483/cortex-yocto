@@ -5,7 +5,7 @@ import {
   IconHistory, IconUsers, IconSettings, IconLogout, IconChevronDown,
 } from '@tabler/icons-react'
 import { useAuth, ROLE_CFG } from '../contexts/AuthContext.jsx'
-import logo from '../assets/ecofleet_logo.png'
+import logo from '../assets/ecofleet_logo.svg'
 
 const NAV = [
   { id: '/',            label: 'Dashboard',      Icon: IconLayoutDashboard,        section: 'Overview' },

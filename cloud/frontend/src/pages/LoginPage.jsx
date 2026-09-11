@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
-import logo from '../assets/ecofleet_logo.png'
+import logo from '../assets/ecofleet_logo.svg'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
