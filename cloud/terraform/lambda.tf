@@ -124,6 +124,13 @@ resource "aws_lambda_function" "ingest" {
     }
   }
 
+  # Function code is deployed out-of-band by scripts/deploy-lambda.sh; the
+  # archive here is only a bootstrap stub. Ignore code so terraform apply
+  # (for infra/env changes) never reverts the deployed code to the stub.
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
+
   tags = { Project = var.project }
 }
 
@@ -151,6 +158,10 @@ resource "aws_lambda_function" "fault_handler" {
       INFLUX_BUCKET     = "faults"
       SNS_TOPIC_ARN     = aws_sns_topic.alerts.arn
     }
+  }
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
   }
 
   tags = { Project = var.project }
@@ -187,6 +198,10 @@ resource "aws_lambda_function" "api" {
       # sparse with a single real device; "off" shows only real units.
       DEMO_UNITS = "on"
     }
+  }
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
   }
 
   tags = { Project = var.project }
