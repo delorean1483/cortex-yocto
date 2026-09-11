@@ -29,3 +29,31 @@ export const fmt = {
   int:   (v) => dash(v) ? '—' : `${Math.round(Number(v))}`,
   hours: (v) => dash(v) ? '—' : `${Math.round(Number(v))} h`,
 }
+
+export const HEATER_FLAG_LABELS = [
+  { key: 'fresh',       bit: 0x01, label: 'Fresh' },
+  { key: 'cooldown',    bit: 0x02, label: 'Cooldown' },
+  { key: 'safe_off',    bit: 0x04, label: 'Safe-off' },
+  { key: 'comms_fault', bit: 0x08, label: 'Comms fault' },
+  { key: 'xport_fault', bit: 0x10, label: 'Transport fault' },
+]
+export function heaterFlags(flags) {
+  const f = Number(flags) || 0
+  return HEATER_FLAG_LABELS.map((x) => ({ key: x.key, label: x.label, on: (f & x.bit) !== 0 }))
+}
+
+// Component-test output names by index (mirrors firmware diag_outputs bits;
+// best-effort labels — correct against firmware if they differ).
+export const DIAG_OUTPUTS = [
+  'Run/Ignition', 'Glow Plug', 'Starter', 'Fuel Pump',
+  'Evap Fan', 'Compressor', 'Condenser Fan',
+]
+export function diagOutputs(mask) {
+  const m = Number(mask) || 0
+  return DIAG_OUTPUTS.map((name, idx) => ({ idx, name, on: (m & (1 << idx)) !== 0 }))
+}
+
+export function connLabel(tele) {
+  if (!tele || tele.ts == null) return { text: 'no data', cls: 'p-n' }
+  return isStale(tele) ? { text: 'stale', cls: 'p-a' } : { text: 'live', cls: 'p-g' }
+}

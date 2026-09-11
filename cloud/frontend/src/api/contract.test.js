@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt } from './contract.js'
+import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
+         heaterFlags, diagOutputs, connLabel } from './contract.js'
 
 describe('unitStatus', () => {
   it('off when no telemetry', () => expect(unitStatus(null)).toBe('off'))
@@ -34,4 +35,30 @@ describe('fmt', () => {
   it('dash on null', () => expect(fmt.volts(null)).toBe('—'))
   it('tempF', () => expect(fmt.tempF(96.1)).toBe('96°F'))
   it('pct', () => expect(fmt.pct(40)).toBe('40%'))
+})
+
+describe('heaterFlags', () => {
+  it('decodes xport-fault (0x10) as on, comms as off', () => {
+    const f = heaterFlags(0x10)
+    expect(f.find((b) => b.key === 'xport_fault').on).toBe(true)
+    expect(f.find((b) => b.key === 'comms_fault').on).toBe(false)
+  })
+  it('decodes cooldown (0x2)', () => {
+    expect(heaterFlags(0x2).find((b) => b.key === 'cooldown').on).toBe(true)
+  })
+})
+
+describe('diagOutputs', () => {
+  it('bit 6 set -> that output on, others off', () => {
+    const outs = diagOutputs(1 << 6)
+    expect(outs).toHaveLength(7)
+    expect(outs[6].on).toBe(true)
+    expect(outs[0].on).toBe(false)
+  })
+})
+
+describe('connLabel', () => {
+  it('no data', () => expect(connLabel(null).text).toBe('no data'))
+  it('live when fresh', () => expect(connLabel({ ts: Date.now() }).text).toBe('live'))
+  it('stale when old', () => expect(connLabel({ ts: Date.now() - 120000 }).text).toBe('stale'))
 })
