@@ -72,6 +72,13 @@ export const api = {
     return apiFetch(`/fleet/units/${encodeURIComponent(unit)}/telemetry${qs ? '?' + qs : ''}`)
   },
 
+  getLatest: (unit) => apiFetch(`/fleet/units/${encodeURIComponent(unit)}/latest`),
+
+  sendCommand: (unit, body) =>
+    apiFetch(`/fleet/units/${encodeURIComponent(unit)}/command`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
   getFaults: (unit, params = {}) => {
     const qs = new URLSearchParams(params).toString()
     return apiFetch(`/fleet/units/${encodeURIComponent(unit)}/faults${qs ? '?' + qs : ''}`)
