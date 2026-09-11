@@ -64,12 +64,12 @@ button { font-family: inherit; }
 /* Utility */
 .gone { display: none !important; }
 
-/* Logo swaps per theme: navy "Eco" on light, full-color on dark */
-.logo-color { display: none; }
-.logo-navy  { display: block; }
+/* Official EcoFleet logo. Navy "Eco" reads on light surfaces directly; on dark
+   surfaces it sits on a subtle light plate so the full-color mark stays legible. */
+.brand-logo-wrap { display: inline-block; line-height: 0; }
+.brand-logo-wrap img { display: block; }
 @media (prefers-color-scheme: dark) {
-  .logo-navy  { display: none !important; }
-  .logo-color { display: block !important; }
+  .brand-logo-wrap { background: #ffffff; padding: 6px 10px; border-radius: 8px; }
 }
 
 /* Pills */

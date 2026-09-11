@@ -5,8 +5,7 @@ import {
   IconHistory, IconUsers, IconSettings, IconLogout, IconChevronDown,
 } from '@tabler/icons-react'
 import { useAuth, ROLE_CFG } from '../contexts/AuthContext.jsx'
-import logoColor from '../assets/ecofleet_logo.png'
-import logoNavy from '../assets/ecofleet_logo_navy.png'
+import logo from '../assets/ecofleet_logo.png'
 
 const NAV = [
   { id: '/',            label: 'Dashboard',      Icon: IconLayoutDashboard,        section: 'Overview' },
@@ -41,9 +40,10 @@ export default function Layout({ children }) {
       <nav style={{ width: 172, flexShrink: 0, background: 'var(--color-background-secondary)', borderRight: '0.5px solid var(--color-border-tertiary)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Brand */}
         <div style={{ padding: '14px 14px 12px', borderBottom: '0.5px solid var(--color-border-tertiary)', flexShrink: 0 }}>
-          <img src={logoNavy} alt="EcoFleet" className="logo-navy" style={{ height: 24 }} />
-          <img src={logoColor} alt="EcoFleet" className="logo-color" style={{ height: 24 }} />
-          <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 144 }}>
+          <span className="brand-logo-wrap">
+            <img src={logo} alt="EcoFleet" style={{ height: 22 }} />
+          </span>
+          <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 144 }}>
             {user?.email}
           </div>
         </div>
