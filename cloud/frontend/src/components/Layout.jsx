@@ -1,10 +1,12 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  IconBolt, IconLayoutDashboard, IconMap2, IconAdjustmentsHorizontal,
+  IconLayoutDashboard, IconMap2, IconAdjustmentsHorizontal,
   IconTool, IconDeviceDesktopDown, IconBell, IconChartBar,
   IconHistory, IconUsers, IconSettings, IconLogout, IconChevronDown,
 } from '@tabler/icons-react'
 import { useAuth, ROLE_CFG } from '../contexts/AuthContext.jsx'
+import logoColor from '../assets/ecofleet_logo.png'
+import logoNavy from '../assets/ecofleet_logo_navy.png'
 
 const NAV = [
   { id: '/',            label: 'Dashboard',      Icon: IconLayoutDashboard,        section: 'Overview' },
@@ -38,15 +40,11 @@ export default function Layout({ children }) {
       {/* Sidebar */}
       <nav style={{ width: 172, flexShrink: 0, background: 'var(--color-background-secondary)', borderRight: '0.5px solid var(--color-border-tertiary)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Brand */}
-        <div style={{ padding: '12px 14px', borderBottom: '0.5px solid var(--color-border-tertiary)', display: 'flex', alignItems: 'center', gap: 9, flexShrink: 0 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <IconBolt size={16} color="#fff" />
-          </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.2 }}>EcoFleet</div>
-            <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>
-              {user?.email}
-            </div>
+        <div style={{ padding: '14px 14px 12px', borderBottom: '0.5px solid var(--color-border-tertiary)', flexShrink: 0 }}>
+          <img src={logoNavy} alt="EcoFleet" className="logo-navy" style={{ height: 24 }} />
+          <img src={logoColor} alt="EcoFleet" className="logo-color" style={{ height: 24 }} />
+          <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 7, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 144 }}>
+            {user?.email}
           </div>
         </div>
 
