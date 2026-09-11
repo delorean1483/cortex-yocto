@@ -1,4 +1,8 @@
+import { useState } from 'react'
 import { heaterStateLabel, heaterFlags, fmt } from '../../api/contract.js'
+import { useCommand } from '../../data/hooks.js'
+import { useCan } from '../../components/RoleGate.jsx'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 
 function Cell({ label, value }) {
   return (
@@ -9,12 +13,25 @@ function Cell({ label, value }) {
   )
 }
 
-export default function HeaterTab({ tele }) {
+export default function HeaterTab({ tele, unit, isDemo }) {
+  const command = useCommand()
+  const { allowed, reason } = useCan('heater')
+  const [confirm, setConfirm] = useState(null) // { title, body, body: cmdBody, ... }
+  const [level, setLevel] = useState(tele?.heater_target_level || 3)
+
   if (!tele) return <div className="notice">Waiting for telemetry…</div>
   if (!tele.heater_present) return <div className="notice">No heater detected on this unit.</div>
 
   const flags = heaterFlags(tele.heater_flags)
   const err = Number(tele.heater_error) !== 0
+  const on = tele.heater_state !== 'off'
+  const disabled = !allowed || isDemo
+  const disabledReason = isDemo ? 'Demo units cannot be controlled.' : reason
+
+  const ask = (title, body, cmd) => setConfirm({ title, body, cmd })
+  const run = () => {
+    command.mutate({ unit, body: confirm.cmd }, { onSettled: () => setConfirm(null) })
+  }
 
   return (
     <div className="card">
@@ -57,9 +74,41 @@ export default function HeaterTab({ tele }) {
         transport errors {fmt.int(tele.heater_transport_errors)}
       </div>
 
-      <div className="notice" style={{ marginTop: 12, fontSize: 11.5 }}>
-        On/off and level control (guarded + confirm) is added in Plan 4.
+      {/* Controls */}
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
+             title={disabled ? disabledReason : undefined}>
+          <button className={`btn btn-sm ${on ? 'btn-red' : 'btn-primary'}`} disabled={disabled}
+            onClick={() => ask(
+              on ? `Turn heater OFF` : `Turn heater ON`,
+              `${on ? 'Stop' : 'Start'} the diesel heater on ${unit}?`,
+              { heater: { on: on ? 0 : 1 } })}>
+            {on ? 'Turn off' : 'Turn on'}
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11.5, color: 'var(--color-text-tertiary)' }}>Level</span>
+            <button className="btn btn-sm" disabled={disabled || level <= 1} onClick={() => setLevel((l) => Math.max(1, l - 1))}>−</button>
+            <span style={{ minWidth: 18, textAlign: 'center', fontWeight: 600 }}>{level}</span>
+            <button className="btn btn-sm" disabled={disabled || level >= 10} onClick={() => setLevel((l) => Math.min(10, l + 1))}>+</button>
+            <button className="btn btn-sm btn-primary" disabled={disabled}
+              onClick={() => ask('Set heater level', `Set heater level to ${level} on ${unit}?`, { heater: { level } })}>
+              Set
+            </button>
+          </div>
+        </div>
+        {disabled && <div style={{ marginTop: 8, fontSize: 11, color: 'var(--color-text-tertiary)' }}>{disabledReason}</div>}
       </div>
+
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirm?.title}
+        body={confirm?.body}
+        confirmLabel="Send"
+        pending={command.isPending}
+        onConfirm={run}
+        onCancel={() => setConfirm(null)}
+      />
     </div>
   )
 }

@@ -103,8 +103,30 @@ export const mockApi = {
   setConfig: (unit, config) => delay({ unit, shadow_version: 13, desired: config,
     message: 'Config queued (mock).' }),
 
-  sendCommand: (unit, body) => delay({ unit, shadow_version: 13, desired: body,
-    message: 'Command queued (mock).' }),
+  sendCommand: (unit, body) => {
+    // Reflect heater/APU/OTA commands into the snapshot so the demo updates live.
+    const snap = SNAPSHOTS[unit]
+    if (snap && body.heater) {
+      if (body.heater.on !== undefined) {
+        snap.heater_state = body.heater.on ? 'running' : 'off'
+        snap.heater_active_level = body.heater.on ? (snap.heater_target_level || 3) : 0
+        snap.heater_comms_ok = true
+        snap.heater_flags = body.heater.on ? 1 : 16
+      }
+      if (body.heater.level !== undefined) {
+        snap.heater_target_level = body.heater.level
+        if (snap.heater_state === 'running') snap.heater_active_level = body.heater.level
+      }
+    }
+    if (snap && body.apu_command) {
+      snap.mode = body.apu_command === 'start' ? 'engine' : 'battery'
+      snap.engine_status = body.apu_command === 'start' ? 'running' : 'off'
+      snap.rpm = body.apu_command === 'start' ? 1850 : 0
+      snap.ignition = body.apu_command === 'start'
+    }
+    if (snap && body.firmware_target) snap.apu_fw_version = 10241
+    return delay({ unit, shadow_version: 13, desired: body, message: 'Command queued (mock).' })
+  },
 
   getReports: () => delay({
     totals: { runtime_hrs: 64200, fuel_saved_usd: 18400, mtbf_hrs: 812, fault_events: 14 },

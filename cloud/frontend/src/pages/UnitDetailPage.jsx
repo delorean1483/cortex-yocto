@@ -23,6 +23,7 @@ export default function UnitDetailPage() {
   const [tab, setTab] = useState('overview')
   const { data: tele } = useUnitLatest(id)
   const conn = connLabel(tele)
+  const isDemo = (id || '').startsWith('APU-DEMO-')
 
   return (
     <>
@@ -62,7 +63,7 @@ export default function UnitDetailPage() {
       {/* Panel */}
       {tab === 'overview' && <OverviewTab tele={tele} />}
       {tab === 'telemetry' && <TelemetryTab unit={id} />}
-      {tab === 'heater' && <HeaterTab tele={tele} />}
+      {tab === 'heater' && <HeaterTab tele={tele} unit={id} isDemo={isDemo} />}
       {tab === 'diag' && <ComponentTestTab tele={tele} />}
       {tab === 'history' && <HistoryTab unit={id} />}
     </>
