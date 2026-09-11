@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { api } from './client.js'
+import { realApi as api } from './client.js'
 
 beforeEach(() => {
   global.fetch = vi.fn(() =>

@@ -1,3 +1,5 @@
+import { mockApi } from './mock.js'
+
 const BASE = import.meta.env.VITE_API_URL || 'https://tphro82ot9.execute-api.us-east-1.amazonaws.com'
 
 let _token = null
@@ -61,7 +63,7 @@ export async function apiFetch(path, options = {}) {
   return res.json()
 }
 
-export const api = {
+export const realApi = {
   login: (email, password) =>
     apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 
@@ -113,3 +115,7 @@ export const api = {
     return apiFetch(`/fleet/reports${qs ? '?' + qs : ''}`)
   },
 }
+
+// Dev-only: VITE_MOCK=on selects an in-memory mock so the UI renders without a
+// backend. In production VITE_MOCK is undefined, so the real API is used.
+export const api = import.meta.env.VITE_MOCK === 'on' ? mockApi : realApi
