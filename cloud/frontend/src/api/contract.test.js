@@ -1,0 +1,37 @@
+import { describe, it, expect } from 'vitest'
+import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt } from './contract.js'
+
+describe('unitStatus', () => {
+  it('off when no telemetry', () => expect(unitStatus(null)).toBe('off'))
+  it('err when error_n set', () => expect(unitStatus({ error_n: 32, batt_v: 13, oil_ok: true })).toBe('err'))
+  it('warn on low battery', () => expect(unitStatus({ error_n: 0, batt_v: 11.4, oil_ok: true })).toBe('warn'))
+  it('warn on oil not ok', () => expect(unitStatus({ error_n: 0, batt_v: 13, oil_ok: false })).toBe('warn'))
+  it('ok otherwise', () => expect(unitStatus({ error_n: 0, batt_v: 12.7, oil_ok: true })).toBe('ok'))
+})
+
+describe('statusDotClass', () => {
+  it('maps', () => {
+    expect(statusDotClass('ok')).toBe('s-on')
+    expect(statusDotClass('warn')).toBe('s-warn')
+    expect(statusDotClass('err')).toBe('s-err')
+    expect(statusDotClass('off')).toBe('s-off')
+  })
+})
+
+describe('isStale', () => {
+  it('fresh is not stale', () => expect(isStale({ ts: Date.now() })).toBe(false))
+  it('old is stale', () => expect(isStale({ ts: Date.now() - 120000 })).toBe(true))
+  it('missing ts is stale', () => expect(isStale({})).toBe(true))
+})
+
+describe('heaterStateLabel', () => {
+  it('titlecases', () => expect(heaterStateLabel('preheat')).toBe('Preheat'))
+  it('handles unknown', () => expect(heaterStateLabel('')).toBe('Unknown'))
+})
+
+describe('fmt', () => {
+  it('volts', () => expect(fmt.volts(12.64)).toBe('12.6 V'))
+  it('dash on null', () => expect(fmt.volts(null)).toBe('—'))
+  it('tempF', () => expect(fmt.tempF(96.1)).toBe('96°F'))
+  it('pct', () => expect(fmt.pct(40)).toBe('40%'))
+})
