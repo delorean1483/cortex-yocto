@@ -2,6 +2,7 @@
 
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const { InfluxDB, Point } = require('@influxdata/influxdb-client');
+const { mapTelemetry } = require('./telemetry-map');
 
 const REGION     = process.env.AWS_REGION || 'us-east-1';
 const INFLUX_URL = `http://${process.env.INFLUX_PRIVATE_IP}:8086`;
@@ -22,9 +23,9 @@ async function getInfluxToken() {
 
 exports.handler = async (event) => {
   // IoT rule delivers the telemetry JSON directly as the event object.
-  // Required fields from gobi-agent build_telemetry_json():
-  //   unit, ts (epoch ms), dc_v, dc_a, batt_v, batt_soc, batt_t,
-  //   apu_state, runtime_hrs, watts, rpm, oil_psi, coolant_t, fault
+  // The full field set (sensors, APU state enums, climate, component test,
+  // and the VEVOR heater block) is documented in cloud/CONTRACT.md and
+  // mapped by ./telemetry-map.js. `unit` and `ts` are the only required keys.
   const msg = event;
 
   if (!msg.unit || !msg.ts) {
@@ -36,27 +37,21 @@ exports.handler = async (event) => {
   const client = new InfluxDB({ url: INFLUX_URL, token });
   const writeApi = client.getWriteApi(INFLUX_ORG, BUCKET, 'ms');
 
-  const point = new Point('telemetry')
-    .tag('unit',          msg.unit)
-    .floatField('dc_v',       msg.dc_v        ?? 0)
-    .floatField('dc_a',       msg.dc_a        ?? 0)
-    .floatField('batt_v',     msg.batt_v      ?? 0)
-    .floatField('batt_soc',   msg.batt_soc    ?? 0)
-    .floatField('batt_t',     msg.batt_t      ?? 0)
-    .stringField('apu_state', msg.apu_state   || 'unknown')
-    .intField('runtime_hrs',  msg.runtime_hrs ?? 0)
-    .intField('watts',        msg.watts       ?? 0)
-    .intField('rpm',          msg.rpm         ?? 0)
-    .floatField('oil_psi',    msg.oil_psi     ?? 0)
-    .floatField('coolant_t',  msg.coolant_t   ?? 0)
-    .stringField('fault',     msg.fault       || '0x0000')
-    .timestamp(msg.ts);
+  const desc  = mapTelemetry(msg);
+  const point = new Point(desc.measurement).timestamp(desc.timestamp);
+  for (const [k, v] of Object.entries(desc.tags)) point.tag(k, v);
+  for (const [k, f] of Object.entries(desc.fields)) {
+    if (f.type === 'float')      point.floatField(k, f.value);
+    else if (f.type === 'int')   point.intField(k, f.value);
+    else if (f.type === 'bool')  point.booleanField(k, f.value);
+    else                         point.stringField(k, String(f.value));
+  }
 
   writeApi.writePoint(point);
 
   try {
     await writeApi.close();
-    console.log(`Ingested telemetry: unit=${msg.unit} ts=${msg.ts} apu_state=${msg.apu_state}`);
+    console.log(`Ingested telemetry: unit=${msg.unit} ts=${msg.ts} mode=${msg.mode}`);
   } catch (err) {
     console.error('InfluxDB write failed:', err.message);
     throw err;  // let Lambda retry / DLQ handle it
