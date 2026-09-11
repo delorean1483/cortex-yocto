@@ -100,17 +100,20 @@ export default function AlertsPage() {
           </div>
         )}
 
-        {activeFaults.map((f, i) => (
-          <div key={i} className={`arow ${faultClass(f.fault) || 'a-warn'}`}>
-            <div className="atxt">
-              <div className="atitle">{faultLabel(f.fault)} — {f.unit || selectedUnit}</div>
-              <div className="asub">
-                {f.fault} · {f.state || ''} {f.description ? `· ${f.description}` : ''}
+        {activeFaults.map((f, i) => {
+          const label = f.error && f.error !== 'none' ? f.error : faultLabel(f.fault)
+          return (
+            <div key={i} className={`arow ${faultClass(f.fault) || 'a-warn'}`}>
+              <div className="atxt">
+                <div className="atitle">{label} — {f.unit || selectedUnit}</div>
+                <div className="asub">
+                  {f.fault} · {f.state || ''} {f.description ? `· ${f.description}` : ''}
+                </div>
               </div>
+              <div className="atime">{fmtAge(f.ts)}</div>
             </div>
-            <div className="atime">{fmtAge(f.ts)}</div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Fault log */}
@@ -131,7 +134,7 @@ export default function AlertsPage() {
                     {new Date(f.ts).toLocaleString()}
                   </td>
                   <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{f.fault}</td>
-                  <td>{f.description || faultLabel(f.fault)}</td>
+                  <td>{f.error && f.error !== 'none' ? f.error : (f.description || faultLabel(f.fault))}</td>
                   <td>
                     <span className={`pill ${f.state === 'active' ? 'p-r' : f.state === 'cleared' ? 'p-g' : 'p-n'}`}>
                       {f.state || '—'}
