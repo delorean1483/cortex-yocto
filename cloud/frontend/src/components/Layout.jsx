@@ -95,7 +95,9 @@ export default function Layout({ children }) {
         {/* Topbar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '0.5px solid var(--color-border-tertiary)', gap: 8, flexShrink: 0 }}>
           <span style={{ fontSize: 14, fontWeight: 500 }}>
-            {NAV.find(n => n.id === pathname)?.label ?? NAV.find(n => pathname.startsWith(n.id) && n.id !== '/')?.label ?? 'Dashboard'}
+            {pathname.startsWith('/units/')
+              ? 'Unit detail'
+              : NAV.find(n => n.id === pathname)?.label ?? NAV.find(n => pathname.startsWith(n.id) && n.id !== '/')?.label ?? 'Dashboard'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className={`rbadge ${cfg.badge}`}>{cfg.lbl}</span>
