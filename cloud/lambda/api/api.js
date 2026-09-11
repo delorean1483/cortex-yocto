@@ -12,6 +12,9 @@ const { DynamoDBDocumentClient, PutCommand, QueryCommand,
 const { InfluxDB }                                                 = require('@influxdata/influxdb-client');
 const jwt                                                          = require('jsonwebtoken');
 const { randomUUID }                                               = require('crypto');
+const { mapTelemetryRow }                                          = require('./telemetry-view');
+const { validateCommand, authorizeCommand }                        = require('./permissions');
+const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./demo');
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const REGION            = process.env.AWS_REGION || 'us-east-1';
@@ -191,7 +194,11 @@ async function handleListUnits() {
 
   const rows  = await queryApi.collectRows(flux);
   const units = rows.map(r => r._value).filter(Boolean).sort();
-  return resp(200, { units });
+  const all   = [
+    ...units.map(u => ({ unit: u, demo: false })),
+    ...listDemoUnits().map(u => ({ unit: u, demo: true })),
+  ];
+  return resp(200, { units: all });
 }
 
 // GET /fleet/units/{unit}/telemetry?start=-1h&limit=200
@@ -202,6 +209,11 @@ async function handleGetTelemetry(event) {
   const limit = Math.min(parseInt(qs.limit || '200', 10), 1000);
 
   if (!unit) return err(400, 'unit path parameter required');
+  if (isDemoUnit(unit)) {
+    const n = Math.min(parseInt(qs.limit || '48', 10), 168);
+    const series = demoSeries(unit, n);
+    return resp(200, { unit, count: series.length, telemetry: series });
+  }
 
   await getInfluxToken();
   const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
@@ -216,23 +228,29 @@ async function handleGetTelemetry(event) {
   `;
 
   const rows = await queryApi.collectRows(flux);
-  const telemetry = rows.map(r => ({
-    ts:          new Date(r._time).getTime(),
-    dc_v:        r.dc_v,
-    dc_a:        r.dc_a,
-    batt_v:      r.batt_v,
-    batt_soc:    r.batt_soc,
-    batt_t:      r.batt_t,
-    apu_state:   r.apu_state,
-    runtime_hrs: r.runtime_hrs,
-    watts:       r.watts,
-    rpm:         r.rpm,
-    oil_psi:     r.oil_psi,
-    coolant_t:   r.coolant_t,
-    fault:       r.fault,
-  }));
+  const telemetry = rows.map(mapTelemetryRow);
 
   return resp(200, { unit, count: telemetry.length, telemetry });
+}
+
+// GET /fleet/units/{unit}/latest — most recent full snapshot
+async function handleGetLatest(event) {
+  const unit = (event.pathParameters || {}).unit;
+  if (!unit) return err(400, 'unit path parameter required');
+  if (isDemoUnit(unit)) return resp(200, { unit, latest: demoLatest(unit) });
+  await getInfluxToken();
+  const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
+  const flux = `
+    from(bucket: "telemetry")
+      |> range(start: -24h)
+      |> filter(fn: (r) => r._measurement == "telemetry" and r.unit == "${unit.replace(/"/g, '')}")
+      |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+      |> sort(columns: ["_time"], desc: true)
+      |> limit(n: 1)
+  `;
+  const rows = await queryApi.collectRows(flux);
+  if (!rows.length) return resp(200, { unit, latest: null });
+  return resp(200, { unit, latest: mapTelemetryRow(rows[0]) });
 }
 
 // GET /fleet/units/{unit}/faults?start=-7d&limit=100
@@ -316,7 +334,7 @@ async function handleGetShadow(event) {
 }
 
 // POST /fleet/config
-const ALLOWED_CONFIG_KEYS = new Set(['poll_interval_s', 'report_mode', 'firmware_target', 'reboot', 'apu_command']);
+const ALLOWED_CONFIG_KEYS = new Set(['poll_interval_s', 'report_mode', 'firmware_target', 'reboot', 'apu_command', 'clmt_setpoint_f', 'batt_setpoint_v']);
 
 async function handleSetConfig(event) {
   let body;
@@ -359,6 +377,37 @@ async function handleSetConfig(event) {
       desired: config,
       message: 'Config queued. Device will apply on next connection or within one poll cycle.',
     });
+  } catch (e) {
+    if (e.name === 'ResourceNotFoundException')
+      return err(404, `Shadow not found for ${unit} — has the device connected yet?`);
+    throw e;
+  }
+}
+
+// POST /fleet/units/{unit}/command — role-guarded remote control (shadow desired)
+async function handleCommand(event, claims) {
+  const unit = (event.pathParameters || {}).unit;
+  if (!unit) return err(400, 'unit path parameter required');
+  if (isDemoUnit(unit)) return err(400, 'demo units cannot be controlled');
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
+
+  const v = validateCommand(body);
+  if (!v.ok) return err(400, v.error);
+
+  const authz = authorizeCommand(claims.role || 'eu', v.desired);
+  if (!authz.ok) return err(403, authz.error);
+
+  const thingName = `gobi-apu-${unit}`;
+  const payload   = JSON.stringify({ state: { desired: v.desired } });
+  try {
+    const res     = await iotdata.send(new UpdateThingShadowCommand({
+      thingName, payload: Buffer.from(payload, 'utf8'),
+    }));
+    const updated = JSON.parse(Buffer.from(res.payload).toString('utf8'));
+    return resp(200, { unit, shadow_version: updated.version, desired: v.desired,
+      message: 'Command queued. Device applies on next poll; watch shadow reported for ack.' });
   } catch (e) {
     if (e.name === 'ResourceNotFoundException')
       return err(404, `Shadow not found for ${unit} — has the device connected yet?`);
@@ -605,9 +654,11 @@ exports.handler = async (event) => {
     if (method === 'GET'  && path.endsWith('/fleet/reports'))  return await handleGetReports(event);
 
     if (path.includes('/fleet/units/')) {
+      if (path.endsWith('/latest'))       return await handleGetLatest(event);
       if (path.endsWith('/telemetry'))    return await handleGetTelemetry(event);
       if (path.endsWith('/faults'))       return await handleGetFaults(event);
       if (path.endsWith('/maintenance'))  return await handleGetMaintenance(event);
+      if (method === 'POST' && path.endsWith('/command')) return await handleCommand(event, claims);
     }
 
     if (path.includes('/fleet/users/')) {
