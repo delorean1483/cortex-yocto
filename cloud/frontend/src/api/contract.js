@@ -57,3 +57,12 @@ export function connLabel(tele) {
   if (!tele || tele.ts == null) return { text: 'no data', cls: 'p-n' }
   return isStale(tele) ? { text: 'stale', cls: 'p-a' } : { text: 'live', cls: 'p-g' }
 }
+
+// Device-shadow heater ack helpers. The agent bumps heater_desired_seq each
+// time it accepts a heater desired, and nulls desired.heater once applied.
+export function heaterCmdSeq(shadow) {
+  return Number(shadow?.reported?.heater_desired_seq) || 0
+}
+export function heaterDesiredPending(shadow) {
+  return !!(shadow?.desired && shadow.desired.heater)
+}

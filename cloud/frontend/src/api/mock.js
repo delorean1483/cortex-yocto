@@ -67,6 +67,11 @@ function fakeJwt(email, role) {
 
 const delay = (v) => new Promise((res) => setTimeout(() => res(v), 120))
 
+// Per-unit heater ack counter — bumped when a heater command is applied, so the
+// dashboard's pending→applied badge resolves in the local demo (mirrors the
+// device shadow's reported.heater_desired_seq).
+const HEATER_SEQ = {}
+
 let USERS = [
   { email: 'admin@ecofleet.io', role: 'admin', fleet: '—', status: 'active' },
   { email: 'mgr@fleet1.com', role: 'fm', fleet: 'FLEET-001', status: 'active' },
@@ -97,7 +102,8 @@ export const mockApi = {
 
   getShadow: (unit) => delay({ unit, shadow_exists: true, version: 12,
     reported: { report_mode: 'normal', poll_interval_s: 10, online: true, stale_seconds: 4,
-      apu_fw_version: 10240, heater_desired_seq: 0 },
+      apu_fw_version: SNAPSHOTS[unit]?.apu_fw_version ?? 10240,
+      heater_desired_seq: HEATER_SEQ[unit] || 0 },
     desired: {}, delta: {}, last_updated: Date.now() }),
 
   setConfig: (unit, config) => delay({ unit, shadow_version: 13, desired: config,
@@ -107,6 +113,7 @@ export const mockApi = {
     // Reflect heater/APU/OTA commands into the snapshot so the demo updates live.
     const snap = SNAPSHOTS[unit]
     if (snap && body.heater) {
+      HEATER_SEQ[unit] = (HEATER_SEQ[unit] || 0) + 1
       if (body.heater.on !== undefined) {
         snap.heater_state = body.heater.on ? 'running' : 'off'
         snap.heater_active_level = body.heater.on ? (snap.heater_target_level || 3) : 0

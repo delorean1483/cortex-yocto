@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { heaterStateLabel, heaterFlags, fmt } from '../../api/contract.js'
-import { useCommand } from '../../data/hooks.js'
+import { useState, useEffect } from 'react'
+import { heaterStateLabel, heaterFlags, fmt, heaterCmdSeq, heaterDesiredPending } from '../../api/contract.js'
+import { useCommand, useShadow } from '../../data/hooks.js'
 import { useCan } from '../../components/RoleGate.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 
@@ -15,9 +15,26 @@ function Cell({ label, value }) {
 
 export default function HeaterTab({ tele, unit, isDemo }) {
   const command = useCommand()
+  const { data: shadow } = useShadow(unit)
   const { allowed, reason } = useCan('heater')
-  const [confirm, setConfirm] = useState(null) // { title, body, body: cmdBody, ... }
+  const [confirm, setConfirm] = useState(null) // { title, body, cmd }
   const [level, setLevel] = useState(tele?.heater_target_level || 3)
+
+  // Ack tracking: capture the reported seq at send; the command is "applied"
+  // once the device bumps heater_desired_seq past that baseline.
+  const seq = heaterCmdSeq(shadow)
+  const [baseSeq, setBaseSeq] = useState(null)
+  const [pending, setPending] = useState(false)
+  const [applied, setApplied] = useState(false)
+
+  useEffect(() => {
+    if (pending && baseSeq != null && seq > baseSeq) {
+      setPending(false)
+      setApplied(true)
+      const t = setTimeout(() => setApplied(false), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [pending, baseSeq, seq])
 
   if (!tele) return <div className="notice">Waiting for telemetry…</div>
   if (!tele.heater_present) return <div className="notice">No heater detected on this unit.</div>
@@ -27,10 +44,14 @@ export default function HeaterTab({ tele, unit, isDemo }) {
   const on = tele.heater_state !== 'off'
   const disabled = !allowed || isDemo
   const disabledReason = isDemo ? 'Demo units cannot be controlled.' : reason
+  const showPending = pending || heaterDesiredPending(shadow)
 
   const ask = (title, body, cmd) => setConfirm({ title, body, cmd })
   const run = () => {
-    command.mutate({ unit, body: confirm.cmd }, { onSettled: () => setConfirm(null) })
+    command.mutate({ unit, body: confirm.cmd }, {
+      onSuccess: () => { setBaseSeq(seq); setPending(true); setApplied(false) },
+      onSettled: () => setConfirm(null),
+    })
   }
 
   return (
@@ -96,6 +117,9 @@ export default function HeaterTab({ tele, unit, isDemo }) {
               Set
             </button>
           </div>
+
+          {showPending && <span className="pill p-a">Pending…</span>}
+          {applied && !showPending && <span className="pill p-g">Applied ✓</span>}
         </div>
         {disabled && <div style={{ marginTop: 8, fontSize: 11, color: 'var(--color-text-tertiary)' }}>{disabledReason}</div>}
       </div>

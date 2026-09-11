@@ -62,3 +62,25 @@ describe('connLabel', () => {
   it('live when fresh', () => expect(connLabel({ ts: Date.now() }).text).toBe('live'))
   it('stale when old', () => expect(connLabel({ ts: Date.now() - 120000 }).text).toBe('stale'))
 })
+
+import { heaterCmdSeq, heaterDesiredPending } from './contract.js'
+
+describe('heaterCmdSeq', () => {
+  it('reads reported.heater_desired_seq', () => {
+    expect(heaterCmdSeq({ reported: { heater_desired_seq: 7 } })).toBe(7)
+  })
+  it('defaults to 0', () => {
+    expect(heaterCmdSeq(null)).toBe(0)
+    expect(heaterCmdSeq({ reported: {} })).toBe(0)
+  })
+})
+
+describe('heaterDesiredPending', () => {
+  it('true when desired.heater present', () => {
+    expect(heaterDesiredPending({ desired: { heater: { on: 1 } } })).toBe(true)
+  })
+  it('false when absent', () => {
+    expect(heaterDesiredPending({ desired: {} })).toBe(false)
+    expect(heaterDesiredPending(null)).toBe(false)
+  })
+})

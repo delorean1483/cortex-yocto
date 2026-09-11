@@ -2,7 +2,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
 const mutate = vi.fn()
-vi.mock('../../data/hooks.js', () => ({ useCommand: () => ({ mutate, isPending: false }) }))
+vi.mock('../../data/hooks.js', () => ({
+  useCommand: () => ({ mutate, isPending: false }),
+  useShadow: () => ({ data: { reported: { heater_desired_seq: 0 }, desired: {} } }),
+}))
 vi.mock('../../contexts/AuthContext.jsx', () => ({ useAuth: () => ({ role: 'admin' }) }))
 
 import HeaterTab from './HeaterTab.jsx'

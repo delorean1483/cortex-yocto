@@ -51,6 +51,9 @@ export function useCommand() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ unit, body }) => api.sendCommand(unit, body),
-    onSuccess: (_r, { unit }) => qc.invalidateQueries({ queryKey: ['latest', unit] }),
+    onSuccess: (_r, { unit }) => {
+      qc.invalidateQueries({ queryKey: ['latest', unit] })
+      qc.invalidateQueries({ queryKey: ['shadow', unit] })
+    },
   })
 }
