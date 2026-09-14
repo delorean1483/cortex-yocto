@@ -135,6 +135,8 @@ export const mockApi = {
     return delay({ unit, shadow_version: 13, desired: body, message: 'Command queued (mock).' })
   },
 
+  getReleases: () => delay({ releases: ['1.2.40', '1.2.39', '1.2.38'], latest: '1.2.40' }),
+
   getReports: () => delay({
     totals: { runtime_hrs: 64200, fuel_saved_usd: 18400, mtbf_hrs: 812, fault_events: 14 },
     operators: [

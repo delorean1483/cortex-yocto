@@ -94,6 +94,12 @@ resource "aws_apigatewayv2_route" "fleet_reports" {
   target    = "integrations/${aws_apigatewayv2_integration.api.id}"
 }
 
+resource "aws_apigatewayv2_route" "fleet_releases" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /fleet/releases"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
 resource "aws_apigatewayv2_route" "fleet_users_list" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "GET /fleet/users"

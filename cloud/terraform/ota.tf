@@ -91,3 +91,21 @@ output "ota_bucket_base_url" {
   description = "Must match firmware OTA_BUNDLE_BASE_URL"
   value       = "https://${aws_s3_bucket.ota.bucket}.s3.amazonaws.com/releases"
 }
+
+# Let the API Lambda list available OTA releases for the dashboard Firmware tab
+# (GET /fleet/releases). List-only on the bucket; the device (not the API)
+# downloads the .swu bundles.
+resource "aws_iam_role_policy" "lambda_ota_list" {
+  name = "${var.project}-${var.env}-lambda-ota-list"
+  role = aws_iam_role.lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "OtaListReleases"
+      Effect   = "Allow"
+      Action   = ["s3:ListBucket"]
+      Resource = aws_s3_bucket.ota.arn
+    }]
+  })
+}

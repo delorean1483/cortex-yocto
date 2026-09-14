@@ -38,6 +38,15 @@ export function useFaults(unit) {
   })
 }
 
+export function useReleases() {
+  return useQuery({
+    queryKey: ['releases'],
+    queryFn: () => api.getReleases(),
+    staleTime: 60000,
+    select: (d) => ({ releases: d.releases || [], latest: d.latest || null }),
+  })
+}
+
 export function useShadow(unit) {
   return useQuery({
     queryKey: ['shadow', unit],
