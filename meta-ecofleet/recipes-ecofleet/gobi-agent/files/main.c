@@ -126,7 +126,7 @@ typedef struct {
 
 /* ── Global state ────────────────────────────────────────────────────────── */
 static volatile sig_atomic_t g_running = 1;
-static bool     g_mqtt_connected = false;
+static volatile bool g_mqtt_connected = false;
 static char     g_unit_serial[64] = {0};
 static char     g_modbus_device[64] = MODBUS_DEVICE_DEFAULT;
 static modbus_t *g_modbus = NULL;
@@ -812,6 +812,10 @@ int main(void)
         return EXIT_FAILURE;
     }
 
+    /* Reconnect with exponential backoff (5s → 60s) so a transient outage or a
+     * failed first connect keeps retrying instead of giving up. */
+    mosquitto_reconnect_delay_set(g_mosq, 5, 60, true);
+
     mosquitto_connect_callback_set(g_mosq,    on_connect);
     mosquitto_disconnect_callback_set(g_mosq, on_disconnect);
     mosquitto_message_callback_set(g_mosq,    on_message);
@@ -841,6 +845,15 @@ int main(void)
         /* Read poll interval from shadow config (updated live by delta msgs) */
         const shadow_config_t *scfg = shadow_get_config();
         int poll_s = scfg->poll_interval_s;
+
+        /* Self-heal the MQTT link. mosquitto_loop_start()'s automatic reconnect
+         * can wedge when the *first* connect fails — e.g. the TLS handshake is
+         * rejected because the RTC was unset at boot (clock in the year 2000),
+         * so the broker cert looks "not yet valid". Once the clock/network is
+         * good this re-attempt succeeds; telemetry is buffered to SQLite in the
+         * meantime, so nothing is lost while disconnected. */
+        if (!g_mqtt_connected)
+            mosquitto_reconnect_async(g_mosq);
 
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
