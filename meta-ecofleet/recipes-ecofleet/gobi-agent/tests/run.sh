@@ -15,6 +15,25 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g \
 
 "$here/test_weather"
 
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" "$here/test_bl_crc32.c" "$files/bl_crc32.c" -o "$here/test_bl_crc32" && "$here/test_bl_crc32"
+
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" "$here/test_bl_frame.c" "$files/bl_frame.c" -o "$here/test_bl_frame" && "$here/test_bl_frame"
+
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" "$here/test_bl_session.c" "$files/bl_session.c" "$files/bl_frame.c" "$files/bl_crc32.c" "$here/fake_bootloader.c" \
+   -o "$here/test_bl_session" && "$here/test_bl_session"
+
+cc -std=c11 -Wall -Wextra -Wpedantic -g \
+   -fsanitize=address,undefined \
+   -I"$files" -I"$cjson/include" \
+   "$here/test_stm32_update.c" "$files/stm32_update.c" \
+   -L"$cjson/lib" -lcjson \
+   -o "$here/test_stm32_update"
+
+"$here/test_stm32_update"
+
 # Host test runner for the pure heater field helpers (no cJSON dependency).
 cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -fsanitize=address,undefined \
