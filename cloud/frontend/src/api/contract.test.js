@@ -84,3 +84,43 @@ describe('heaterDesiredPending', () => {
     expect(heaterDesiredPending(null)).toBe(false)
   })
 })
+
+import { apuVersionLabel, apuFlashStateLabel } from './contract.js'
+
+describe('apuVersionLabel', () => {
+  // The STM32 reg 2 (apu_fw_version) is encoded major*10000 + minor*100 + patch.
+  it('decodes the encoded register int', () => {
+    expect(apuVersionLabel(10101)).toBe('1.1.1')   // v1.1.1
+    expect(apuVersionLabel(10240)).toBe('1.2.40')  // v1.2.40
+    expect(apuVersionLabel(20000)).toBe('2.0.0')
+  })
+  it('passes an already-human semver string through', () => {
+    expect(apuVersionLabel('1.1.1')).toBe('1.1.1')
+  })
+  it('dashes null/0/NaN', () => {
+    expect(apuVersionLabel(null)).toBe('—')
+    expect(apuVersionLabel(0)).toBe('—')
+    expect(apuVersionLabel(undefined)).toBe('—')
+    expect(apuVersionLabel('nope')).toBe('—')
+  })
+})
+
+describe('apuFlashStateLabel', () => {
+  it('labels the known states', () => {
+    expect(apuFlashStateLabel('idle').text).toBe('Idle')
+    expect(apuFlashStateLabel('flashing').text).toBe('Flashing…')
+    expect(apuFlashStateLabel('verifying').text).toBe('Verifying…')
+    expect(apuFlashStateLabel('done').text).toBe('Done')
+    expect(apuFlashStateLabel('failed').text).toBe('Failed')
+  })
+  it('flags in-progress vs terminal', () => {
+    expect(apuFlashStateLabel('flashing').busy).toBe(true)
+    expect(apuFlashStateLabel('verifying').busy).toBe(true)
+    expect(apuFlashStateLabel('done').busy).toBe(false)
+    expect(apuFlashStateLabel('failed').failed).toBe(true)
+  })
+  it('defaults empty/unknown to Idle', () => {
+    expect(apuFlashStateLabel(null).text).toBe('Idle')
+    expect(apuFlashStateLabel('weird').text).toBe('Idle')
+  })
+})

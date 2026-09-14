@@ -66,3 +66,34 @@ export function heaterCmdSeq(shadow) {
 export function heaterDesiredPending(shadow) {
   return !!(shadow?.desired && shadow.desired.heater)
 }
+
+// ── APU (STM32) firmware OTA view-model helpers ──────────────────────────────
+// The STM32 reg 2 (apu_fw_version) and the bundled version are encoded
+// major*10000 + minor*100 + patch (e.g. 10101 -> "1.1.1"). apu_bundled_fw_version
+// may instead arrive as an already-human semver string from the image manifest,
+// so accept both. Returns an em dash for missing/zero/unparseable values.
+export function apuVersionLabel(v) {
+  if (v == null) return '—'
+  if (typeof v === 'string') {
+    return /^\d+\.\d+\.\d+$/.test(v.trim()) ? v.trim() : '—'
+  }
+  const n = Number(v)
+  if (!Number.isFinite(n) || n <= 0) return '—'
+  const major = Math.floor(n / 10000)
+  const minor = Math.floor(n / 100) % 100
+  const patch = n % 100
+  return `${major}.${minor}.${patch}`
+}
+
+// apu_flash_state: idle | flashing | verifying | done | failed. Returns a label
+// plus flags the FirmwareTab uses to drive the pending→applied UI.
+export function apuFlashStateLabel(state) {
+  const map = {
+    idle:      { text: 'Idle',        busy: false, failed: false },
+    flashing:  { text: 'Flashing…',   busy: true,  failed: false },
+    verifying: { text: 'Verifying…',  busy: true,  failed: false },
+    done:      { text: 'Done',        busy: false, failed: false },
+    failed:    { text: 'Failed',      busy: false, failed: true  },
+  }
+  return map[state] || map.idle
+}

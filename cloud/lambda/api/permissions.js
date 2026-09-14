@@ -2,11 +2,17 @@
 
 // Role → write-action permission matrix + command-body validation.
 // Roles: admin, fm (fleet manager), maint (maintenance), eu (end user).
-// Actions: heater, setpoint, apu, diag, ota, users.
-
+// Actions: heater, setpoint, apu, diag, ota, apu_ota, users.
+//
+// `apu_ota` (flashing the STM32 APU-controller firmware over RS-485) is
+// declared here so the matrix stays in sync with the frontend mirror, but no
+// command maps to it yet: validateCommand does NOT accept `apu_firmware_target`
+// and commandActions does NOT emit `apu_ota`. Wiring that live trigger is scope
+// Phase 2, gated on the STM32 flash path being bench-validated + PR #18 merged
+// (docs/superpowers/specs/2026-09-14-apu-firmware-ota-control-scope.md).
 const MATRIX = {
-  admin: new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'users']),
-  fm:    new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'users']),
+  admin: new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'users']),
+  fm:    new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'users']),
   maint: new Set(['heater', 'setpoint', 'diag']),
   eu:    new Set([]),
 };

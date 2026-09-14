@@ -10,18 +10,25 @@ const check = (name, fn) => {
 };
 
 check('admin can do everything', () => {
-  for (const a of ['heater','setpoint','apu','diag','ota','users'])
+  for (const a of ['heater','setpoint','apu','diag','ota','apu_ota','users'])
     assert.strictEqual(canWrite('admin', a), true, a);
 });
 check('eu is read-only', () => {
-  for (const a of ['heater','setpoint','apu','diag','ota','users'])
+  for (const a of ['heater','setpoint','apu','diag','ota','apu_ota','users'])
     assert.strictEqual(canWrite('eu', a), false, a);
 });
-check('maint: heater/setpoint/diag yes, apu/ota no', () => {
+check('maint: heater/setpoint/diag yes, apu/ota/apu_ota no', () => {
   assert.strictEqual(canWrite('maint', 'heater'), true);
   assert.strictEqual(canWrite('maint', 'diag'), true);
   assert.strictEqual(canWrite('maint', 'apu'), false);
   assert.strictEqual(canWrite('maint', 'ota'), false);
+  assert.strictEqual(canWrite('maint', 'apu_ota'), false);
+});
+check('fm/admin can apu_ota, maint/eu cannot', () => {
+  assert.strictEqual(canWrite('fm', 'apu_ota'), true);
+  assert.strictEqual(canWrite('admin', 'apu_ota'), true);
+  assert.strictEqual(canWrite('maint', 'apu_ota'), false);
+  assert.strictEqual(canWrite('eu', 'apu_ota'), false);
 });
 check('unknown role denied', () => assert.strictEqual(canWrite('nobody', 'heater'), false));
 
@@ -47,6 +54,13 @@ check('ota firmware_target valid', () => {
   assert.strictEqual(r.ok, true);
   assert.deepStrictEqual(commandActions(r.desired), ['ota']);
 });
+check('apu_firmware_target NOT yet wired (scope Phase 2 — trigger inert)', () => {
+  // apu_ota exists in the matrix, but no command maps to it yet: an
+  // apu_firmware_target-only body is an unrecognized field and is rejected,
+  // so the APU flash trigger cannot fire server-side until Phase 2 wires it.
+  const r = validateCommand({ apu_firmware_target: '1.1.1' });
+  assert.strictEqual(r.ok, false);
+});
 check('empty command rejected', () => {
   assert.strictEqual(validateCommand({}).ok, false);
 });
@@ -62,5 +76,5 @@ check('fm allowed heater command', () => {
   assert.strictEqual(authorizeCommand('fm', { heater: { on: 1 } }).ok, true);
 });
 
-console.log(`\n${12 - failed}/12 checks passed`);
+console.log(`\n${14 - failed}/14 checks passed`);
 process.exit(failed === 0 ? 0 : 1);
