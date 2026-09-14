@@ -22,6 +22,7 @@ vi.mock('../data/hooks.js', () => ({
   useFaults: () => ({ data: [], isLoading: false }),
   useCommand: () => ({ mutate: vi.fn(), isPending: false }),
   useShadow: () => ({ data: null }),
+  useReleases: () => ({ data: { releases: [], latest: null }, isLoading: false, error: null }),
 }))
 vi.mock('../contexts/AuthContext.jsx', () => ({ useAuth: () => ({ role: 'admin' }) }))
 

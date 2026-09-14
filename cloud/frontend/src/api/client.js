@@ -76,6 +76,8 @@ export const realApi = {
 
   getLatest: (unit) => apiFetch(`/fleet/units/${encodeURIComponent(unit)}/latest`),
 
+  getReleases: () => apiFetch('/fleet/releases'),
+
   sendCommand: (unit, body) =>
     apiFetch(`/fleet/units/${encodeURIComponent(unit)}/command`, {
       method: 'POST', body: JSON.stringify(body),

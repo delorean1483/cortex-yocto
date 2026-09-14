@@ -6,6 +6,7 @@ const { CognitoIdentityProviderClient, InitiateAuthCommand,
         AdminSetUserPasswordCommand, ListUsersCommand }            = require('@aws-sdk/client-cognito-identity-provider');
 const { IoTDataPlaneClient, GetThingShadowCommand,
         UpdateThingShadowCommand }                                  = require('@aws-sdk/client-iot-data-plane');
+const { S3Client, ListObjectsV2Command }                           = require('@aws-sdk/client-s3');
 const { DynamoDBClient }                                           = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, PutCommand, QueryCommand,
         GetCommand, DeleteCommand, UpdateCommand, ScanCommand }    = require('@aws-sdk/lib-dynamodb');
@@ -16,6 +17,7 @@ const { mapTelemetryRow }                                          = require('./
 const { validateCommand, authorizeCommand }                        = require('./permissions');
 const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./demo');
 const { buildReports }                                             = require('./reports-view');
+const { parseReleases }                                            = require('./releases-view');
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const REGION            = process.env.AWS_REGION || 'us-east-1';
@@ -25,6 +27,7 @@ const POOL_ID           = process.env.COGNITO_USER_POOL_ID;
 const CLIENT_ID         = process.env.COGNITO_CLIENT_ID;
 const MAINTENANCE_TABLE = process.env.MAINTENANCE_TABLE || 'ecofleet-prod-maintenance';
 const USERS_TABLE       = process.env.USERS_TABLE       || 'ecofleet-prod-users';
+const OTA_BUCKET        = process.env.OTA_BUCKET        || 'ecofleet-ota';
 const JWT_EXPIRY        = '1h';
 
 // ── AWS clients ───────────────────────────────────────────────────────────────
@@ -36,6 +39,7 @@ const iotdata = new IoTDataPlaneClient({
 });
 const ddbRaw  = new DynamoDBClient({ region: REGION });
 const ddb     = DynamoDBDocumentClient.from(ddbRaw);
+const s3      = new S3Client({ region: REGION });
 
 // ── Secret cache ──────────────────────────────────────────────────────────────
 let _jwtSecret   = null;
@@ -614,6 +618,18 @@ async function handleGetReports(event) {
   return resp(200, { start: safeStart, generated_at: Date.now(), ...report });
 }
 
+// GET /fleet/releases — real OTA bundles available in S3 (for the Firmware tab)
+async function handleGetReleases() {
+  const res = await s3.send(new ListObjectsV2Command({
+    Bucket: OTA_BUCKET,
+    Prefix: 'releases/',
+    Delimiter: '/',
+  }));
+  const prefixes = (res.CommonPrefixes || []).map((p) => p.Prefix);
+  const { releases, latest } = parseReleases(prefixes);
+  return resp(200, { releases, latest });
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 exports.handler = async (event) => {
   const method = event.requestContext?.http?.method || event.httpMethod || '';
@@ -634,6 +650,7 @@ exports.handler = async (event) => {
     if (method === 'GET'  && path.endsWith('/fleet/users'))    return await handleListUsers(claims);
     if (method === 'POST' && path.endsWith('/fleet/users'))    return await handleCreateUser(event, claims);
     if (method === 'GET'  && path.endsWith('/fleet/reports'))  return await handleGetReports(event);
+    if (method === 'GET'  && path.endsWith('/fleet/releases')) return await handleGetReleases();
 
     if (path.includes('/fleet/units/')) {
       if (path.endsWith('/latest'))       return await handleGetLatest(event);
