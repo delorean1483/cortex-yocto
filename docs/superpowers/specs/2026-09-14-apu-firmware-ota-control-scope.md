@@ -1,7 +1,24 @@
 # APU (STM32) Firmware OTA — Dashboard Control (Scope)
 
 **Date:** 2026-09-14
-**Status:** Scoped / **BLOCKED on the STM32 flash path being live** (see Dependencies)
+**Status:** Scoped + **read-only scaffold landed** (this PR) / live flash trigger
+still **BLOCKED on the STM32 flash path being bench-validated** (see Dependencies).
+
+**Update 2026-09-14 — scaffold in this PR (behind `APU_OTA_ENABLED = false`):**
+- `apu_ota` permission added to the frontend mirror **and** the authoritative
+  api Lambda matrix (admin/fm). No command maps to it yet — `apu_firmware_target`
+  is still rejected server-side (guard-tested), so the trigger is inert.
+- `apuVersionLabel` / `apuFlashStateLabel` contract helpers (decode the encoded
+  reg-2 int → human semver; label the flash state).
+- FirmwareTab "APU controller firmware" card: read-only Current/Bundled/state
+  now; the role/demo/engine-gated **Flash** button + stern confirm are written
+  but rendered only when `APU_OTA_ENABLED` flips true.
+
+**To finish (gated — do NOT flip the flag until Phase 0 is done):** Phase 1
+(agent publishes `apu_bundled_fw_version` + `apu_flash_state`/`_seq`, accepts
+`desired.apu_firmware_target`), Phase 2 (backend `validateCommand`/`commandActions`
+accept `apu_firmware_target` under `apu_ota`), then set `APU_OTA_ENABLED = true`
+and bench-verify (Phase 4).
 
 ---
 
@@ -90,8 +107,12 @@ Add an **"APU controller firmware"** section below the existing image OTA block:
    the real APU `.bin` into the image.
 1. **Contract**: agent publishes `apu_bundled_fw_version` + `apu_flash_state`/
    `apu_flash_seq`; accepts `desired.apu_firmware_target`. (firmware/agent change)
-2. **Backend**: `apu_ota` permission + command validation.
-3. **Frontend**: FirmwareTab APU section (guarded + confirm + pending/applied).
+   — **TODO** (gated on Phase 0).
+2. **Backend**: `apu_ota` permission ✅ (done, this PR) + command validation
+   (`apu_firmware_target`) — **TODO** (Phase 2).
+3. **Frontend**: FirmwareTab APU section — read-only status ✅ + guarded/confirm
+   Flash button written behind `APU_OTA_ENABLED` ✅ (this PR); flip the flag +
+   pending/applied wiring on `apu_flash_seq` — **TODO** once Phases 0–2 land.
 4. **Deploy + bench-verify** on a real MCU (flash → verify → auto-revert path).
 
 ## Open questions
