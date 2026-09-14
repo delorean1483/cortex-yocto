@@ -84,6 +84,10 @@ Item {
                     Text { anchors.centerIn: parent; text: modelData.k; color: sel?Theme.accentBlue:Theme.textDim; font.weight: Font.Bold }
                     MouseArea { anchors.fill: parent; onClicked: home.pickPreset(modelData.v) } } }
         }
+        // 3b. heater card — hidden entirely on firmware without the heater block
+        // (heaterPresent:false), height-capped like the fan-preset row above so
+        // it can never steal the body RowLayout's fillHeight space.
+        HeaterCard { Layout.fillWidth: true; Layout.preferredHeight: 72; Layout.maximumHeight: 72 }
         // 4. divider + passive stats
         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.border }
         RowLayout { Layout.fillWidth: true; spacing: 16

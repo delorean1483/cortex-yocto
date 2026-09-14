@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconBolt } from '@tabler/icons-react'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
+import logo from '../assets/ecofleet_logo.svg'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
@@ -31,14 +31,11 @@ export default function LoginPage() {
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-secondary)' }}>
       <div style={{ width: 340, background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 12, padding: '28px 28px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <IconBolt size={20} color="#fff" />
-          </div>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>EcoFleet</div>
-            <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>Fleet management dashboard</div>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+          <span className="brand-logo-wrap">
+            <img src={logo} alt="EcoFleet" style={{ height: 72 }} />
+          </span>
+          <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>Fleet management dashboard</div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -67,7 +64,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="btn btn-amber" style={{ marginTop: 4, justifyContent: 'center', padding: '8px 0', fontSize: 13 }}>
+          <button type="submit" disabled={loading} className="btn btn-primary" style={{ marginTop: 4, justifyContent: 'center', padding: '8px 0', fontSize: 13 }}>
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>

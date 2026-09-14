@@ -12,6 +12,7 @@
 #include "config.h"
 #include "shadow.h"
 #include "stm32_flash_task.h"
+#include "heater_fields.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,12 +98,36 @@ typedef struct {
     uint16_t diag_outputs;   /* reg 41  energized-output bitmask (best-effort) */
     bool     fan_auto;       /* reg 9   auto-fan flag 0/1 (best-effort) */
     uint16_t fw_version;     /* reg 2   APU firmware version, encoded (best-effort) */
+
+    /* VEVOR heater (Sub-project #1 firmware, frozen regs 53..67, all
+     * best-effort). heater_present is derived from an ACTUAL successful read
+     * of REG_HEATER_STATE, not from register values — a present-but-off
+     * heater whose registers read all-zero is still heater_present=true;
+     * heater_present=false only when the block itself is absent (old
+     * firmware, exception 0x02). */
+    bool     heater_present;      /* derived from state-read success  */
+    uint16_t heater_request;      /* reg 53  0/1                      */
+    uint16_t heater_target_level; /* reg 54  1..10                    */
+    uint16_t heater_state;        /* reg 55                           */
+    uint16_t heater_active_level; /* reg 56                           */
+    uint16_t heater_error;        /* reg 57                           */
+    uint16_t heater_supply_mv;    /* reg 58                           */
+    uint16_t heater_fan_rpm;      /* reg 59                           */
+    uint16_t heater_pump_hz_x10;  /* reg 60                           */
+    uint16_t heater_exchanger;    /* reg 61                           */
+    uint16_t heater_state_secs;   /* reg 62                           */
+    uint16_t heater_age_ms;       /* reg 63                           */
+    uint16_t heater_flags;        /* reg 64                           */
+    uint16_t heater_valid_frames; /* reg 65                           */
+    uint16_t heater_csum_fail;    /* reg 66                           */
+    uint16_t heater_xport_err;    /* reg 67                           */
+
     uint64_t ts_ms;
 } telemetry_t;
 
 /* ── Global state ────────────────────────────────────────────────────────── */
 static volatile sig_atomic_t g_running = 1;
-static bool     g_mqtt_connected = false;
+static volatile bool g_mqtt_connected = false;
 static char     g_unit_serial[64] = {0};
 static char     g_modbus_device[64] = MODBUS_DEVICE_DEFAULT;
 static modbus_t *g_modbus = NULL;
@@ -436,27 +461,66 @@ static int modbus_read_telemetry(telemetry_t *t)
     return 0;
 }
 
-/* Best-effort single-register read: returns the register value on success,
- * or dflt if the register is unbound on old firmware (exception 0x02) or the
- * read otherwise fails. Unlike RD() in modbus_read_telemetry(), this never
- * returns -1 / drives the reconnect path — modbus_read_telemetry remains the
- * sole link-health authority. Used for optional registers that may be
- * absent on older firmware (Component Test diag regs, fan_auto). */
-static uint16_t modbus_read_reg_besteffort(modbus_t *ctx, int wire_addr, uint16_t dflt)
+/* Best-effort single-register read that also reports whether the read
+ * actually succeeded via *ok (NULL if the caller doesn't care). Returns the
+ * register value on success, or dflt if the register is unbound on old
+ * firmware (exception 0x02) or the read otherwise fails. Unlike RD() in
+ * modbus_read_telemetry(), this never returns -1 / drives the reconnect
+ * path — modbus_read_telemetry remains the sole link-health authority.
+ * Needed where the caller must distinguish "read a genuine zero" from
+ * "register unbound/read failed, returned the default" — e.g. deriving
+ * heater_present from an actual successful read rather than from the value
+ * read (a present-but-off heater reads all-zero but must still report
+ * present). */
+static uint16_t modbus_read_reg_besteffort_ok(modbus_t *ctx, int wire_addr,
+                                               uint16_t dflt, bool *ok)
 {
     uint16_t v;
-    return (modbus_read_registers(ctx, wire_addr, 1, &v) == 1) ? v : dflt;
+    int rc = modbus_read_registers(ctx, wire_addr, 1, &v);
+    if (ok) *ok = (rc == 1);
+    return (rc == 1) ? v : dflt;
 }
 
-/* Best-effort telemetry: Component Test diag regs, fan_auto, and fw_version
- * are optional. A failure here (unbound on old firmware, or a transient)
- * leaves the field at its default and never forces a reconnect. */
+/* Best-effort single-register read: returns the register value on success,
+ * or dflt if the register is unbound on old firmware (exception 0x02) or the
+ * read otherwise fails. Thin wrapper over modbus_read_reg_besteffort_ok()
+ * for callers that don't need the success flag. Used for optional registers
+ * that may be absent on older firmware (Component Test diag regs, fan_auto). */
+static uint16_t modbus_read_reg_besteffort(modbus_t *ctx, int wire_addr, uint16_t dflt)
+{
+    return modbus_read_reg_besteffort_ok(ctx, wire_addr, dflt, NULL);
+}
+
+/* Best-effort telemetry: Component Test diag regs, fan_auto, fw_version, and
+ * the VEVOR heater block are optional. A failure here (unbound on old
+ * firmware, or a transient) leaves the field at its default and never forces
+ * a reconnect. */
 static void modbus_read_besteffort(telemetry_t *t)
 {
     t->diag_mode    = (uint8_t)  modbus_read_reg_besteffort(g_modbus, REG_DIAG_MODE,   0);
     t->diag_outputs =            modbus_read_reg_besteffort(g_modbus, REG_DIAG_STATUS, 0);
     t->fan_auto     = modbus_read_reg_besteffort(g_modbus, REG_FAN_AUTO, 0) ? true : false;
     t->fw_version   =            modbus_read_reg_besteffort(g_modbus, REG_FW_VERSION,  0);
+
+    /* VEVOR heater block (fw regs 53..67) — absent on firmware without the
+     * heater feature (read fails with exception 0x02 on every register). */
+    bool heater_ok = false;
+    t->heater_state = modbus_read_reg_besteffort_ok(g_modbus, REG_HEATER_STATE, 0, &heater_ok);
+    t->heater_present      = heater_ok;
+    t->heater_request      = modbus_read_reg_besteffort(g_modbus, REG_HEATER_REQUEST,     0);
+    t->heater_target_level = modbus_read_reg_besteffort(g_modbus, REG_HEATER_LEVEL,       0);
+    t->heater_active_level = modbus_read_reg_besteffort(g_modbus, REG_HEATER_ACTIVE_LVL,  0);
+    t->heater_error        = modbus_read_reg_besteffort(g_modbus, REG_HEATER_ERROR,       0);
+    t->heater_supply_mv    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_SUPPLY_MV,   0);
+    t->heater_fan_rpm      = modbus_read_reg_besteffort(g_modbus, REG_HEATER_FAN_RPM,     0);
+    t->heater_pump_hz_x10  = modbus_read_reg_besteffort(g_modbus, REG_HEATER_PUMP_HZ_X10, 0);
+    t->heater_exchanger    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_EXCH_RAW,    0);
+    t->heater_state_secs   = modbus_read_reg_besteffort(g_modbus, REG_HEATER_STATE_SECS,  0);
+    t->heater_age_ms       = modbus_read_reg_besteffort(g_modbus, REG_HEATER_AGE_MS,      0);
+    t->heater_flags        = modbus_read_reg_besteffort(g_modbus, REG_HEATER_FLAGS,       0);
+    t->heater_valid_frames = modbus_read_reg_besteffort(g_modbus, REG_HEATER_VALID_FR,    0);
+    t->heater_csum_fail    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_CSUM_FAIL,   0);
+    t->heater_xport_err    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_XPORT_ERR,   0);
 }
 
 /* ── JSON payload builders ───────────────────────────────────────────────── */
@@ -500,6 +564,28 @@ static char *build_telemetry_json(const telemetry_t *t)
     cJSON_AddStringToObject(root, "stm32_update_status", stu_status_str(stm32_flash_status()));
     cJSON_AddNumberToObject(root, "stm32_update_pct", stm32_flash_status_pct());
 
+    /* VEVOR heater (best-effort; heater_present=false on firmware without
+     * the block — every heater register then reads its zero default). */
+    cJSON_AddBoolToObject  (root, "heater_present",       t->heater_present);
+    cJSON_AddStringToObject(root, "heater_state",         heater_state_name(t->heater_state));
+    cJSON_AddNumberToObject(root, "heater_target_level",  t->heater_target_level);
+    cJSON_AddNumberToObject(root, "heater_active_level",  t->heater_active_level);
+    cJSON_AddNumberToObject(root, "heater_error",         t->heater_error);
+    cJSON_AddNumberToObject(root, "heater_supply_v",      heater_supply_volts(t->heater_supply_mv));
+    cJSON_AddNumberToObject(root, "heater_fan_rpm",       t->heater_fan_rpm);
+    cJSON_AddNumberToObject(root, "heater_pump_hz",       heater_pump_hz(t->heater_pump_hz_x10));
+    cJSON_AddNumberToObject(root, "heater_exchanger",     t->heater_exchanger);
+    cJSON_AddNumberToObject(root, "heater_state_seconds", t->heater_state_secs);
+    cJSON_AddNumberToObject(root, "heater_age_ms",        t->heater_age_ms);
+    cJSON_AddNumberToObject(root, "heater_flags",         t->heater_flags);
+    cJSON_AddBoolToObject  (root, "heater_safe_off",
+        heater_safe_off(t->heater_flags));
+    cJSON_AddBoolToObject  (root, "heater_comms_ok",
+        heater_comms_ok(t->heater_flags));
+    cJSON_AddNumberToObject(root, "heater_valid_frames",      t->heater_valid_frames);
+    cJSON_AddNumberToObject(root, "heater_checksum_failures", t->heater_csum_fail);
+    cJSON_AddNumberToObject(root, "heater_transport_errors",  t->heater_xport_err);
+
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     return json;
@@ -542,14 +628,21 @@ static void write_latest_snapshot(const char *payload)
  * it. Called from the telemetry thread so the libmodbus context is never
  * touched concurrently. Register numbers are 1-based; the wire address is
  * (reg - 1). Best-effort: a bad file or a failed write is logged and the file
- * removed so it can't wedge the queue. */
-static void mb_write_reg(int reg1based, int value, const char *what)
+ * removed so it can't wedge the queue.
+ *
+ * Returns 0 on a successful write, -1 on failure. The local command-file
+ * callers below all ignore this (fire-and-forget, matching prior behaviour
+ * unchanged); the shadow heater apply path uses it to decide whether to ack
+ * the pending command or leave it pending for a retry next cycle. */
+static int mb_write_reg(int reg1based, int value, const char *what)
 {
-    if (modbus_write_register(g_modbus, reg1based - 1, value) == 1)
+    if (modbus_write_register(g_modbus, reg1based - 1, value) == 1) {
         syslog(LOG_INFO, "control: %s -> reg %d = %d", what, reg1based, value);
-    else
-        syslog(LOG_WARNING, "control: %s write reg %d failed: %s",
-               what, reg1based, modbus_strerror(errno));
+        return 0;
+    }
+    syslog(LOG_WARNING, "control: %s write reg %d failed: %s",
+           what, reg1based, modbus_strerror(errno));
+    return -1;
 }
 
 static void apply_command_file(void)
@@ -632,6 +725,20 @@ static void apply_command_file(void)
         else syslog(LOG_WARNING, "control: bad diag_out 0x%04x", v);
     }
 
+    /* heater_on -> reg 53 (heater_request, 0|1) */
+    const cJSON *hon = cJSON_GetObjectItemCaseSensitive(root, "heater_on");
+    if (cJSON_IsNumber(hon)) {
+        int v = (int)hon->valuedouble;
+        if (v == 0 || v == 1) mb_write_reg(53, v, "heater_on");
+    }
+
+    /* heater_level -> reg 54 (1..10) */
+    const cJSON *hlv = cJSON_GetObjectItemCaseSensitive(root, "heater_level");
+    if (cJSON_IsNumber(hlv)) {
+        int v = (int)hlv->valuedouble;
+        if (v >= 1 && v <= 10) mb_write_reg(54, v, "heater_level");
+    }
+
     cJSON_Delete(root);
 }
 
@@ -710,6 +817,10 @@ int main(void)
         return EXIT_FAILURE;
     }
 
+    /* Reconnect with exponential backoff (5s → 60s) so a transient outage or a
+     * failed first connect keeps retrying instead of giving up. */
+    mosquitto_reconnect_delay_set(g_mosq, 5, 60, true);
+
     mosquitto_connect_callback_set(g_mosq,    on_connect);
     mosquitto_disconnect_callback_set(g_mosq, on_disconnect);
     mosquitto_message_callback_set(g_mosq,    on_message);
@@ -739,6 +850,15 @@ int main(void)
         /* Read poll interval from shadow config (updated live by delta msgs) */
         const shadow_config_t *scfg = shadow_get_config();
         int poll_s = scfg->poll_interval_s;
+
+        /* Self-heal the MQTT link. mosquitto_loop_start()'s automatic reconnect
+         * can wedge when the *first* connect fails — e.g. the TLS handshake is
+         * rejected because the RTC was unset at boot (clock in the year 2000),
+         * so the broker cert looks "not yet valid". Once the clock/network is
+         * good this re-attempt succeeds; telemetry is buffered to SQLite in the
+         * meantime, so nothing is lost while disconnected. */
+        if (!g_mqtt_connected)
+            mosquitto_reconnect_async(g_mosq);
 
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
@@ -785,7 +905,53 @@ int main(void)
             };
             strncpy(srep.apu_state, status_name(t.control_status), sizeof(srep.apu_state) - 1);
             snprintf(srep.fault, sizeof(srep.fault), "0x%04X", t.error);
+
+            /* VEVOR heater block — mirrors build_telemetry_json()'s heater_*
+             * derivations exactly (heater_level is the ACTIVE level, not the
+             * target). heater_present gates whether shadow_publish_reported()
+             * emits the "heater" sub-object at all — heaterless units must
+             * not publish it. */
+            srep.heater_present = t.heater_present;
+            strncpy(srep.heater_state, heater_state_name(t.heater_state),
+                    sizeof(srep.heater_state) - 1);
+            srep.heater_level   = t.heater_active_level;
+            srep.heater_error   = t.heater_error;
+            srep.heater_fan_rpm = t.heater_fan_rpm;
+            srep.heater_safe_off = heater_safe_off(t.heater_flags);
+            srep.heater_comms_ok = heater_comms_ok(t.heater_flags);
+
             shadow_publish_reported(g_mosq, &srep);
+
+            /* Heater-scoped remote start/stop/level via AWS shadow desired
+             * state. This is a deliberate, narrower remote-control surface
+             * than the deferred whole-APU apu_command (see on_shadow_config()
+             * below). `on` and `level` are independently optional — each is
+             * only written if actually provided (>= its valid floor; -1 =
+             * "not provided", from shadow.c's apply_desired()) — so a bare
+             * remote stop ({"on":0}) is never dropped for lack of a level.
+             * Level is written before the on/off transition so a combined
+             * start+level lands together. Ack (which clears the pending
+             * command and nulls the cloud desired.heater) fires only if every
+             * write issued here succeeded — same idiom as apu_command: on a
+             * failed Modbus write the command stays pending and is retried
+             * next cycle, so a remote stop is never dropped on a transient
+             * RS-485 error.
+             *
+             * The peek→write→ack sequence spans the (slow) Modbus writes
+             * with the mutex released, so a new desired.heater command can
+             * land via the MQTT thread in that window. The seq captured by
+             * peek is passed to ack so the ack only clears the command that
+             * was actually applied here — if a newer one arrived meanwhile,
+             * ack is a no-op and the newer command is retried next cycle
+             * instead of being wiped. */
+            int hon, hlvl;
+            unsigned hseq;
+            if (shadow_peek_heater_cmd(&hon, &hlvl, &hseq)) {
+                int rc = 0;
+                if (hlvl >= 1) rc |= mb_write_reg(54, hlvl, "heater_level(shadow)");
+                if (hon  >= 0) rc |= mb_write_reg(53, hon,  "heater_on(shadow)");
+                if (rc == 0) shadow_ack_heater_cmd(hseq);
+            }
 
         } else {
             /* Modbus read failed — try reconnecting the serial port */

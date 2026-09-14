@@ -9,6 +9,8 @@ SRC_URI = " \
     file://shadow.c \
     file://shadow.h \
     file://config.h \
+    file://heater_fields.h \
+    file://heater_fields.c \
     file://weather.h \
     file://weather.c \
     file://weather-fetch.c \

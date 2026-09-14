@@ -1,13 +1,20 @@
 [Unit]
 Description=EcoFleet Gobi APU telemetry agent
 Documentation=https://github.com/your-org/ecofleet-firmware
-After=network.target
-Wants=network.target
+# Wait for real connectivity AND a synced clock: the AWS IoT TLS handshake
+# rejects the broker cert as "not yet valid" if the RTC is unset at boot
+# (clock defaults to the year 2000), which leaves MQTT permanently stuck.
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
 
 [Service]
 Type=simple
 User=ecofleet
 Group=dialout
+# Belt-and-suspenders in case time-sync.target is reached before the clock is
+# actually corrected: don't start the agent until the year is sane (or 120s
+# elapses, so a genuinely offline unit still comes up and buffers locally).
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ "$(date +%%Y)" -ge 2024 ] && exit 0; sleep 2; done; exit 0'
 ExecStart=/usr/sbin/gobi-agent
 Restart=always
 RestartSec=10

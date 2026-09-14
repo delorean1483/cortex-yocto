@@ -14,10 +14,20 @@ QtObject {
         property string controlStatus: "Cooling"
         property string error: "";        property bool   hasError: false
         property string oilChange: "good"; property bool  stale: false
+        // heater (VEVOR XMZ-F-D5) read-API mock, mirrors TelemetryModel's heater* Q_PROPERTYs
+        property bool   heaterPresent: true;   property string heaterState: "running"
+        property int    heaterTargetLevel: 5;  property int    heaterActiveLevel: 5
+        property int    heaterError: 0;        property int    heaterFanRpm: 2600
+        property real   heaterSupplyV: 12.6;   property int    heaterExchanger: 180
+        property int    heaterStateSeconds: 0; property int    heaterAgeMs: 0
+        property bool   heaterSafeOff: false;  property bool   heaterCommsOk: true
+        property int    heaterFlags: 0
         function setMode(m) { mode = m }
         function setSetpoint(f) { clmtSetpointF = f }
         function setFan(p) { fanSpeed = p }
         function resetOil() { oilHrs = 0 }
+        function setHeaterOn(v) {}
+        function setHeaterLevel(v) {}
     }
     property QtObject devinfo: QtObject {
         property string serial: "APU-DEMO-0001"; property string hostname: "gobi-apu"

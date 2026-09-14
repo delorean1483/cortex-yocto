@@ -83,6 +83,29 @@ resource "aws_instance" "influxdb" {
     systemctl enable influxdb
     systemctl start influxdb
 
+    # Wait for influxd to accept connections.
+    for i in $(seq 1 60); do
+      curl -sf http://localhost:8086/health && break
+      sleep 2
+    done
+
+    # Idempotent first-run setup so a fresh instance is fully usable without
+    # manual steps: org=ecofleet, bucket=telemetry (90d), faults (365d), and the
+    # admin token the Lambdas read from Secrets Manager. The admin UI password is
+    # throwaway (only the token is used programmatically). `influx org list`
+    # succeeds only once configured, so this block runs at most once.
+    if ! influx org list >/dev/null 2>&1; then
+      influx setup --force \
+        --org ecofleet \
+        --bucket telemetry \
+        --retention 2160h \
+        --username admin \
+        --password "$(openssl rand -base64 24)" \
+        --token "${var.influx_token}"
+      influx bucket create --name faults --org ecofleet --retention 8760h \
+        --token "${var.influx_token}" || true
+    fi
+
     # Install SSM agent
     snap install amazon-ssm-agent --classic
     systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent
@@ -92,6 +115,18 @@ resource "aws_instance" "influxdb" {
   tags = {
     Name    = "${var.project}-${var.env}-influxdb"
     Project = var.project
+  }
+
+  # InfluxDB is a stateful pet: its data lives on this instance's root volume.
+  # - prevent_destroy: terraform must never destroy/replace it (a replace wipes
+  #   telemetry; recover from the DLM EBS snapshots if the box is ever lost).
+  # - ignore_changes: the AMI is `most_recent` (drifts as Canonical publishes new
+  #   images) and would otherwise force replacement; user_data/root_block_device
+  #   are ignored so config edits and out-of-band volume restores don't trigger
+  #   a replace. To intentionally rebuild, remove prevent_destroy deliberately.
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [ami, user_data, root_block_device]
   }
 }
 

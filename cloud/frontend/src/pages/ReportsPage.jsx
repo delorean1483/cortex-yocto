@@ -1,105 +1,77 @@
 import { useState, useEffect } from 'react'
-import { IconRefresh, IconChartBar } from '@tabler/icons-react'
+import { IconRefresh } from '@tabler/icons-react'
 import { api } from '../api/client.js'
 
 const RANGES = [
-  { label: '24 h',   value: '-1d' },
+  { label: '24 h', value: '-1d' },
   { label: '7 days', value: '-7d' },
-  { label: '30 days',value: '-30d' },
+  { label: '30 days', value: '-30d' },
 ]
 
-function fmt(v, digits = 1) {
+function money(v) {
   if (v == null) return '—'
-  return Number(v).toFixed(digits)
+  return v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`
 }
+function num(v) { return v == null ? '—' : Number(v).toLocaleString() }
 
 export default function ReportsPage() {
-  const [start, setStart]     = useState('-7d')
-  const [data, setData]       = useState(null)
+  const [start, setStart] = useState('-7d')
+  const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState('')
+  const [error, setError] = useState('')
 
   useEffect(() => { fetchReport() }, [start])
 
   async function fetchReport() {
-    setLoading(true)
-    setError('')
-    try {
-      const d = await api.getReports({ start })
-      setData(d)
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
+    setLoading(true); setError('')
+    try { setData(await api.getReports({ start })) }
+    catch (e) { setError(e.message) }
+    finally { setLoading(false) }
   }
 
-  const units = data?.units || []
+  const totals = data?.totals
+  const operators = data?.operators || []
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {RANGES.map(r => (
-            <button key={r.value}
-              className={`btn btn-sm${start === r.value ? ' btn-amber' : ''}`}
-              onClick={() => setStart(r.value)}>
-              {r.label}
-            </button>
-          ))}
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        {RANGES.map(r => (
+          <button key={r.value}
+            className={`btn btn-sm${start === r.value ? ' btn-primary' : ''}`}
+            onClick={() => setStart(r.value)}>{r.label}</button>
+        ))}
         <button className="btn btn-sm" onClick={fetchReport} style={{ marginLeft: 4 }}>
           <IconRefresh size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
           Refresh
         </button>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        {data && (
-          <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginLeft: 'auto' }}>
-            Generated {new Date(data.generated_at).toLocaleTimeString()}
-          </span>
-        )}
       </div>
 
-      {error && <div className="notice" style={{ fontSize: 12, color: '#E24B4A' }}>{error}</div>}
+      {error && <div className="notice" style={{ color: '#E24B4A' }}>⚠ {error}</div>}
 
-      {loading && <div className="notice" style={{ fontSize: 11 }}>Running queries…</div>}
-
-      {!loading && units.length === 0 && !error && (
-        <div className="notice" style={{ fontSize: 11 }}>No telemetry data for this period.</div>
+      {loading && !data && (
+        <div className="sgrid">{[1, 2, 3, 4].map(i => <div key={i} className="skeleton" style={{ height: 62 }} />)}</div>
       )}
 
-      {!loading && units.length > 0 && (
-        <div className="card" style={{ padding: 0 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr style={{ borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-                {['Unit', 'Runtime (hrs)', 'Avg DC V', 'Avg SOC %', 'Faults'].map(h => (
-                  <th key={h} style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10.5, color: 'var(--color-text-tertiary)', fontWeight: 500 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
+      {totals && (
+        <div className="sgrid">
+          <div className="scard"><div className="scard-lbl">Total runtime</div><div className="scard-val">{num(totals.runtime_hrs)}<span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}> h</span></div></div>
+          <div className="scard"><div className="scard-lbl">Fuel saved</div><div className="scard-val" style={{ color: 'var(--brand-green-text)' }}>{money(totals.fuel_saved_usd)}</div></div>
+          <div className="scard"><div className="scard-lbl">MTBF</div><div className="scard-val">{num(totals.mtbf_hrs)}<span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}> h</span></div></div>
+          <div className="scard"><div className="scard-lbl">Fault events</div><div className="scard-val">{num(totals.fault_events)}</div></div>
+        </div>
+      )}
+
+      {operators.length > 0 && (
+        <div>
+          <div className="sec-hd"><span className="sec-title">Operator activity</span><span className="sec-sub">selected period</span></div>
+          <table className="dtbl">
+            <thead><tr><th>Operator</th><th>Fleet</th><th>Starts</th><th>Stops</th><th>FW updates</th></tr></thead>
             <tbody>
-              {units.map(u => (
-                <tr key={u.unit} style={{ borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-                  <td style={tdStyle}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <IconChartBar size={12} style={{ color: 'var(--color-text-tertiary)' }} />
-                      <span style={{ fontWeight: 500 }}>{u.unit}</span>
-                    </div>
-                  </td>
-                  <td style={tdStyle}>{fmt(u.runtime_hrs, 1)}</td>
-                  <td style={{ ...tdStyle, color: u.avg_dc_v != null && u.avg_dc_v < 25.5 ? '#BA7517' : 'inherit' }}>
-                    {fmt(u.avg_dc_v)} V
-                  </td>
-                  <td style={{ ...tdStyle, color: u.avg_batt_soc != null && u.avg_batt_soc < 30 ? '#BA7517' : 'inherit' }}>
-                    {fmt(u.avg_batt_soc)} %
-                  </td>
-                  <td style={tdStyle}>
-                    {u.fault_count > 0
-                      ? <span className="pill p-r">{u.fault_count}</span>
-                      : <span className="pill p-g">0</span>
-                    }
-                  </td>
+              {operators.map((o, i) => (
+                <tr key={i}>
+                  <td>{o.operator}</td><td>{o.fleet}</td>
+                  <td>{o.starts}</td><td>{o.stops}</td><td>{o.fw_updates}</td>
                 </tr>
               ))}
             </tbody>
@@ -107,13 +79,9 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {!loading && units.length > 0 && (
-        <div style={{ fontSize: 10.5, color: 'var(--color-text-tertiary)' }}>
-          Runtime shows the last recorded cumulative total. Averages computed from telemetry samples in the selected window.
-        </div>
+      {!loading && !totals && !error && (
+        <div className="notice">No report data for this period.</div>
       )}
     </>
   )
 }
-
-const tdStyle = { padding: '8px 12px', verticalAlign: 'middle' }

@@ -32,6 +32,13 @@ typedef struct {
     char     apu_command[8];     /* one-shot: "start" | "stop" | "" — applied by the
                                   * telemetry loop, then cleared via
                                   * shadow_ack_apu_command() once it lands */
+    bool     heater_desired_valid; /* true while at least one of heater_on /
+                                    * heater_level from desired.heater is
+                                    * pending application */
+    int      heater_on;          /* pending: 0|1, or -1 = not provided/invalid —
+                                  * applied to reg 53 only when >= 0             */
+    int      heater_level;       /* pending: 1..10, or -1 = not provided/invalid —
+                                  * applied to reg 54 only when >= 1             */
 } shadow_config_t;
 
 /* ── Reported telemetry fields included in shadow update ────────────────── */
@@ -42,6 +49,20 @@ typedef struct {
     char     fault[10];          /* hex string, e.g. "0x0000"                    */
     char     firmware_version[32];
     uint64_t last_seen_ts;       /* epoch ms                                     */
+
+    /* VEVOR heater (Sub-project #1 firmware, frozen regs 53..67) — mirrors
+     * the heater_* fields in build_telemetry_json(). The whole "heater"
+     * sub-object is omitted from the published update when heater_present
+     * is false, so heaterless firmware (no VEVOR block) never publishes a
+     * permanent heater.comms_ok:false — see shadow_publish_reported(). */
+    bool     heater_present;
+    char     heater_state[16];   /* "off" | "preheat" | "ignition" | "running" |
+                                  * "cooldown" | "unknown"                       */
+    int      heater_level;       /* active level (not target), 0 if off/absent   */
+    int      heater_error;       /* raw error code, reg 57                       */
+    int      heater_fan_rpm;     /* raw fan RPM, reg 59                          */
+    bool     heater_safe_off;    /* HEATER_FLAG_SAFE_OFF set                     */
+    bool     heater_comms_ok;    /* fresh & no HEATER_FLAG_COMMS_FAULT           */
 } shadow_reported_t;
 
 /* ── Callbacks ────────────────────────────────────────────────────────────── */
@@ -104,6 +125,39 @@ bool shadow_peek_apu_command(char *out, size_t out_len);
 /* Mark the pending APU command as applied: clear it and schedule a
  * desired=null update so the cloud shadow is cleared too. Thread-safe. */
 void shadow_ack_apu_command(void);
+
+/* ── Heater-scoped start/stop/level command ─────────────────────────────────
+ * Same one-shot idiom as the APU command above, scoped to the VEVOR heater
+ * only (regs 53/54). This is a deliberate, narrower remote-control surface
+ * than the deferred whole-APU apu_command — it stays wired while apu_command
+ * does not. Applied from the telemetry thread, never the MQTT callback
+ * thread, for the same libmodbus-concurrency reason.
+ *
+ * `on` and `level` are independently optional in desired.heater: a command
+ * is pending as soon as at least one of them is valid, so a bare stop
+ * ({"on":0}) or a bare level change ({"level":N}) is never blocked on the
+ * other field being present. The unset field comes back as the sentinel -1
+ * (never written) so a remote STOP can't be dropped just because no level
+ * was supplied alongside it. */
+
+/* Copy any pending heater on/level command into *on / *level without
+ * clearing it, as-is (including the -1 "not provided" sentinel on whichever
+ * field wasn't part of the desired.heater payload). Also copies the current
+ * heater-desired sequence number into *seq (guard NULL like the other
+ * out-params) — pass it back unchanged to shadow_ack_heater_cmd() so the ack
+ * only clears the command it actually saw. Returns true if a command is
+ * pending (at least one of on/level valid). Thread-safe. */
+bool shadow_peek_heater_cmd(int *on, int *level, unsigned *seq);
+
+/* Mark the pending heater command as applied IF it is still the same
+ * command that was peeked: clears it and schedules a desired.heater=null
+ * update so the cloud shadow is cleared too, only when `seq` still matches
+ * the live heater-desired sequence number. If apply_desired() accepted a
+ * newer heater update in the meantime (bumping the sequence), this is a
+ * no-op — the newer command stays pending and is retried next cycle rather
+ * than being wiped by a stale ack (TOCTOU: peek → slow Modbus write → ack).
+ * Thread-safe. */
+void shadow_ack_heater_cmd(unsigned seq);
 
 /* Cleanup. */
 void shadow_cleanup(void);
