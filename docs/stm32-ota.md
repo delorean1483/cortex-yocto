@@ -6,18 +6,23 @@ there is no separate STM32 update channel, no new signing key, and no CI
 change. The blobs are just rootfs files, and the rootfs is already what
 gets bundled and RSA-4096 signed.
 
-## Status: RELEASE-pending
+## Status: real v1.1.1 `.bin` wired; IMAGE_INSTALL gated on bench
 
-The recipe, manifest, and image wiring described below are complete and
-ready to build, but the real `.bin` images do not exist yet — sub-project
-#1 (the STM32 bootloader + A/B application firmware) is bench/release
--pending. See
-`meta-ecofleet/recipes-ecofleet/g0b1-apu-firmware/files/README.md` for the
-placeholder note. Until a release build drops real `.bin` into that
-`files/` directory, `IMAGE_INSTALL:append = " g0b1-apu-firmware"` in
-`meta-ecofleet/recipes-core/images/ecofleet-image.bb` stays commented out —
-enabling it earlier would break the rootfs build (`do_fetch` failing on the
-missing `file://...bin` entries in `g0b1-apu-firmware.bb`'s `SRC_URI`).
+Sub-project #1 (the STM32 bootloader + A/B application firmware) is merged
+to `g0b1-firmware` main, and its `build-slots.sh` output — the two real
+`g0b1-apu-1.1.1-slot{A,B}.bin` — is now wired into
+`meta-ecofleet/recipes-ecofleet/g0b1-apu-firmware/` (recipe + manifest +
+blobs). The recipe `do_fetch`es and builds, so CI can link the full agent +
+firmware bundle.
+
+**`IMAGE_INSTALL:append = " g0b1-apu-firmware"` in
+`meta-ecofleet/recipes-core/images/ecofleet-image.bb` stays commented out**
+until the flash path is bench-validated on real hardware — specifically the
+two cases in **Bench validation** below (engine-running refusal + A/B
+trial-revert). Enabling it earlier would auto-ship an un-bench-proven image
+into every rootfs, which is exactly the gate that keeps a bad image off a
+real engine controller. Flipping that one line is the go-live switch once
+bench passes.
 
 ## Architecture in one paragraph
 
@@ -55,9 +60,9 @@ the controller's inactive slot.
    `meta-ecofleet/recipes-ecofleet/g0b1-apu-firmware/files/manifest.json`,
    update `version`, `slotA`, and `slotB` to match:
    ```json
-   { "version": "1.1.0",
-     "slotA": "g0b1-apu-1.1.0-slotA.bin",
-     "slotB": "g0b1-apu-1.1.0-slotB.bin" }
+   { "version": "1.1.1",
+     "slotA": "g0b1-apu-1.1.1-slotA.bin",
+     "slotB": "g0b1-apu-1.1.1-slotB.bin" }
    ```
    The agent's `stu_parse_manifest()` reads only `version` + the two
    filenames from this file; it computes CRC32/length from the `.bin`
@@ -127,6 +132,66 @@ telemetry: if it already matches the bundled version, the flash actually
 succeeded (the recorded failure was likely a transient post-commit
 version-read glitch) and the status will read "ok" once the device
 version is re-read — no action needed.
+
+## Bench validation (required before go-live)
+
+Two safety-critical cases must pass on real hardware before the
+`IMAGE_INSTALL:append` line is uncommented. The code paths for both are in
+place and host-reviewed; these bench runs prove them on silicon.
+
+### Case A — engine-running refusal (fueled run)
+
+The authoritative gate is **device-side**: reg 35 (enter-bootloader) in the
+firmware's `mbp_boot.c` refuses with **Modbus exception 0x04**
+(`MB_EXC_SLAVE_DEVICE_FAILURE`) whenever `app_engine_running()` is true. That
+predicate covers `op_state == OP_ENGINE_START` (glow / fuel-prime / crank),
+`op_state == OP_DIAG` (component test with a relay energized), **and**
+`engine_op_status == ST_RUNNING`. The agent adds a soft gate:
+`stu_should_flash()` only auto-attempts when reg 10 (`mode`) == 0 **and**
+reg 22 (`engine_status`) == 0.
+
+Procedure (with a real fueled APU and a newer bundled manifest present):
+1. **Running** (reg 22 == `ST_RUNNING`): confirm the agent does NOT
+   auto-flash — `stm32_update_status` stays `idle`/`available`, never
+   `flashing`.
+2. Force the attempt anyway by writing the arm-magic to reg 35 (bench Modbus
+   master): confirm the controller returns exception **0x04** and the MCU
+   does **not** reset.
+3. Repeat mid-**crank** (`OP_ENGINE_START`) and during a **component test**
+   (`OP_DIAG`, one output energized): both must refuse identically.
+
+**PASS:** no MCU reset / no slot write in any running / crank / diag state;
+the previously-active slot stays authoritative throughout.
+
+### Case B — A/B trial-revert with a patched app
+
+Mechanism: a freshly-flashed slot is marked `SLOT_STATE_TRIAL`
+(`bl_session.c`). On each boot, `boot_decide()` increments `trial_count`; the
+app self-confirms to `SLOT_STATE_COMMITTED` only after
+`APP_CONFIRM_HEALTHY_SECS` (5) consecutive healthy 1 s ticks (`app_confirm.c`).
+If the trial slot is not confirmed within `TRIAL_BOOT_LIMIT` (3) boots,
+`boot_decide()` marks it `BAD` and reverts to the other `COMMITTED` slot.
+
+Procedure:
+1. Build a deliberately-broken app `.bin` — e.g. a hard fault at startup, or
+   one whose health predicate never returns healthy so it never
+   self-confirms. Give it a bumped version (the retry guard is version-keyed).
+2. Flash it into the inactive slot; confirm the slot is marked `TRIAL` and
+   becomes active.
+3. Let it boot: confirm it never self-confirms (never reaches 5 healthy
+   seconds), the MCU resets (watchdog / fault), and `trial_count` climbs each
+   boot.
+4. After the 3rd unconfirmed trial boot: confirm `boot_decide()` marks the
+   trial slot `BAD` and reverts `active_slot` to the previous `COMMITTED`
+   slot, which boots normally (reg-2 `apu_fw_version` reads the OLD version
+   again).
+
+**PASS:** the controller ends up running the previous good firmware, the bad
+slot is `BAD` and never booted, and the unit is not bricked.
+
+**Carry-forward:** after a revert, re-testing the *same* broken version will
+not re-flash (version-keyed retry latch) — bump the patch version to attempt
+again.
 
 ## Recipe verification
 
