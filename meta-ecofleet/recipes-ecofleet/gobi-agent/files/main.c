@@ -317,33 +317,25 @@ static void ota_trigger(const char *version)
         _exit(1);
     }
 
-    syslog(LOG_INFO, "ota: download complete, running swupdate");
+    syslog(LOG_INFO, "ota: download complete, applying via gobi-ota-apply");
 
-    /* swupdate -i <file> -f <config> : install to the inactive A/B slot and
-     * flip the bootloader env. swupdate is built with CONFIG_SIGNED_IMAGES, so
-     * every bundle's signature is verified before flashing. The verification
-     * key could be given on the CLI (-k <pubkey>; -K is AES decryption, unused
-     * here) but we instead drive it from `public-key-file` in the config we
-     * ship at /etc/swupdate/ecofleet.cfg (from recipes-swupdate
-     * ecofleet-swupdate.cfg), so the key path lives in one place. */
-    const char *swu_argv[] = { "swupdate", "-i", local,
-                               "-f", "/etc/swupdate/ecofleet.cfg", NULL };
-    pid_t swu_pid = fork();
-    if (swu_pid == 0) {
-        execvp("swupdate", (char *const *)swu_argv);
-        _exit(127);
-    }
-    waitpid(swu_pid, &status, 0);
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        syslog(LOG_ERR, "ota: swupdate failed (exit %d)", WEXITSTATUS(status));
-        unlink(local);
-        _exit(1);
-    }
-
-    syslog(LOG_INFO, "ota: update applied — rebooting");
+    /* The agent runs as the unprivileged 'ecofleet' user (gobi-agent.service),
+     * but the install must write the inactive A/B slot + the u-boot env and then
+     * reboot — all root-only. So the privileged step is delegated to a small
+     * root helper, /usr/sbin/gobi-ota-apply, invoked through a tightly-scoped
+     * sudo rule (/etc/sudoers.d/gobi-agent: NOPASSWD for exactly that helper).
+     * The helper runs `swupdate -i <bundle> -f /etc/swupdate/ecofleet.cfg`
+     * (signature-verified via CONFIG_SIGNED_IMAGES + public-key-file in the cfg),
+     * removes the bundle, and reboots on success. We replace this child with
+     * sudo: on a successful update the helper reboots so exec never returns; any
+     * return here means the helper couldn't be launched (the current slot keeps
+     * running and the command is retried on the next shadow delta). */
+    const char *apply_argv[] = { "sudo", "-n", "/usr/sbin/gobi-ota-apply",
+                                 local, NULL };
+    execvp("sudo", (char *const *)apply_argv);
+    syslog(LOG_ERR, "ota: exec sudo gobi-ota-apply failed: %s", strerror(errno));
     unlink(local);
-    execl("/sbin/reboot", "reboot", NULL);
-    _exit(0);
+    _exit(1);
 }
 
 /* ── Shadow config callback ──────────────────────────────────────────────── */

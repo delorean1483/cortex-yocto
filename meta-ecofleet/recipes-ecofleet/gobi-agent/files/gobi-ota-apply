@@ -1,0 +1,35 @@
+#!/bin/sh
+# gobi-ota-apply — root OTA helper for gobi-agent.
+#
+# gobi-agent runs as the unprivileged 'ecofleet' user and downloads the signed
+# .swu bundle to /tmp, then invokes this via
+#     sudo -n /usr/sbin/gobi-ota-apply <bundle>
+# (allowed by /etc/sudoers.d/gobi-agent). swupdate needs root to write the
+# inactive A/B slot + the u-boot env and to reboot, so that privileged step
+# lives here — the single audited entry point. The bundle is still trusted only
+# via swupdate's own CONFIG_SIGNED_IMAGES signature check.
+set -u
+
+SWU="${1:-}"
+CFG=/etc/swupdate/ecofleet.cfg
+
+# Only ever install an agent-produced bundle path, so the sudo grant can't be
+# repurposed to swupdate an arbitrary file.
+case "$SWU" in
+    /tmp/ecofleet-*.swu) : ;;
+    *) echo "gobi-ota-apply: refusing bundle path '$SWU'" >&2; exit 2 ;;
+esac
+[ -f "$SWU" ] || { echo "gobi-ota-apply: no bundle at '$SWU'" >&2; exit 2; }
+
+logger -t gobi-ota-apply "installing $SWU"
+swupdate -i "$SWU" -f "$CFG"
+rc=$?
+rm -f "$SWU"
+
+if [ "$rc" -eq 0 ]; then
+    logger -t gobi-ota-apply "install ok — rebooting"
+    exec reboot
+fi
+
+logger -t gobi-ota-apply "swupdate failed (exit $rc) — staying on current slot"
+exit "$rc"
