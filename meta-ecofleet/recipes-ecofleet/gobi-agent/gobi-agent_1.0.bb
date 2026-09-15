@@ -119,7 +119,10 @@ do_install:append() {
     # swupdate + reboot need root). sudoers.d files must be 0440 root:root.
     install -d ${D}${sbindir}
     install -m 0755 ${WORKDIR}/gobi-ota-apply          ${D}${sbindir}/gobi-ota-apply
-    install -d ${D}${sysconfdir}/sudoers.d
+    # /etc/sudoers.d is co-owned with the sudo package, which ships it 0750
+    # root:root — match that mode exactly or do_rootfs hits a file conflict
+    # ("/etc/sudoers.d conflicts between gobi-agent and sudo-lib").
+    install -d -m 0750 ${D}${sysconfdir}/sudoers.d
     install -m 0440 ${WORKDIR}/gobi-agent.sudoers      ${D}${sysconfdir}/sudoers.d/gobi-agent
 }
 
