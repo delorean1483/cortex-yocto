@@ -750,7 +750,15 @@ static void publish_or_buffer(const char *topic, const char *table,
 /* ── Main ────────────────────────────────────────────────────────────────── */
 int main(void)
 {
-    openlog("gobi-agent", LOG_PID | LOG_CONS, LOG_DAEMON);
+    /* LOG_PERROR mirrors every syslog() line to stderr. systemd captures the
+     * service's stderr straight into the journal, so our operational logs
+     * (Modbus, MQTT, OTA, control writes) show up under `journalctl -u
+     * gobi-agent`. Without it they are lost: syslog()->/dev/log->journald is
+     * broken on this image (even `logger` messages never land in the journal),
+     * while stderr is captured fine — which is why only shadow.c's fprintf
+     * lines were ever visible. Logging to stderr is also the idiomatic channel
+     * for a systemd-managed service. */
+    openlog("gobi-agent", LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);
     syslog(LOG_INFO, "gobi-agent starting (fw=%s)", FIRMWARE_VERSION);
 
     signal(SIGTERM, handle_signal);
