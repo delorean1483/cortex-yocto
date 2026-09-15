@@ -85,5 +85,38 @@ check('fm allowed heater command', () => {
   assert.strictEqual(authorizeCommand('fm', { heater: { on: 1 } }).ok, true);
 });
 
-console.log(`\n${17 - failed}/17 checks passed`);
+// --- configActions / authorizeConfig (role-gate POST /fleet/config) ---
+const { configActions, authorizeConfig } = require('./permissions');
+check('firmware_target + reboot require ota', () => {
+  assert.deepStrictEqual(configActions({ firmware_target: '1.2.41' }), ['ota']);
+  assert.deepStrictEqual(configActions({ reboot: true }), ['ota']);
+});
+check('setpoints require setpoint', () => {
+  assert.deepStrictEqual(configActions({ clmt_setpoint_f: 72 }), ['setpoint']);
+  assert.deepStrictEqual(configActions({ batt_setpoint_v: 12.8 }), ['setpoint']);
+});
+check('poll_interval_s + report_mode require config', () => {
+  assert.deepStrictEqual(configActions({ poll_interval_s: 10 }), ['config']);
+  assert.deepStrictEqual(configActions({ report_mode: 'eco' }), ['config']);
+});
+check('eu denied any config write (read-only)', () => {
+  assert.strictEqual(authorizeConfig('eu', { poll_interval_s: 10 }).ok, false);
+});
+check('maint denied reboot/ota via config', () => {
+  assert.strictEqual(authorizeConfig('maint', { reboot: true }).ok, false);
+  assert.strictEqual(authorizeConfig('maint', { firmware_target: '1.2.41' }).ok, false);
+});
+check('maint allowed setpoint + cadence config', () => {
+  assert.strictEqual(authorizeConfig('maint', { poll_interval_s: 10, clmt_setpoint_f: 70 }).ok, true);
+});
+check('admin allowed reboot; fm allowed firmware_target', () => {
+  assert.strictEqual(authorizeConfig('admin', { reboot: true }).ok, true);
+  assert.strictEqual(authorizeConfig('fm', { firmware_target: '1.2.41' }).ok, true);
+});
+check('config with mixed keys needs every implied action', () => {
+  // maint has setpoint+config but not ota -> a bundle touching ota is denied
+  assert.strictEqual(authorizeConfig('maint', { poll_interval_s: 10, firmware_target: '1.2.41' }).ok, false);
+});
+
+console.log(`\n${25 - failed}/25 checks passed`);
 process.exit(failed === 0 ? 0 : 1);

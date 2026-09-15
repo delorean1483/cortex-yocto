@@ -4,9 +4,9 @@
 // higher safety bar than the Linux image `ota`, so it's admin/fm only (maint
 // excluded, same as `ota`). Keep in sync with the api Lambda's matrix.
 const MATRIX = {
-  admin: new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'users']),
-  fm:    new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'users']),
-  maint: new Set(['heater', 'setpoint', 'diag']),
+  admin: new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users']),
+  fm:    new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users']),
+  maint: new Set(['heater', 'setpoint', 'diag', 'config']),
   eu:    new Set([]),
 }
 

@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  IconLayoutDashboard, IconMap2, IconAdjustmentsHorizontal,
-  IconTool, IconDeviceDesktopDown, IconBell, IconChartBar,
+  IconLayoutDashboard, IconMap2,
+  IconTool, IconBell, IconChartBar,
   IconHistory, IconUsers, IconSettings, IconLogout, IconChevronDown,
 } from '@tabler/icons-react'
 import { useAuth, ROLE_CFG } from '../contexts/AuthContext.jsx'
@@ -10,9 +10,7 @@ import logo from '../assets/ecofleet_logo.svg'
 const NAV = [
   { id: '/',            label: 'Dashboard',      Icon: IconLayoutDashboard,        section: 'Overview' },
   { id: '/map',         label: 'Fleet map',       Icon: IconMap2,                   section: 'Overview' },
-  { id: '/remote',      label: 'Remote control',  Icon: IconAdjustmentsHorizontal,  section: 'Operations' },
   { id: '/maintenance', label: 'Maintenance',      Icon: IconTool,                   section: 'Operations' },
-  { id: '/firmware',    label: 'Firmware',         Icon: IconDeviceDesktopDown,      section: 'Operations' },
   { id: '/alerts',      label: 'Alerts',           Icon: IconBell,                   section: 'Insights' },
   { id: '/reports',     label: 'Reports',          Icon: IconChartBar,               section: 'Insights' },
   { id: '/history',     label: 'APU history',      Icon: IconHistory,                section: 'Insights' },
