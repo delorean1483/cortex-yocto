@@ -30,6 +30,8 @@ SRC_URI = " \
     file://stm32_flash_task.c \
     file://stm32_flash_task.h \
     file://CMakeLists.txt \
+    file://gobi-ota-apply \
+    file://gobi-agent.sudoers \
     file://gobi-agent.service \
     file://weather-fetch.service \
     file://weather-fetch.timer \
@@ -48,7 +50,8 @@ DEPENDS = "libmodbus mosquitto sqlite3 cjson curl"
 # ── Runtime deps ──────────────────────────────────────────────────────────────
 # weather-fetch does TLS to Open-Meteo; ca-certificates supplies the trust store
 # (only Amazon's root ships for MQTT, which won't validate a public API host).
-RDEPENDS:${PN} += "ca-certificates"
+# sudo: the non-root agent applies OTA via the gobi-ota-apply root helper.
+RDEPENDS:${PN} += "ca-certificates sudo"
 
 inherit cmake systemd useradd
 
@@ -111,6 +114,13 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/gobi-agent.service      ${D}${systemd_system_unitdir}/
     install -m 0644 ${WORKDIR}/weather-fetch.service   ${D}${systemd_system_unitdir}/
     install -m 0644 ${WORKDIR}/weather-fetch.timer     ${D}${systemd_system_unitdir}/
+
+    # OTA root helper + its sudoers grant (agent runs as unprivileged ecofleet;
+    # swupdate + reboot need root). sudoers.d files must be 0440 root:root.
+    install -d ${D}${sbindir}
+    install -m 0755 ${WORKDIR}/gobi-ota-apply          ${D}${sbindir}/gobi-ota-apply
+    install -d ${D}${sysconfdir}/sudoers.d
+    install -m 0440 ${WORKDIR}/gobi-agent.sudoers      ${D}${sysconfdir}/sudoers.d/gobi-agent
 }
 
 # ── systemd integration ───────────────────────────────────────────────────────
@@ -126,6 +136,8 @@ INSANE_SKIP:${PN} = "installed-vs-shipped"
 FILES:${PN} += " \
     ${sysconfdir}/ecofleet/ \
     /var/lib/ecofleet/ \
+    ${sbindir}/gobi-ota-apply \
+    ${sysconfdir}/sudoers.d/gobi-agent \
     ${systemd_system_unitdir}/gobi-agent.service \
     ${systemd_system_unitdir}/weather-fetch.service \
     ${systemd_system_unitdir}/weather-fetch.timer \
