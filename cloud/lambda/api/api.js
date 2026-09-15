@@ -339,7 +339,12 @@ async function handleGetShadow(event) {
 }
 
 // POST /fleet/config
-const ALLOWED_CONFIG_KEYS = new Set(['poll_interval_s', 'report_mode', 'firmware_target', 'reboot', 'apu_command', 'clmt_setpoint_f', 'batt_setpoint_v']);
+// apu_command is a control action, NOT config: it must go through the
+// role-authorized, demo-guarded POST /fleet/units/{unit}/command path
+// (handleCommand). /fleet/config performs no role check or demo guard, so
+// accepting apu_command here would let any authenticated user (including a
+// read-only 'eu') crank the engine — deliberately excluded.
+const ALLOWED_CONFIG_KEYS = new Set(['poll_interval_s', 'report_mode', 'firmware_target', 'reboot', 'clmt_setpoint_f', 'batt_setpoint_v']);
 
 async function handleSetConfig(event) {
   let body;
@@ -363,8 +368,6 @@ async function handleSetConfig(event) {
   }
   if (config.reboot !== undefined && typeof config.reboot !== 'boolean')
     return err(400, 'reboot must be a boolean');
-  if (config.apu_command !== undefined && !['start', 'stop'].includes(config.apu_command))
-    return err(400, 'apu_command must be "start" or "stop"');
 
   const thingName = `gobi-apu-${unit}`;
   const payload   = JSON.stringify({ state: { desired: config } });

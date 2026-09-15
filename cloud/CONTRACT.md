@@ -85,7 +85,7 @@ and `POST /fleet/config`):
 | Key | Type | Notes |
 |---|---|---|
 | `heater` | `{on: 0\|1, level: 1..10}` | Heater remote control |
-| `apu_command` | `"start"` \| `"stop"` | APU start/stop |
+| `apu_command` | `"climate"` \| `"battery"` \| `"stop"` | APU op-state → firmware mode reg 10 (`1`/`2`/`0`). Agent also accepts legacy `"start"` as `"climate"`; the API does not. |
 | `firmware_target` | semver string | Triggers OTA (see §4) |
 | `reboot` | bool | Reboot request |
 | `poll_interval_s` | number 5–60 | Report cadence |

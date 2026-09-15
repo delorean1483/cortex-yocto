@@ -42,6 +42,15 @@ static struct {
      * reported update nulls it in the cloud desired state. Protected by mutex. */
     bool clear_apu_cmd_desired;
 
+    /* Monotonic sequence bumped every time apply_desired() ACCEPTS an
+     * apu_command. Lets shadow_ack_apu_command() tell whether the command it
+     * is about to clear is still the one that was peeked, or whether a newer
+     * one landed while the (slow) reg-10 Modbus write was in flight — the same
+     * compare-and-clear the heater path uses, so a newer command (e.g. a Stop
+     * chasing a Start) is never silently wiped. Protected by mutex; internal
+     * only, never exposed via shadow_config_t. */
+    unsigned apu_command_seq;
+
     /* Set once a heater command has been applied to the hardware, so the
      * next reported update nulls desired.heater in the cloud shadow.
      * Protected by mutex. */
@@ -137,10 +146,16 @@ static bool apply_desired(const cJSON *desired)
     v = cJSON_GetObjectItemCaseSensitive(desired, "apu_command");
     if (cJSON_IsString(v) && v->valuestring) {
         const char *cmd = v->valuestring;
-        if (strcmp(cmd, "start") == 0 || strcmp(cmd, "stop") == 0)
+        /* Target op-state: "climate" | "battery" | "stop" (mapped to the
+         * firmware mode reg by apu_command_to_mode_reg() in the telemetry
+         * loop); "start" is still accepted as a legacy alias for "climate". */
+        if (strcmp(cmd, "climate") == 0 || strcmp(cmd, "battery") == 0 ||
+            strcmp(cmd, "stop")    == 0 || strcmp(cmd, "start")   == 0) {
             strncpy(s.config.apu_command, cmd, sizeof(s.config.apu_command) - 1);
-        else
+            s.apu_command_seq++;
+        } else {
             fprintf(stderr, "[shadow] unknown apu_command '%s' — ignored\n", cmd);
+        }
     }
 
     /* Heater-scoped remote control: desired.heater = { "on": 0|1, "level": 1..10 },
@@ -148,9 +163,8 @@ static bool apply_desired(const cJSON *desired)
      * ({"on":0}) is never blocked on a level also being supplied — dropping a
      * remote stop would be a safety issue. Whichever field is absent/invalid
      * is stored as the sentinel -1 (main.c only writes a register when its
-     * value is >= its valid floor). Deliberately narrower than the deferred
-     * whole-APU apu_command above — this is the only remote-control surface
-     * wired to the heater.
+     * value is >= its valid floor). A narrower remote-control surface than the
+     * whole-APU apu_command above, scoped to the heater.
      *
      * If a command is already pending (not yet applied+acked by the
      * telemetry thread), seed on_val/level_val from the still-pending values
@@ -441,27 +455,35 @@ const shadow_config_t *shadow_get_config(void)
     return &s.config;
 }
 
-bool shadow_peek_apu_command(char *out, size_t out_len)
+bool shadow_peek_apu_command(char *out, size_t out_len, unsigned *seq)
 {
-    if (!s.initialised || !out || out_len == 0) return false;
+    if (!s.initialised || !out || out_len == 0 || !seq) return false;
 
     pthread_mutex_lock(&s.config_mutex);
     bool pending = s.config.apu_command[0] != '\0';
     if (pending) {
         strncpy(out, s.config.apu_command, out_len - 1);
         out[out_len - 1] = '\0';
+        *seq = s.apu_command_seq;
     }
     pthread_mutex_unlock(&s.config_mutex);
     return pending;
 }
 
-void shadow_ack_apu_command(void)
+void shadow_ack_apu_command(unsigned seq)
 {
     if (!s.initialised) return;
 
     pthread_mutex_lock(&s.config_mutex);
-    s.config.apu_command[0]   = '\0';
-    s.clear_apu_cmd_desired   = true;
+    /* Only clear the command that was actually peeked. If apply_desired()
+     * accepted a newer apu_command while the reg-10 write for this one was in
+     * flight, s.apu_command_seq has since moved on — leave the (newer) pending
+     * command alone so it is retried next cycle instead of being silently
+     * wiped by this stale ack. */
+    if (seq == s.apu_command_seq) {
+        s.config.apu_command[0] = '\0';
+        s.clear_apu_cmd_desired = true;
+    }
     pthread_mutex_unlock(&s.config_mutex);
 }
 

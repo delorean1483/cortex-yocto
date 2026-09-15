@@ -42,3 +42,12 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -o "$here/test_heater_fields"
 
 "$here/test_heater_fields"
+
+# Host test runner for the pure APU-command mapping (no cJSON dependency).
+cc -std=c11 -Wall -Wextra -Wpedantic -g \
+   -fsanitize=address,undefined \
+   -I"$files" \
+   "$here/test_apu_command.c" "$files/apu_command.c" \
+   -o "$here/test_apu_command"
+
+"$here/test_apu_command"

@@ -13,6 +13,7 @@
 #include "shadow.h"
 #include "stm32_flash_task.h"
 #include "heater_fields.h"
+#include "apu_command.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -346,11 +347,13 @@ static void ota_trigger(const char *version)
 }
 
 /* ── Shadow config callback ──────────────────────────────────────────────── */
-/* Remote APU start/stop is intentionally NOT wired in this telemetry-only
- * build. The EF-G0B1R exposes no Modbus coils; commanding it means writing the
- * mode register (reg 10: 0=Off 1=Climate 2=Battery), which actuates real
- * relays/the engine. That control path is deferred to a later, deliberate
- * change, so any queued shadow command is logged and ignored here. */
+/* Fires on the MQTT thread when a new desired config lands. Reboot and OTA are
+ * one-shots acted on here; apu_command is applied on the Modbus thread instead
+ * (the telemetry loop's shadow_peek_apu_command() -> reg-10 write -> ack), so
+ * the slow RS-485 write and its retry stay off the network callback. The
+ * EF-G0B1R exposes no Modbus coils: commanding the APU means writing the mode
+ * register (fw reg 10: 0=Off 1=Climate 2=Battery), which actuates real
+ * relays/the engine — the firmware owns all crank safety. */
 
 static void on_shadow_config(const shadow_config_t *cfg, void *userdata)
 {
@@ -359,11 +362,6 @@ static void on_shadow_config(const shadow_config_t *cfg, void *userdata)
            "shadow config: poll=%ds mode=%s fw_target=%s reboot=%d apu_cmd=%s",
            cfg->poll_interval_s, cfg->report_mode,
            cfg->firmware_target, cfg->reboot_requested, cfg->apu_command);
-
-    if (cfg->apu_command[0] != '\0')
-        syslog(LOG_INFO,
-               "shadow: APU '%s' command received — remote control is deferred "
-               "in this telemetry-only build; ignoring", cfg->apu_command);
 
     if (cfg->reboot_requested) {
         syslog(LOG_WARNING, "shadow: reboot requested — rebooting in 3 s");
@@ -867,8 +865,9 @@ int main(void)
 
             /* (Touchscreen commands are applied in the 1 Hz wait loop below, in
              * this same thread — the libmodbus context is never touched
-             * concurrently. Remote shadow commands remain unhandled — see
-             * on_shadow_config().) */
+             * concurrently. Remote shadow commands — heater and whole-APU
+             * apu_command — are applied further down in this same branch, also
+             * on this thread.) */
 
             /* ── Telemetry publish ───────────────────────────────────────── */
             char *telem_json = build_telemetry_json(&t);
@@ -923,9 +922,9 @@ int main(void)
             shadow_publish_reported(g_mosq, &srep);
 
             /* Heater-scoped remote start/stop/level via AWS shadow desired
-             * state. This is a deliberate, narrower remote-control surface
-             * than the deferred whole-APU apu_command (see on_shadow_config()
-             * below). `on` and `level` are independently optional — each is
+             * state. This is a narrower remote-control surface than the
+             * whole-APU apu_command applied just below. `on` and `level` are
+             * independently optional — each is
              * only written if actually provided (>= its valid floor; -1 =
              * "not provided", from shadow.c's apply_desired()) — so a bare
              * remote stop ({"on":0}) is never dropped for lack of a level.
@@ -951,6 +950,36 @@ int main(void)
                 if (hlvl >= 1) rc |= mb_write_reg(54, hlvl, "heater_level(shadow)");
                 if (hon  >= 0) rc |= mb_write_reg(53, hon,  "heater_on(shadow)");
                 if (rc == 0) shadow_ack_heater_cmd(hseq);
+            }
+
+            /* Whole-APU remote op-state via AWS shadow desired.apu_command
+             * ("climate"|"battery"|"stop"). Same seq-guarded peek→write→ack
+             * idiom as the heater block above, and the same reg-10 mode write
+             * the local touchscreen makes (apply_command_file(): mode
+             * off|climate|battery -> reg 10 = 0|1|2) — the firmware owns all
+             * crank safety/gating. On a successful write we ack (clears the
+             * pending command and nulls the cloud desired.apu_command); on a
+             * failed RS-485 write we DON'T ack, so the command stays pending
+             * and is retried next cycle. The seq passed to ack means a newer
+             * command that landed during the (slow) write is not wiped by this
+             * ack — it is retried instead.
+             *
+             * mode < 0 (unknown command) is defense-in-depth: apply_desired()
+             * whitelists exactly the values apu_command_to_mode_reg() maps, so
+             * a peeked command is normally always valid — but if that whitelist
+             * and this mapping ever diverge, drop the command (with its seq) so
+             * it can't wedge the loop or write an out-of-range reg-10 value. */
+            char apu_cmd[sizeof(((shadow_config_t *)0)->apu_command)];
+            unsigned apu_seq;
+            if (shadow_peek_apu_command(apu_cmd, sizeof(apu_cmd), &apu_seq)) {
+                int mode = apu_command_to_mode_reg(apu_cmd);
+                if (mode < 0) {
+                    syslog(LOG_WARNING,
+                           "shadow: unknown apu_command '%s' — dropping", apu_cmd);
+                    shadow_ack_apu_command(apu_seq);
+                } else if (mb_write_reg(10, mode, "apu_command(shadow)") == 0) {
+                    shadow_ack_apu_command(apu_seq);
+                }
             }
 
         } else {

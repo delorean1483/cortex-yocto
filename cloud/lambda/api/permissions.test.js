@@ -41,10 +41,19 @@ check('valid heater command', () => {
 check('heater level out of range rejected', () => {
   assert.strictEqual(validateCommand({ heater: { on: 1, level: 11 } }).ok, false);
 });
-check('apu start valid, requires apu action', () => {
-  const r = validateCommand({ apu_command: 'start' });
+check('apu climate valid, requires apu action', () => {
+  const r = validateCommand({ apu_command: 'climate' });
   assert.strictEqual(r.ok, true);
   assert.deepStrictEqual(commandActions(r.desired), ['apu']);
+});
+check('apu battery valid', () => {
+  assert.strictEqual(validateCommand({ apu_command: 'battery' }).ok, true);
+});
+check('apu stop valid', () => {
+  assert.strictEqual(validateCommand({ apu_command: 'stop' }).ok, true);
+});
+check('legacy apu_command "start" rejected at API', () => {
+  assert.strictEqual(validateCommand({ apu_command: 'start' }).ok, false);
 });
 check('bad apu_command rejected', () => {
   assert.strictEqual(validateCommand({ apu_command: 'explode' }).ok, false);
@@ -68,7 +77,7 @@ check('empty command rejected', () => {
 // --- authorizeCommand (Task 5) ---
 const { authorizeCommand } = require('./permissions');
 check('maint denied apu command', () => {
-  const r = authorizeCommand('maint', { apu_command: 'start' });
+  const r = authorizeCommand('maint', { apu_command: 'climate' });
   assert.strictEqual(r.ok, false);
   assert.match(r.error, /not permitted/);
 });
@@ -76,5 +85,5 @@ check('fm allowed heater command', () => {
   assert.strictEqual(authorizeCommand('fm', { heater: { on: 1 } }).ok, true);
 });
 
-console.log(`\n${14 - failed}/14 checks passed`);
+console.log(`\n${17 - failed}/17 checks passed`);
 process.exit(failed === 0 ? 0 : 1);
