@@ -44,6 +44,7 @@ target_sources(gobi-agent PRIVATE
     bl_transport_serial.c
     stm32_flash_task.c
     heater_fields.c
+    apu_command.c
 )
 
 target_include_directories(gobi-agent PRIVATE

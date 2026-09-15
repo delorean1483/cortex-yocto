@@ -126,10 +126,13 @@ export const mockApi = {
       }
     }
     if (snap && body.apu_command) {
-      snap.mode = body.apu_command === 'start' ? 'engine' : 'battery'
-      snap.engine_status = body.apu_command === 'start' ? 'running' : 'off'
-      snap.rpm = body.apu_command === 'start' ? 1850 : 0
-      snap.ignition = body.apu_command === 'start'
+      // apu_command is the target op-state: 'climate' | 'battery' | 'stop'.
+      const running = body.apu_command !== 'stop'
+      snap.mode = running ? body.apu_command : 'off'
+      snap.engine_status = running ? 'running' : 'off'
+      snap.control_status = running ? body.apu_command : 'idle'
+      snap.rpm = running ? 1850 : 0
+      snap.ignition = running
     }
     if (snap && body.firmware_target) snap.apu_fw_version = 10241
     return delay({ unit, shadow_version: 13, desired: body, message: 'Command queued (mock).' })

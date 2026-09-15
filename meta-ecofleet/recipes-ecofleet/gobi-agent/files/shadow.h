@@ -29,9 +29,10 @@ typedef struct {
     char     report_mode[16];    /* "normal" | "eco" | "debug"                  */
     char     firmware_target[32];/* semver, e.g. "1.2.0" — signals OTA desired  */
     bool     reboot_requested;   /* set true to trigger controlled reboot        */
-    char     apu_command[8];     /* one-shot: "start" | "stop" | "" — applied by the
-                                  * telemetry loop, then cleared via
-                                  * shadow_ack_apu_command() once it lands */
+    char     apu_command[8];     /* one-shot APU op-state: "climate" | "battery"
+                                  * | "stop" | "" (legacy "start" == "climate")
+                                  * — applied by the telemetry loop, then cleared
+                                  * via shadow_ack_apu_command() once it lands */
     bool     heater_desired_valid; /* true while at least one of heater_on /
                                     * heater_level from desired.heater is
                                     * pending application */
@@ -108,29 +109,36 @@ int  shadow_publish_reported(struct mosquitto *mosq,
  * Thread-safe: protected by an internal mutex. */
 const shadow_config_t *shadow_get_config(void);
 
-/* ── One-shot APU start/stop command ────────────────────────────────────────
- * The command arrives via the shadow "desired" state but MUST be applied to the
- * Modbus hardware from the telemetry thread — never the MQTT callback thread —
- * because the libmodbus context is not safe for concurrent access.
+/* ── One-shot APU op-state command ──────────────────────────────────────────
+ * The command ("climate"/"battery"/"stop") arrives via the shadow "desired"
+ * state but MUST be applied to the Modbus hardware from the telemetry thread —
+ * never the MQTT callback thread — because the libmodbus context is not safe
+ * for concurrent access.
  *
  * Each poll cycle the main loop calls shadow_peek_apu_command(); if a command
- * is pending it performs the Modbus write and, only on success, calls
+ * is pending it performs the reg-10 mode write and, only on success, calls
  * shadow_ack_apu_command() to clear it and null the cloud desired state. If the
  * write fails the command stays pending and is retried on the next cycle. */
 
-/* Copy any pending command ("start"/"stop") into `out` (NUL-terminated) without
- * clearing it. Returns true if a command is pending. Thread-safe. */
-bool shadow_peek_apu_command(char *out, size_t out_len);
+/* Copy any pending command ("climate"/"battery"/"stop") into `out`
+ * (NUL-terminated) without clearing it. Also copies the current apu-command
+ * sequence number into *seq (guard NULL like `out`) — pass it back unchanged
+ * to shadow_ack_apu_command() so the ack only clears the command it actually
+ * saw. Returns true if a command is pending. Thread-safe. */
+bool shadow_peek_apu_command(char *out, size_t out_len, unsigned *seq);
 
-/* Mark the pending APU command as applied: clear it and schedule a
- * desired=null update so the cloud shadow is cleared too. Thread-safe. */
-void shadow_ack_apu_command(void);
+/* Mark the pending APU command as applied IF it is still the same command that
+ * was peeked: clears it and schedules a desired=null update, only when `seq`
+ * still matches the live apu-command sequence. If apply_desired() accepted a
+ * newer command in the meantime (bumping the sequence), this is a no-op — the
+ * newer command stays pending and is retried next cycle rather than being
+ * wiped by a stale ack (TOCTOU: peek → slow reg-10 write → ack). Thread-safe. */
+void shadow_ack_apu_command(unsigned seq);
 
 /* ── Heater-scoped start/stop/level command ─────────────────────────────────
  * Same one-shot idiom as the APU command above, scoped to the VEVOR heater
- * only (regs 53/54). This is a deliberate, narrower remote-control surface
- * than the deferred whole-APU apu_command — it stays wired while apu_command
- * does not. Applied from the telemetry thread, never the MQTT callback
+ * only (regs 53/54) — a narrower remote-control surface than the whole-APU
+ * apu_command. Applied from the telemetry thread, never the MQTT callback
  * thread, for the same libmodbus-concurrency reason.
  *
  * `on` and `level` are independently optional in desired.heater: a command

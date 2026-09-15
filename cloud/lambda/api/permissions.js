@@ -44,8 +44,8 @@ function validateCommand(body) {
   }
 
   if (body.apu_command !== undefined) {
-    if (!['start', 'stop'].includes(body.apu_command))
-      return { ok: false, error: 'apu_command must be "start" or "stop"' };
+    if (!['climate', 'battery', 'stop'].includes(body.apu_command))
+      return { ok: false, error: 'apu_command must be "climate", "battery" or "stop"' };
     desired.apu_command = body.apu_command;
   }
 

@@ -101,6 +101,8 @@ button { font-family: inherit; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-amber, .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn-amber:hover, .btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.btn-orange { background: var(--brand-orange); border-color: var(--brand-orange); color: #fff; }
+.btn-orange:hover { filter: brightness(0.92); }
 .btn-red { border-color: #E24B4A; color: #E24B4A; }
 .btn-red:hover { background: var(--color-background-danger); }
 .btn-sm { padding: 3px 8px; font-size: 11px; }
