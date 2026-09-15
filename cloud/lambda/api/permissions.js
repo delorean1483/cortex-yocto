@@ -2,7 +2,11 @@
 
 // Role → write-action permission matrix + command-body validation.
 // Roles: admin, fm (fleet manager), maint (maintenance), eu (end user).
-// Actions: heater, setpoint, apu, diag, ota, apu_ota, users.
+// Actions: heater, setpoint, apu, diag, ota, apu_ota, config, users.
+//
+// `config` gates benign device-cadence tuning (poll_interval_s, report_mode)
+// via POST /fleet/config; reboot + firmware_target ride with `ota` (disruptive
+// → admin/fm only). See configActions()/authorizeConfig() below.
 //
 // `apu_ota` (flashing the STM32 APU-controller firmware over RS-485) is
 // declared here so the matrix stays in sync with the frontend mirror, but no
@@ -11,9 +15,9 @@
 // Phase 2, gated on the STM32 flash path being bench-validated + PR #18 merged
 // (docs/superpowers/specs/2026-09-14-apu-firmware-ota-control-scope.md).
 const MATRIX = {
-  admin: new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'users']),
-  fm:    new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'users']),
-  maint: new Set(['heater', 'setpoint', 'diag']),
+  admin: new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users']),
+  fm:    new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users']),
+  maint: new Set(['heater', 'setpoint', 'diag', 'config']),
   eu:    new Set([]),
 };
 
@@ -92,4 +96,33 @@ function authorizeCommand(role, desired) {
   return { ok: true };
 }
 
-module.exports = { canWrite, validateCommand, commandActions, authorizeCommand, MATRIX };
+// Map the keys in a POST /fleet/config body to the write-actions they require.
+// Unlike POST /command, /config carries device-cadence tuning as well as
+// control-class keys, so each maps to the least-privileged action that fits:
+//   firmware_target, reboot         -> ota      (disruptive: admin/fm)
+//   clmt_setpoint_f, batt_setpoint_v -> setpoint (admin/fm/maint)
+//   poll_interval_s, report_mode    -> config   (admin/fm/maint)
+function configActions(config) {
+  const actions = new Set();
+  if (config.firmware_target !== undefined) actions.add('ota');
+  if (config.reboot !== undefined)          actions.add('ota');
+  if (config.clmt_setpoint_f !== undefined || config.batt_setpoint_v !== undefined)
+    actions.add('setpoint');
+  if (config.poll_interval_s !== undefined || config.report_mode !== undefined)
+    actions.add('config');
+  return [...actions];
+}
+
+// The caller's role must be permitted for EVERY action the config body implies
+// (so a mixed body is only accepted if the role can do all of it). eu, with no
+// write actions, is denied any config write.
+function authorizeConfig(role, config) {
+  for (const action of configActions(config)) {
+    if (!canWrite(role, action))
+      return { ok: false, error: `role "${role}" not permitted to ${action}` };
+  }
+  return { ok: true };
+}
+
+module.exports = { canWrite, validateCommand, commandActions, authorizeCommand,
+                   configActions, authorizeConfig, MATRIX };

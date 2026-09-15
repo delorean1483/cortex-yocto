@@ -3,10 +3,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'
 import Layout from './components/Layout.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
-import RemoteControlPage from './pages/RemoteControlPage.jsx'
 import AlertsPage from './pages/AlertsPage.jsx'
 import APUHistoryPage from './pages/APUHistoryPage.jsx'
-import FirmwarePage from './pages/FirmwarePage.jsx'
 import MaintenancePage from './pages/MaintenancePage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
 import ReportsPage from './pages/ReportsPage.jsx'
@@ -32,10 +30,8 @@ export default function App() {
                 <Routes>
                   <Route path="/"            element={<DashboardPage />} />
                   <Route path="/units/:id"   element={<UnitDetailPage />} />
-                  <Route path="/remote"      element={<RemoteControlPage />} />
                   <Route path="/alerts"      element={<AlertsPage />} />
                   <Route path="/history"     element={<APUHistoryPage />} />
-                  <Route path="/firmware"    element={<FirmwarePage />} />
                   <Route path="/maintenance" element={<MaintenancePage />} />
                   <Route path="/map"         element={<StubPage page="map" />} />
                   <Route path="/users"       element={<UsersPage />} />

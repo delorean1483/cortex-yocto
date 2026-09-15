@@ -14,7 +14,7 @@ const { InfluxDB }                                                 = require('@i
 const jwt                                                          = require('jsonwebtoken');
 const { randomUUID }                                               = require('crypto');
 const { mapTelemetryRow }                                          = require('./telemetry-view');
-const { validateCommand, authorizeCommand }                        = require('./permissions');
+const { validateCommand, authorizeCommand, authorizeConfig }       = require('./permissions');
 const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./demo');
 const { buildReports }                                             = require('./reports-view');
 const { parseReleases }                                            = require('./releases-view');
@@ -346,7 +346,7 @@ async function handleGetShadow(event) {
 // read-only 'eu') crank the engine — deliberately excluded.
 const ALLOWED_CONFIG_KEYS = new Set(['poll_interval_s', 'report_mode', 'firmware_target', 'reboot', 'clmt_setpoint_f', 'batt_setpoint_v']);
 
-async function handleSetConfig(event) {
+async function handleSetConfig(event, claims) {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
 
@@ -356,6 +356,12 @@ async function handleSetConfig(event) {
 
   const badKeys = Object.keys(config).filter(k => !ALLOWED_CONFIG_KEYS.has(k));
   if (badKeys.length) return err(400, `Unknown config key(s): ${badKeys.join(', ')}`);
+
+  // Role-gate: /config writes the device shadow (firmware_target/reboot = OTA,
+  // setpoints, cadence). Every implied action must be permitted for the role;
+  // eu (read-only) is denied any config write. Mirrors handleCommand's authz.
+  const authz = authorizeConfig(claims.role || 'eu', config);
+  if (!authz.ok) return err(403, authz.error);
 
   if (config.poll_interval_s !== undefined) {
     const v = config.poll_interval_s;
@@ -648,7 +654,7 @@ exports.handler = async (event) => {
 
     if (method === 'GET'  && path.endsWith('/fleet/units'))    return await handleListUnits();
     if (method === 'GET'  && path.endsWith('/fleet/shadow'))   return await handleGetShadow(event);
-    if (method === 'POST' && path.endsWith('/fleet/config'))   return await handleSetConfig(event);
+    if (method === 'POST' && path.endsWith('/fleet/config'))   return await handleSetConfig(event, claims);
     if (method === 'POST' && path.endsWith('/fleet/maintenance')) return await handleAddMaintenance(event, claims);
     if (method === 'GET'  && path.endsWith('/fleet/users'))    return await handleListUsers(claims);
     if (method === 'POST' && path.endsWith('/fleet/users'))    return await handleCreateUser(event, claims);
