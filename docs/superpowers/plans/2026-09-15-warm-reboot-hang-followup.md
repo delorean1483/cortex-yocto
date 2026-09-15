@@ -40,9 +40,22 @@ Matches multiple NXP community reports for the i.MX8M series: **u-boot/SPL warm-
 
 ---
 
+## Captured serial evidence (2026-09-15, TRUCK-001, slot b, fw 1.2.42)
+
+Captured with `capture-warm-reboot.py` on the debug UART (`/dev/cu.usbserial-DP07JT55`, 115200 8N1); board confirmed hung via no-ping, capture process + port confirmed healthy (so silence is real, not a dead capture).
+
+- **Warm `reboot` from Linux → ZERO serial output.** No Linux shutdown text, and critically **no `U-Boot SPL` line**. Board never returned (no ping); only a cold power-cycle recovered it.
+- **Cold power-cycle (same port, capture still running) → full normal boot:** first line `U-Boot SPL 2024.04-lf_v2024.04_6.6.52-2.2.2_var01...` → `Trying to boot from MMC2` → `U-Boot 2024.04` → `Reset cause: POR` → `==> EcoFleet: booting slot b (mmc 2 p2)` → `Starting kernel ...` → `imx8mm-var-dart login:` on `ttymxc0`. Board back on the network.
+
+**Interpretation:** the first serial output on *any* healthy boot is `U-Boot SPL` (the i.MX8M boot ROM is silent on a normal boot). The warm reset produces *nothing*, so it wedges **between the SoC warm-reset and SPL's first print** — boot ROM loading imx-boot from eMMC, or SPL's DDR init before its banner. Confirms the DDR/power root-cause direction and **rules out** u-boot-proper, DTB, and kernel causes (all print after SPL). Note: Linux console **is** on `ttymxc0` but boots quietly (only the getty `login:` shows), so a warm reboot legitimately prints no Linux text before the reset — the tool's auto-verdict needs a Linux reboot marker to classify and so reported "no reboot observed"; the raw before/after silence is the real signal.
+
+**Directs next work to:** candidate #2 (force full PMIC POR on warm reset — DDR isn't getting a clean power cycle; `RST_n` already set didn't fix it), #4 (Variscite-style eMMC provisioning: imx-boot in `boot0` + ext_csd), #5 (SPL/DDR warm-boot retrain). Fix ships via a **separate imx-boot flash**, not A/B OTA.
+
+---
+
 ## Candidate approaches (research + try, rough order)
 
-1. **Capture the hang point first (cheapest, do this before anything else).** With serial attached, trigger a warm `reboot` and record the **last serial line before silence**. That single line says which stage wedges (TF-A vs SPL DDR vs u-boot) and disambiguates the fixes below. We never captured it (serial got unplugged mid-session). → Tool + steps ready: `docs/bench/tools/capture-warm-reboot.py` driven by `docs/bench/2026-09-15-warm-reboot-serial-capture.md` (auto-classifies the wedge stage into the mapping under "Interpreting the verdict").
+1. **✅ DONE — captured 2026-09-15 (see "Captured serial evidence" below).** Result: on a warm reset **nothing prints at all** — the wedge is *before* the first `U-Boot SPL` line (boot ROM / SPL pre-DDR-init), earlier than "before u-boot." Tool: `docs/bench/tools/capture-warm-reboot.py` + runbook `docs/bench/2026-09-15-warm-reboot-serial-capture.md`.
 2. **Force a full PMIC POR on reset.** Determine whether WDOG_B is routed to the BD71847's reset/POR input on the DT8MCustomBoard, and configure the PMIC (register / DT) to do a full power cycle on WDOG. TF-A/u-boot `reset_cpu()` may need to assert the right path. (READY-state DT change alone didn't do it → the WDOG_B→PMIC trigger/wiring is the suspect.)
 3. **Diff against stock Variscite.** Flash a stock Variscite Yocto image via their installer and test a warm reboot. If stock reboots fine → diff our imx-boot / u-boot / DDR-timing firmware / provisioning vs stock (our raw-`.wic` differs). If stock also hangs → it's upstream; pursue #2/#4.
 4. **Re-provision the eMMC the Variscite way** (imx-boot in `boot0` + ext_csd), instead of raw-`.wic`, and re-test — the boot-source difference may matter for warm reset.
