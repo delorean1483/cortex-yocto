@@ -11,6 +11,8 @@ SRC_URI = " \
     file://config.h \
     file://heater_fields.h \
     file://heater_fields.c \
+    file://apu_command.h \
+    file://apu_command.c \
     file://weather.h \
     file://weather.c \
     file://weather-fetch.c \
