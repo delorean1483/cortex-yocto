@@ -14,6 +14,7 @@
 #include "stm32_flash_task.h"
 #include "heater_fields.h"
 #include "apu_command.h"
+#include "ota_status.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +27,7 @@
 #include <errno.h>
 #include <syslog.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 #include <modbus.h>
 #include <mosquitto.h>
@@ -279,6 +281,14 @@ static int db_flush(const char *table, const char *topic)
 #define OTA_STATUS_FILE      OTA_REQ_DIR "/status"
 #define RUNNING_VERSION_FILE "/etc/ecofleet/firmware-version"
 
+/* How long a status line stays "live" after the worker last wrote it. The
+ * worker rewrites the file at every transition, so an in-progress OTA never
+ * expires; a terminal (failed/success) line — or a crashed worker's stuck
+ * in-progress line — ages out after this and the agent reports idle instead
+ * of leaving a stale pill on the dashboard forever. Must exceed a real OTA's
+ * worst case (curl --max-time 300 + swupdate install). */
+#define OTA_STATUS_TTL_S     1800L   /* 30 minutes */
+
 /* Running cortex image version — the file holds e.g. "v1.2.45"; `out` gets
  * "1.2.45" (leading 'v' stripped), or "" if the file is missing/unreadable. */
 static void running_version(char *out, size_t out_len)
@@ -299,15 +309,29 @@ static void running_version(char *out, size_t out_len)
 
 /* Read the root worker's last OTA status line (e.g. "installing 1.2.48" or
  * "failed: ...") into `out`, or "" if there's no status file. Reported to the
- * shadow each cycle so the dashboard sees OTA progress/failure. */
+ * shadow each cycle so the dashboard sees OTA progress/failure. A line older
+ * than OTA_STATUS_TTL_S (by the status file's mtime) is treated as idle, so a
+ * terminal failure doesn't leave a stale pill on the dashboard forever — see
+ * ota_status_effective(). */
 static void read_ota_status(char *out, size_t out_len)
 {
     out[0] = '\0';
     FILE *f = fopen(OTA_STATUS_FILE, "r");
     if (!f) return;
-    if (fgets(out, out_len, f))
-        out[strcspn(out, "\r\n")] = '\0';
+
+    struct stat st;
+    long age = -1;   /* -1 (fstat failed) counts as fresh, never expires */
+    if (fstat(fileno(f), &st) == 0)
+        age = (long)(time(NULL) - st.st_mtime);
+
+    char line[64] = {0};
+    if (fgets(line, sizeof(line), f))
+        line[strcspn(line, "\r\n")] = '\0';
     fclose(f);
+
+    const char *eff = ota_status_effective(line, age, OTA_STATUS_TTL_S);
+    strncpy(out, eff, out_len - 1);
+    out[out_len - 1] = '\0';
 }
 
 /* Atomically drop a one-line request for the root gobi-ota-apply worker (temp

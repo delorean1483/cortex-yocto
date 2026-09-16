@@ -13,6 +13,8 @@ SRC_URI = " \
     file://heater_fields.c \
     file://apu_command.h \
     file://apu_command.c \
+    file://ota_status.h \
+    file://ota_status.c \
     file://weather.h \
     file://weather.c \
     file://weather-fetch.c \

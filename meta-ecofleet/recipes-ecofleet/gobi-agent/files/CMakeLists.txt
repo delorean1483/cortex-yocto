@@ -45,6 +45,7 @@ target_sources(gobi-agent PRIVATE
     stm32_flash_task.c
     heater_fields.c
     apu_command.c
+    ota_status.c
 )
 
 target_include_directories(gobi-agent PRIVATE
