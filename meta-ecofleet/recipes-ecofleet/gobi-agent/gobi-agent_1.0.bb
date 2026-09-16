@@ -31,8 +31,9 @@ SRC_URI = " \
     file://stm32_flash_task.h \
     file://CMakeLists.txt \
     file://gobi-ota-apply \
+    file://gobi-ota-apply.service \
+    file://gobi-ota-apply.path \
     file://gobi-cold-reboot \
-    file://gobi-agent.sudoers \
     file://gobi-agent.service \
     file://weather-fetch.service \
     file://weather-fetch.timer \
@@ -51,10 +52,12 @@ DEPENDS = "libmodbus mosquitto sqlite3 cjson curl"
 # ── Runtime deps ──────────────────────────────────────────────────────────────
 # weather-fetch does TLS to Open-Meteo; ca-certificates supplies the trust store
 # (only Amazon's root ships for MQTT, which won't validate a public API host).
-# sudo: the non-root agent applies OTA via the gobi-ota-apply root helper.
-# i2c-tools: gobi-cold-reboot uses i2cset to command the BD71847 PMIC cold reset
-# (a normal reboot hangs this board before U-Boot SPL).
-RDEPENDS:${PN} += "ca-certificates sudo i2c-tools"
+# The hardened agent just writes an OTA/reboot request file; the root
+# gobi-ota-apply.path/.service does the privileged work:
+#   curl      — the root worker downloads the signed .swu bundle
+#   i2c-tools — gobi-cold-reboot uses i2cset for the BD71847 PMIC cold reset
+#               (a normal reboot hangs this board before U-Boot SPL)
+RDEPENDS:${PN} += "ca-certificates i2c-tools curl"
 
 inherit cmake systemd useradd
 
@@ -100,6 +103,9 @@ do_install:append() {
     # Runtime directories (owned by ecofleet user)
     install -d -o ecofleet -g ecofleet ${D}${sysconfdir}/ecofleet/certs
     install -d -o ecofleet -g ecofleet ${D}/var/lib/ecofleet
+    # OTA request drop-box: the sandboxed agent writes a request here, the root
+    # gobi-ota-apply.path watches it.
+    install -d -o ecofleet -g ecofleet ${D}/var/lib/ecofleet/ota
 
     # TLS certificates (private key must be 0600)
     install -m 0644 -o ecofleet -g ecofleet ${WORKDIR}/AmazonRootCA1.pem  ${D}${sysconfdir}/ecofleet/certs/
@@ -117,25 +123,22 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/gobi-agent.service      ${D}${systemd_system_unitdir}/
     install -m 0644 ${WORKDIR}/weather-fetch.service   ${D}${systemd_system_unitdir}/
     install -m 0644 ${WORKDIR}/weather-fetch.timer     ${D}${systemd_system_unitdir}/
+    # OTA/reboot worker: a root, un-sandboxed .service started by the .path when
+    # the sandboxed agent drops a request (see gobi-ota-apply).
+    install -m 0644 ${WORKDIR}/gobi-ota-apply.service  ${D}${systemd_system_unitdir}/
+    install -m 0644 ${WORKDIR}/gobi-ota-apply.path     ${D}${systemd_system_unitdir}/
 
-    # OTA root helper + its sudoers grant (agent runs as unprivileged ecofleet;
-    # swupdate + reboot need root). sudoers.d files must be 0440 root:root.
+    # OTA/reboot worker (root) + the PMIC cold-reset helper it uses. The agent
+    # stays fully sandboxed and only writes a request file — no sudo, no sudoers.
     install -d ${D}${sbindir}
     install -m 0755 ${WORKDIR}/gobi-ota-apply          ${D}${sbindir}/gobi-ota-apply
-    # PMIC-cold-reset reboot helper (a normal reboot hangs this board before SPL);
-    # gobi-ota-apply calls it instead of `reboot`.
     install -m 0755 ${WORKDIR}/gobi-cold-reboot        ${D}${sbindir}/gobi-cold-reboot
-    # /etc/sudoers.d is co-owned with the sudo package, which ships it 0750
-    # root:root — match that mode exactly or do_rootfs hits a file conflict
-    # ("/etc/sudoers.d conflicts between gobi-agent and sudo-lib").
-    install -d -m 0750 ${D}${sysconfdir}/sudoers.d
-    install -m 0440 ${WORKDIR}/gobi-agent.sudoers      ${D}${sysconfdir}/sudoers.d/gobi-agent
 }
 
 # ── systemd integration ───────────────────────────────────────────────────────
 # Enable the agent and the weather timer; weather-fetch.service is oneshot and
 # started by the timer, so it is installed but not enabled on its own.
-SYSTEMD_SERVICE:${PN} = "gobi-agent.service weather-fetch.timer"
+SYSTEMD_SERVICE:${PN} = "gobi-agent.service weather-fetch.timer gobi-ota-apply.path"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 # ── File permissions QA ───────────────────────────────────────────────────────
@@ -147,8 +150,9 @@ FILES:${PN} += " \
     /var/lib/ecofleet/ \
     ${sbindir}/gobi-ota-apply \
     ${sbindir}/gobi-cold-reboot \
-    ${sysconfdir}/sudoers.d/gobi-agent \
     ${systemd_system_unitdir}/gobi-agent.service \
+    ${systemd_system_unitdir}/gobi-ota-apply.service \
+    ${systemd_system_unitdir}/gobi-ota-apply.path \
     ${systemd_system_unitdir}/weather-fetch.service \
     ${systemd_system_unitdir}/weather-fetch.timer \
 "

@@ -266,76 +266,69 @@ static int db_flush(const char *table, const char *topic)
 
 /* ── OTA update ──────────────────────────────────────────────────────────── */
 /*
- * S3 base URL for .swu bundles.  Bundles are named ecofleet-<version>.swu and
- * hosted at OTA_BUNDLE_BASE_URL/<version>/ecofleet-<version>.swu.
- * Override at build time via config.h or OTA_BUNDLE_BASE_URL env.
+ * The agent is heavily sandboxed (NoNewPrivileges + ProtectSystem=strict) and
+ * runs as the unprivileged 'ecofleet' user, so it cannot download to anywhere,
+ * write the A/B slot + u-boot env, or reboot itself (NoNewPrivileges even blocks
+ * sudo). Instead it drops a one-line REQUEST at /var/lib/ecofleet/ota/request;
+ * the root, un-sandboxed gobi-ota-apply.path + .service pick it up and do the
+ * privileged work (curl the signed bundle, swupdate the inactive slot, reboot
+ * via the PMIC cold reset). Request line: "install <version>" or "reboot".
  */
-#ifndef OTA_BUNDLE_BASE_URL
-#define OTA_BUNDLE_BASE_URL "https://ecofleet-ota.s3.amazonaws.com/releases"
-#endif
+#define OTA_REQ_DIR          "/var/lib/ecofleet/ota"
+#define OTA_REQ_FILE         OTA_REQ_DIR "/request"
+#define RUNNING_VERSION_FILE "/etc/ecofleet/firmware-version"
 
-/* Download and apply an OTA bundle in a forked child process so the main
- * telemetry loop keeps running.  The child:
- *   1. curl downloads the .swu to /tmp/
- *   2. Runs swupdate -i <file>
- *   3. Reboots on success (swupdate exits 0)
- * SIGCHLD is set to SIG_IGN in main() so zombies are auto-reaped. */
-static void ota_trigger(const char *version)
+/* Running cortex image version — the file holds e.g. "v1.2.45"; `out` gets
+ * "1.2.45" (leading 'v' stripped), or "" if the file is missing/unreadable. */
+static void running_version(char *out, size_t out_len)
 {
-    pid_t pid = fork();
-    if (pid < 0) {
-        syslog(LOG_ERR, "ota: fork failed: %s", strerror(errno));
+    out[0] = '\0';
+    FILE *f = fopen(RUNNING_VERSION_FILE, "r");
+    if (!f) return;
+    char buf[64] = {0};
+    if (fgets(buf, sizeof(buf), f)) {
+        char *s = buf;
+        if (*s == 'v' || *s == 'V') s++;
+        s[strcspn(s, "\r\n")] = '\0';
+        strncpy(out, s, out_len - 1);
+        out[out_len - 1] = '\0';
+    }
+    fclose(f);
+}
+
+/* Atomically drop a one-line request for the root gobi-ota-apply worker (temp
+ * file + rename, so the .path unit never triggers on a partial line). */
+static void write_ota_request(const char *line)
+{
+    char tmp[128];
+    snprintf(tmp, sizeof(tmp), "%s/request.tmp", OTA_REQ_DIR);
+    FILE *f = fopen(tmp, "w");
+    if (!f) {
+        syslog(LOG_ERR, "ota: cannot open %s: %s", tmp, strerror(errno));
         return;
     }
-    if (pid > 0) {
-        syslog(LOG_INFO, "ota: download child pid=%d", (int)pid);
-        return;  /* parent returns immediately */
+    fprintf(f, "%s\n", line);
+    fclose(f);
+    if (rename(tmp, OTA_REQ_FILE) != 0)
+        syslog(LOG_ERR, "ota: cannot commit request %s: %s", OTA_REQ_FILE, strerror(errno));
+}
+
+/* Request an OTA to <version> via the root worker. Loop-guard: skip if already
+ * running that version, so the dashboard can leave desired.firmware_target set
+ * without causing a re-install/reboot loop on every reconnect. */
+static void ota_trigger(const char *version)
+{
+    char running[32];
+    running_version(running, sizeof(running));
+    if (running[0] != '\0' && strcmp(running, version) == 0) {
+        syslog(LOG_INFO, "ota: already on %s — skipping", version);
+        return;
     }
-
-    /* ── Child ── */
-    char url[256], local[64];
-    snprintf(url,   sizeof(url),   "%s/%s/ecofleet-%s.swu",
-             OTA_BUNDLE_BASE_URL, version, version);
-    snprintf(local, sizeof(local), "/tmp/ecofleet-%s.swu", version);
-
-    syslog(LOG_INFO, "ota: downloading %s -> %s", url, local);
-
-    /* curl: silent, fail on HTTP errors, follow redirects, 5-min timeout */
-    const char *curl_argv[] = {
-        "curl", "-fsSL", "--max-time", "300",
-        "-o", local, url, NULL
-    };
-    pid_t curl_pid = fork();
-    if (curl_pid == 0) {
-        execvp("curl", (char *const *)curl_argv);
-        _exit(127);
-    }
-    int status = 0;
-    waitpid(curl_pid, &status, 0);
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-        syslog(LOG_ERR, "ota: curl failed (exit %d) — aborting", WEXITSTATUS(status));
-        _exit(1);
-    }
-
-    syslog(LOG_INFO, "ota: download complete, applying via gobi-ota-apply");
-
-    /* The agent runs as the unprivileged 'ecofleet' user (gobi-agent.service),
-     * but the install must write the inactive A/B slot + the u-boot env and then
-     * reboot — all root-only. So the privileged step is delegated to a small
-     * root helper, /usr/sbin/gobi-ota-apply, invoked through a tightly-scoped
-     * sudo rule (/etc/sudoers.d/gobi-agent: NOPASSWD for exactly that helper).
-     * The helper runs `swupdate -i <bundle> -f /etc/swupdate/ecofleet.cfg`
-     * (signature-verified via CONFIG_SIGNED_IMAGES + public-key-file in the cfg),
-     * removes the bundle, and reboots on success. We replace this child with
-     * sudo: on a successful update the helper reboots so exec never returns; any
-     * return here means the helper couldn't be launched (the current slot keeps
-     * running and the command is retried on the next shadow delta). */
-    const char *apply_argv[] = { "sudo", "-n", "/usr/sbin/gobi-ota-apply",
-                                 local, NULL };
-    execvp("sudo", (char *const *)apply_argv);
-    syslog(LOG_ERR, "ota: exec sudo gobi-ota-apply failed: %s", strerror(errno));
-    unlink(local);
-    _exit(1);
+    char line[64];
+    snprintf(line, sizeof(line), "install %s", version);
+    syslog(LOG_INFO, "ota: requesting install of %s (root worker downloads + applies)",
+           version);
+    write_ota_request(line);
 }
 
 /* ── Shadow config callback ──────────────────────────────────────────────── */
@@ -356,9 +349,11 @@ static void on_shadow_config(const shadow_config_t *cfg, void *userdata)
            cfg->firmware_target, cfg->reboot_requested, cfg->apu_command);
 
     if (cfg->reboot_requested) {
-        syslog(LOG_WARNING, "shadow: reboot requested — rebooting in 3 s");
-        sleep(3);
-        system("systemctl reboot");
+        /* `systemctl reboot` (Linux->PSCI->TF-A->WDOG_B) HANGS this board before
+         * U-Boot SPL — route the reboot through the root worker, which uses the
+         * BD71847 PMIC I2C cold reset (gobi-cold-reboot) instead. */
+        syslog(LOG_WARNING, "shadow: reboot requested — via PMIC cold reset (root worker)");
+        write_ota_request("reboot");
     }
     if (cfg->firmware_target[0] != '\0') {
         syslog(LOG_INFO, "shadow: OTA requested, target=%s — spawning download",

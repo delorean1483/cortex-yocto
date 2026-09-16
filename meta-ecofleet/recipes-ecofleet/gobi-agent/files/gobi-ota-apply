@@ -1,38 +1,69 @@
 #!/bin/sh
-# gobi-ota-apply — root OTA helper for gobi-agent.
+# gobi-ota-apply — root OTA/reboot worker for gobi-agent.
 #
-# gobi-agent runs as the unprivileged 'ecofleet' user and downloads the signed
-# .swu bundle to /tmp, then invokes this via
-#     sudo -n /usr/sbin/gobi-ota-apply <bundle>
-# (allowed by /etc/sudoers.d/gobi-agent). swupdate needs root to write the
-# inactive A/B slot + the u-boot env and to reboot, so that privileged step
-# lives here — the single audited entry point. The bundle is still trusted only
-# via swupdate's own CONFIG_SIGNED_IMAGES signature check.
+# The gobi-agent runs as the unprivileged 'ecofleet' user and is heavily
+# sandboxed (NoNewPrivileges + ProtectSystem=strict), so it CANNOT escalate to
+# do a firmware install or reboot itself — sudo is blocked by NoNewPrivileges
+# (which is exactly why the earlier sudo-helper approach silently failed). So the
+# agent just drops a one-line request file, and THIS worker — started as root and
+# deliberately un-sandboxed by gobi-ota-apply.path/.service — does the privileged
+# work: download the signed bundle, swupdate the inactive A/B slot + u-boot env,
+# and reboot.
+#
+# Request file ($REQ), one line:
+#   install <version>   download releases/<version>/ecofleet-<version>.swu, install, reboot
+#   reboot              reboot only
+# <version> is validated to digits+dots and the URL is built from a fixed base, so
+# a request can only ever install a signed bundle from our S3 releases path (and
+# swupdate still verifies the signature via CONFIG_SIGNED_IMAGES).
+#
+# Reboots go through gobi-cold-reboot (BD71847 PMIC I2C cold reset): a normal
+# `reboot` hangs this board before U-Boot SPL. See the plan doc.
 set -u
 
-SWU="${1:-}"
+REQ=/var/lib/ecofleet/ota/request
 CFG=/etc/swupdate/ecofleet.cfg
+BASE_URL="https://ecofleet-ota.s3.amazonaws.com/releases"
 
-# Only ever install an agent-produced bundle path, so the sudo grant can't be
-# repurposed to swupdate an arbitrary file.
-case "$SWU" in
-    /tmp/ecofleet-*.swu) : ;;
-    *) echo "gobi-ota-apply: refusing bundle path '$SWU'" >&2; exit 2 ;;
+[ -f "$REQ" ] || exit 0
+read -r cmd arg < "$REQ"
+rm -f "$REQ"
+
+case "$cmd" in
+    reboot)
+        logger -t gobi-ota-apply "reboot requested — PMIC cold reset"
+        exec /usr/sbin/gobi-cold-reboot
+        ;;
+    install)
+        # Version must be digits and dots only — no path/URL/shell injection.
+        case "$arg" in
+            ''|*[!0-9.]*)
+                logger -t gobi-ota-apply "refusing install: bad version '$arg'"
+                exit 2 ;;
+        esac
+        swu="/tmp/ecofleet-${arg}.swu"
+        url="${BASE_URL}/${arg}/ecofleet-${arg}.swu"
+
+        logger -t gobi-ota-apply "OTA ${arg}: downloading $url"
+        if ! curl -fsSL --max-time 300 -o "$swu" "$url"; then
+            logger -t gobi-ota-apply "OTA ${arg}: download failed — staying on current slot"
+            rm -f "$swu"
+            exit 1
+        fi
+
+        logger -t gobi-ota-apply "OTA ${arg}: installing"
+        swupdate -i "$swu" -f "$CFG"
+        rc=$?
+        rm -f "$swu"
+
+        if [ "$rc" -eq 0 ]; then
+            logger -t gobi-ota-apply "OTA ${arg}: install ok — activating via PMIC cold reset"
+            exec /usr/sbin/gobi-cold-reboot
+        fi
+        logger -t gobi-ota-apply "OTA ${arg}: swupdate failed (exit $rc) — staying on current slot"
+        exit "$rc"
+        ;;
+    *)
+        logger -t gobi-ota-apply "ignoring unknown request '$cmd'"
+        exit 2 ;;
 esac
-[ -f "$SWU" ] || { echo "gobi-ota-apply: no bundle at '$SWU'" >&2; exit 2; }
-
-logger -t gobi-ota-apply "installing $SWU"
-swupdate -i "$SWU" -f "$CFG"
-rc=$?
-rm -f "$SWU"
-
-if [ "$rc" -eq 0 ]; then
-    # A normal `reboot` HANGS this board before U-Boot SPL (WDOG_B doesn't trigger
-    # the PMIC cold reset). gobi-cold-reboot does the reboot via a BD71847 I2C cold
-    # reset instead — the only path that reliably power-cycles the eMMC/DDR rails.
-    logger -t gobi-ota-apply "install ok — rebooting via PMIC cold reset"
-    exec /usr/sbin/gobi-cold-reboot
-fi
-
-logger -t gobi-ota-apply "swupdate failed (exit $rc) — staying on current slot"
-exit "$rc"

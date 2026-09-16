@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch for EcoFleet OTA / reboot requests
+
+[Path]
+# The sandboxed agent drops a one-line request here; this starts the root worker.
+PathExists=/var/lib/ecofleet/ota/request
+Unit=gobi-ota-apply.service
+
+[Install]
+WantedBy=multi-user.target

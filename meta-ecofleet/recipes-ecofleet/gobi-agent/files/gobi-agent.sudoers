@@ -1,5 +1,0 @@
-# Let the unprivileged gobi-agent user apply an OTA image without being root.
-# The agent (User=ecofleet) downloads the signed .swu, then runs the install +
-# reboot through this one root helper. The helper is the only privileged entry
-# point and accepts only /tmp/ecofleet-*.swu bundle paths.
-ecofleet ALL=(root) NOPASSWD: /usr/sbin/gobi-ota-apply

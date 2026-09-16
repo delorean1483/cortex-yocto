@@ -1,0 +1,12 @@
+[Unit]
+Description=EcoFleet OTA / reboot worker (privileged)
+# Started on demand by gobi-ota-apply.path when the unprivileged, sandboxed
+# gobi-agent drops a request at /var/lib/ecofleet/ota/request. This unit is
+# deliberately NOT sandboxed (runs as root, full access) — it must curl the
+# signed bundle, write the inactive A/B slot + u-boot env, and reboot, none of
+# which the hardened agent can do. It is not enabled on its own; the .path
+# triggers it.
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/gobi-ota-apply
