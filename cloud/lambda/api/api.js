@@ -228,6 +228,7 @@ async function handleGetTelemetry(event) {
       |> range(start: ${start})
       |> filter(fn: (r) => r._measurement == "telemetry" and r.unit == "${unit.replace(/"/g, '')}")
       |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+      |> group()
       |> sort(columns: ["_time"], desc: true)
       |> limit(n: ${limit})
   `;
@@ -245,11 +246,19 @@ async function handleGetLatest(event) {
   if (isDemoUnit(unit)) return resp(200, { unit, latest: demoLatest(unit) });
   await getInfluxToken();
   const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
+  // group() BEFORE sort/limit is essential: the enum fields (mode,
+  // engine_status, control_status, error, oil_change, heater_state) are
+  // InfluxDB tags, so when the unit's state changes within the window the data
+  // splits into multiple series. Without group(), sort+limit run per-series and
+  // rows[0] is an arbitrary (often stale) series' latest — the unit then looks
+  // "stale" and shows an old state even while it reports live. group() merges
+  // all series into one table so limit(1) is the true global latest.
   const flux = `
     from(bucket: "telemetry")
       |> range(start: -24h)
       |> filter(fn: (r) => r._measurement == "telemetry" and r.unit == "${unit.replace(/"/g, '')}")
       |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+      |> group()
       |> sort(columns: ["_time"], desc: true)
       |> limit(n: 1)
   `;
@@ -275,6 +284,7 @@ async function handleGetFaults(event) {
       |> range(start: ${start})
       |> filter(fn: (r) => r._measurement == "faults" and r.unit == "${unit.replace(/"/g, '')}")
       |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+      |> group()
       |> sort(columns: ["_time"], desc: true)
       |> limit(n: ${limit})
   `;
