@@ -36,7 +36,8 @@ export default function MaintenancePage() {
     api.listUnits().then(d => {
       const list = d.units || []
       setUnits(list)
-      if (!selectedUnit && list.length > 0) setSelectedUnit(list[0])
+      // list items are { unit, demo } objects — select the unit id string.
+      if (!selectedUnit && list.length > 0) setSelectedUnit(list[0].unit)
     }).catch(() => {})
   }, [])
 
@@ -83,7 +84,7 @@ export default function MaintenancePage() {
           style={selStyle}
         >
           {!selectedUnit && <option value="">— select unit —</option>}
-          {units.map(u => <option key={u} value={u}>{u}</option>)}
+          {units.map(u => <option key={u.unit} value={u.unit}>{u.unit}{u.demo ? ' (demo)' : ''}</option>)}
         </select>
         <button className="btn btn-sm" onClick={fetchRecords}>
           <IconRefresh size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />

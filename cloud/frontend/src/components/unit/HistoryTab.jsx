@@ -13,7 +13,7 @@ export default function HistoryTab({ unit }) {
     return <>{[1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 34, marginBottom: 5 }} />)}</>
   }
   if (!faults || faults.length === 0) {
-    return <div className="notice">No events in the last 7 days.</div>
+    return <div className="notice">No fault events in the last 7 days — the unit has reported no faults. (This log shows faults only; live readings are on the Telemetry tab.)</div>
   }
 
   return (
