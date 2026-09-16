@@ -19,7 +19,7 @@ All software is on `main` and staged **inert**:
 | Piece | State |
 |---|---|
 | Agent flash code (`stm32_*.c`, `bl_*.c`) | Merged; **live on `.86` in v1.2.49** (reports `stm32_update_status:"idle"`) |
-| Delivery recipe + real **v1.1.1** A/B blobs + manifest | Merged; usrmerge-fixed; **CI-verified** (recipe builds + image bundles it) |
+| Delivery recipe + real **v1.1.1** A/B blobs + manifest | Merged; usrmerge-fixed; **build-verified via a one-off Yocto build** with `IMAGE_INSTALL` temporarily enabled (recipe fetch/install/usrmerge-QA pass + image bundles the blobs). ⚠ No *standing* CI job builds it — §2d is the first time it's exercised in a real release build. |
 | Web trigger (agent `apu_firmware_target` + telemetry `apu_bundled_fw_version`/`apu_flash_state`) | Merged (PR #44) |
 | Backend `apu_firmware_target` under `apu_ota` (admin/fm) | Merged **and deployed to prod** (`ecofleet-prod-api`) 2026-09-16 |
 | Frontend Flash button | Scaffolded, behind `APU_OTA_ENABLED=false` |
@@ -76,6 +76,15 @@ prod tracks `main`:
       lambda-deploy note — verify via `CodeSha256`).
 
 ### 2c. Frontend — reveal the Flash button
+
+> ⚠ **Ordering:** revealing the button before the blob-carrying image has
+> reached at least one unit (§2d–§2f) leaves a **dead-click window** — the
+> button is live but no unit has a manifest, so `bnd==0` and every click
+> **acks-and-drops** (`apu_flash_state` stays `idle`, `apu_fw_version`
+> unchanged). To the operator it looks like the flash silently does nothing.
+> Prefer to do §2d–§2f first and run the actual `vercel --prod` here **last**,
+> or accept that clicks are no-ops until the image lands.
+
 `APU_OTA_ENABLED` is a build-time constant, so this is a code change + redeploy:
 - [ ] Edit `cloud/frontend/src/config/flags.js` line 15 → `export const APU_OTA_ENABLED = true`.
 - [ ] `cd cloud/frontend && npm test -- --run` (expect green).
@@ -104,8 +113,11 @@ Hands-free OTA works end-to-end (warm-reboot fix + decoupled worker shipped):
         --region us-east-1 --profile ecofleet --cli-binary-format raw-in-base64-out \
         --payload '{"state":{"desired":{"firmware_target":"X.Y.Z"}}}' /tmp/o.json
       ```
-- [ ] The agent self-serves (download → swupdate → PMIC cold reboot). After
-      reboot, clear the desired (`firmware_target: null`) so it doesn't loop.
+- [ ] The agent self-serves (download → swupdate → PMIC cold reboot).
+      Optionally clear the desired (`firmware_target: null`) afterward as state
+      hygiene — **not** required to avoid a loop: `ota_trigger()` has a
+      loop-guard (main.c) that skips the install once the unit is already
+      running the target version, so leaving it set does not re-install/reboot.
 - [ ] (Manual alternative: `swupdate -i ecofleet-X.Y.Z.swu -f /etc/swupdate/ecofleet.cfg`
       on the device — the real `swupdate -i` install is **user-run via `!`**,
       classifier-blocked for Claude.)
@@ -113,8 +125,12 @@ Hands-free OTA works end-to-end (warm-reboot fix + decoupled worker shipped):
 ### 2f. Confirm the manifest landed
 On the device, the recipe now installs the blobs:
 - [ ] `ssh root@192.168.0.86 'ls -l /lib/firmware/g0b1-apu/'` → `manifest.json` +
-      `g0b1-apu-X.Y.Z-slotA.bin` + `...slotB.bin` (resolves via the usrmerge
-      `/lib -> usr/lib` symlink; the recipe installs to `/usr/lib/firmware/...`).
+      `g0b1-apu-<STM32VER>-slotA.bin` + `...slotB.bin`, where `<STM32VER>` is the
+      **STM32 firmware version from the manifest (currently `1.1.1`)** — NOT the
+      cortex image release `X.Y.Z` used in §2d/§2e. The two are independent: image
+      `v1.2.50` can carry STM32 blobs named `g0b1-apu-1.1.1-slot{A,B}.bin`.
+      (Resolves via the usrmerge `/lib -> usr/lib` symlink; the recipe installs
+      to `/usr/lib/firmware/...`.)
 - [ ] `ssh root@192.168.0.86 'grep -o "\"apu_bundled_fw_version\":[0-9]*\|\"apu_flash_state\":\"[a-z]*\"" /var/lib/ecofleet/latest.json'`
       → bundled version encoded (e.g. `10101` for 1.1.1) + `"idle"`.
 
@@ -160,7 +176,9 @@ Full steps in `docs/stm32-ota.md` → *End-to-end flow*. In brief, in
 
 Then in this repo:
 3. Drop the two `.bin` into `meta-ecofleet/recipes-ecofleet/g0b1-apu-firmware/files/`.
-4. Bump the three filenames in `g0b1-apu-firmware.bb` (`SRC_URI` + `do_install`).
+4. Bump the **two** versioned `.bin` filenames in `g0b1-apu-firmware.bb` —
+   `slotA` and `slotB`, each appearing in both `SRC_URI` and `do_install`
+   (4 edit sites). `manifest.json` is unversioned — don't rename it.
 5. Bump `files/manifest.json` (`version`, `slotA`, `slotB`).
 6. Cut a tagged image (§2d) and deliver (§2e). Any content fix **must** bump the
    patch version even if the binary is unchanged (version-keyed retry guard).
