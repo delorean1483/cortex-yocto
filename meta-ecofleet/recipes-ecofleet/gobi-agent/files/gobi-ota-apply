@@ -24,6 +24,13 @@ set -u
 REQ=/var/lib/ecofleet/ota/request
 CFG=/etc/swupdate/ecofleet.cfg
 BASE_URL="https://ecofleet-ota.s3.amazonaws.com/releases"
+STATUS=/var/lib/ecofleet/ota/status
+
+# Publish OTA progress; the agent mirrors this file into the shadow as
+# reported.ota_status, so a failed OTA shows on the dashboard instead of a stuck
+# "pending". (On success the board reboots and the new slot has no status file,
+# so it naturally reads back "idle" + the new reported firmware_version.)
+status() { printf '%s\n' "$1" > "$STATUS" 2>/dev/null || true; }
 
 [ -f "$REQ" ] || exit 0
 read -r cmd arg < "$REQ"
@@ -44,22 +51,27 @@ case "$cmd" in
         swu="/tmp/ecofleet-${arg}.swu"
         url="${BASE_URL}/${arg}/ecofleet-${arg}.swu"
 
+        status "downloading ${arg}"
         logger -t gobi-ota-apply "OTA ${arg}: downloading $url"
         if ! curl -fsSL --max-time 300 -o "$swu" "$url"; then
+            status "failed: download ${arg}"
             logger -t gobi-ota-apply "OTA ${arg}: download failed — staying on current slot"
             rm -f "$swu"
             exit 1
         fi
 
+        status "installing ${arg}"
         logger -t gobi-ota-apply "OTA ${arg}: installing"
         swupdate -i "$swu" -f "$CFG"
         rc=$?
         rm -f "$swu"
 
         if [ "$rc" -eq 0 ]; then
+            status "success ${arg}"
             logger -t gobi-ota-apply "OTA ${arg}: install ok — activating via PMIC cold reset"
             exec /usr/sbin/gobi-cold-reboot
         fi
+        status "failed: install ${arg} (rc ${rc})"
         logger -t gobi-ota-apply "OTA ${arg}: swupdate failed (exit $rc) — staying on current slot"
         exit "$rc"
         ;;
