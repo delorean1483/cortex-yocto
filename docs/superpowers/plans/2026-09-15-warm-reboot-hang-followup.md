@@ -57,9 +57,44 @@ Captured with `capture-warm-reboot.py` on the debug UART (`/dev/cu.usbserial-DP0
 
 1. **✅ DONE — captured 2026-09-15 (see "Captured serial evidence" below).** Result: on a warm reset **nothing prints at all** — the wedge is *before* the first `U-Boot SPL` line (boot ROM / SPL pre-DDR-init), earlier than "before u-boot." Tool: `docs/bench/tools/capture-warm-reboot.py` + runbook `docs/bench/2026-09-15-warm-reboot-serial-capture.md`.
 2. **Force a full PMIC POR on reset.** Determine whether WDOG_B is routed to the BD71847's reset/POR input on the DT8MCustomBoard, and configure the PMIC (register / DT) to do a full power cycle on WDOG. TF-A/u-boot `reset_cpu()` may need to assert the right path. (READY-state DT change alone didn't do it → the WDOG_B→PMIC trigger/wiring is the suspect.)
-3. **Diff against stock Variscite.** Flash a stock Variscite Yocto image via their installer and test a warm reboot. If stock reboots fine → diff our imx-boot / u-boot / DDR-timing firmware / provisioning vs stock (our raw-`.wic` differs). If stock also hangs → it's upstream; pursue #2/#4.
-4. **Re-provision the eMMC the Variscite way** (imx-boot in `boot0` + ext_csd), instead of raw-`.wic`, and re-test — the boot-source difference may matter for warm reset.
+3. **Diff against stock Variscite.** Flash a stock Variscite Yocto image via their installer and test a warm reboot. *(⬆ PROMOTED by the 2026-09-16 research update to step **B** — note: our provisioning already matches stock, so if stock also hangs it's a platform limitation.)*
+4. **Re-provision the eMMC the Variscite way** (imx-boot in `boot0` + ext_csd). *(❌ DEMOTED by the 2026-09-16 research update — Variscite's own MINI installer uses the SAME user-area 0x8400 layout, so boot-source is not the differentiator. Low probability; procedure kept as a secondary experiment below.)*
 5. **u-boot/SPL warm-boot DDR retrain** (the "proper" upstream fix). Check newer NXP imx-boot/u-boot releases for existing warm-boot support before implementing.
+
+---
+
+## Research update (2026-09-16) — reprioritizes the above
+
+Off-bench research (Variscite installer scripts + NXP community + Variscite DTS; sources at bottom). **Two premises above were wrong; the direction shifts from "our provisioning/config differs" to "the warm `reboot` is not physically power-cycling/resetting the eMMC+DDR."**
+
+**❌ Candidate #4 (boot0 reprovisioning) is NOT the differentiator — demote to low-probability.** Variscite's own MINI installer (`meta-variscite-sdk-imx` `mx8_install_yocto.sh`) provisions the eMMC **identically to our raw-`.wic`**: `dd` imx-boot to the **user area at seek=33 KiB = 0x8400** (`BOOTLOADER_OFFSET=33` for i.MX8MM), `boot0`/`boot1` left empty, and it never touches PARTITION_CONFIG / BOOT_BUS_CONDITIONS / RST_n_FUNCTION (so stock MINI units also ship `RST_n_FUNCTION=0x00`). Confirmed by `flexbuild` `imx8mm-var-dart.conf DISK_BOOTLOADER_OFFSET=33792`. → Boot-source is the wrong variable; our layout matches Variscite's. (The boot0 procedure is kept below as a documented *secondary* experiment only.)
+
+**❌ "`mmc rst-function 2 1` is the fix" from web search is circular** — that text is scraped from *our own* repo (cortex-yocto PR #28/#31), not an independent NXP source. Disregard as corroboration.
+
+**Revised root cause (best current understanding):** on i.MX8M a `reboot` is *designed* to become a **full PMIC POR via WDOG_B** (NXP's explicit position: a DDR-retaining "warm reset" is **not supported**; the reboot must power-cycle DDR — and normally the eMMC rails — via the PMIC). Our two prior experiments failing is the **diagnostic signal**: (a) `RST_n_FUNCTION 0x00→0x01` = "make the SoC's eMMC reset line actually reset the card" — no change; (b) drop `rohm,reset-snvs-powered` (SNVS→READY full power-down) — no change. Neither helping means **the warm reboot isn't reaching the eMMC as a power-cycle or RST pulse at all.** Leading suspects:
+1. **WDOG_B isn't actually triggering the PMIC POR** on the DT8MCustomBoard reset path (so SNVS-vs-READY is moot — the PMIC never sees it), and/or TF-A `psci_system_reset` isn't asserting WDOG1 the way the pinmux assumes. (Our running DTS *does* have `&wdog1 fsl,ext-reset-output` + `GPIO1_IO02_WDOG1_WDOG_B 0xc6` — so it's wired in DT; question is whether it fires.)
+2. **eMMC VCC/VCCQ sits on an always-on rail** (or READY off-time too short to discharge), so the eMMC keeps the HS200/HS400 mode Linux left it in and the low-speed boot ROM can't talk to it — matches "only a full cold power-cycle recovers."
+3. Marginal POR on the carrier (weak POR_B pull-up / sequencing) that only bites on the warm path (NXP i.MX8MM "stuck in Boot ROM" class).
+
+**⇒ New next steps (cheapest / most decisive first):**
+- **A. Scope the reset path during `reboot` (do FIRST — no reflash, fully reversible, discriminates everything).** With a scope, probe on a `reboot`: **WDOG_B (GPIO1_IO02)**, the **BD71847 rails feeding DDR**, the **eMMC VCC + VCCQ**, and **eMMC_RST_B**. The one question it answers: *does `reboot` actually cause a PMIC POR that drops/re-sequences eMMC power (or pulses eMMC_RST_B)?* Near-certain finding given "cold always works": **no** — and *which* signal is missing tells you whether it's #1 (WDOG_B not asserting), #2 (eMMC on an always-on rail), or #3 (marginal POR). Needs scope + carrier test points (hardware — Robb).
+- **B. Diff against a stock Variscite image (cheap, software-only discriminator; candidate #3).** Flash a stock Variscite Yocto image and test a warm `reboot` on the same unit. Stock **also hangs** → it's a latent Variscite/NXP i.MX8MM-on-this-carrier limitation (NXP has an open "warm reset unsupported" position with no workaround) → the cold-cycle workaround may be the accepted answer, or it's a carrier hardware fix. Stock **reboots fine** → something in *our* image (DTB/u-boot config, since provisioning matches) differs — re-open that diff.
+
+**Reframed candidate priority:** A (scope) → B (stock diff) → #2 (fix WDOG_B→PMIC POR, hardware/TF-A) → #4 boot0 (low prob, documented below) → #5 SPL DDR retrain (NXP says there's nothing to patch at the ROM stage — the wedge is pre-SPL).
+
+### Secondary experiment (low probability) — boot0 reprovisioning procedure
+imx-boot goes at **offset 0** in boot0 (use the `flash.bin`/`-flash` variant, NOT seek=33). From Linux (`/dev/mmcblk2`):
+```
+echo 0 > /sys/class/block/mmcblk2boot0/force_ro
+dd if=/dev/zero of=/dev/mmcblk2boot0 bs=1M count=1
+dd if=imx-boot-<...>-flash.bin of=/dev/mmcblk2boot0 bs=1k     # offset 0, NO seek
+sync; echo 1 > /sys/class/block/mmcblk2boot0/force_ro
+mmc bootpart enable 1 1 /dev/mmcblk2      # BOOT_PARTITION_ENABLE=1(boot0), BOOT_ACK=1
+mmc extcsd read /dev/mmcblk2 | grep -i PARTITION_CONFIG   # expect 0x48
+```
+From u-boot: `mmc dev 2 1; mmc write ${loadaddr} 0 ${blkcnt}; mmc dev 2 0; mmc partconf 2 1 1 0` (→0x48); revert with `mmc partconf 2 1 7 0` (user-area). ext_csd: PARTITION_CONFIG=[179], BOOT_BUS_CONDITIONS=[177], RST_n_FUNCTION=[162].
+
+**Sources:** Variscite installer `varigit/meta-variscite-sdk-imx` `scripts/.../mx8_install_yocto.sh` (BOOTLOADER_OFFSET=33, dd seek=33, no ext_csd) · `varigit/flexbuild` `imx8mm-var-dart.conf` (DISK_BOOTLOADER_OFFSET=33792) · `varigit/linux-imx` `lf-6.6.y_6.6.52-2.2.2_var01` DTS (`wdog1 fsl,ext-reset-output` + `GPIO1_IO02_WDOG1_WDOG_B`; `pmic@4b rohm,bd71847 rohm,reset-snvs-powered`) · `bd718x7-regulator.c` (SNVS vs READY) · NXP community 1760816 (iMX8MP warm reboot SPL romapi read fail), 1606363 (soft reboot stuck in imx-atf; `fsl,ext-reset` → WDOG→PMIC POR), 1720184 (warm/DDR-retaining reset unsupported), 1224262 (boot0 offset 0 vs user 0x8400), 1241544 (Linux boot0 commands, PARTITION_CONFIG 0x48), 1343472 (iMX8MM stuck in Boot ROM / POR class).
 
 ---
 
