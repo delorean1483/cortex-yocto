@@ -37,6 +37,14 @@ static modbus_t   *g_ctx = NULL;
 static stu_status_t g_status = STU_IDLE;
 static int          g_pct = -1;             /* -1 == no flash attempted yet */
 
+/* Encoded target of a pending explicit (operator-initiated) flash request, or
+ * 0 when none. main.c re-arms this each poll cycle from the shadow desired
+ * (0 = no request), so it always tracks the live request state. Unlike the
+ * automatic path this lets a flash proceed with G0B1_AUTO_FLASH_DEFAULT off,
+ * but only when it passes stu_should_flash_request() (target == bundled + idle
+ * + newer). */
+static uint16_t     g_requested_target_enc = 0;
+
 /* Manifest cache: re-parsed only when the file's mtime changes. */
 static int          g_manifest_valid = 0;
 static time_t       g_manifest_mtime;
@@ -287,6 +295,16 @@ int stm32_flash_status_pct(void)
     return g_pct;
 }
 
+uint16_t stm32_flash_bundled_ver_enc(void)
+{
+    return g_manifest_valid ? g_bundled_ver_enc : 0;
+}
+
+void stm32_flash_request(uint16_t target_enc)
+{
+    g_requested_target_enc = target_enc;
+}
+
 void stm32_flash_tick(uint16_t running_ver_enc, uint8_t mode, uint8_t engine)
 {
     int newer;
@@ -302,8 +320,16 @@ void stm32_flash_tick(uint16_t running_ver_enc, uint8_t mode, uint8_t engine)
 
     newer = stu_is_newer(running_ver_enc, g_bundled_ver_enc);
     have_outcome_for_current = g_have_outcome && (g_outcome_ver_enc == g_bundled_ver_enc);
+
+    /* Two ways to start a flash: the automatic idle path (gated by
+     * G0B1_AUTO_FLASH_DEFAULT), or an explicit operator request for the bundled
+     * version (no auto gate — the request is the enable — but the same idle +
+     * newer + target-matches-bundled safety conditions still apply). */
     should_flash = stu_should_flash(running_ver_enc, g_bundled_ver_enc, mode, engine,
-                                     G0B1_AUTO_FLASH_DEFAULT);
+                                     G0B1_AUTO_FLASH_DEFAULT)
+                || (g_requested_target_enc != 0 &&
+                    stu_should_flash_request(running_ver_enc, g_bundled_ver_enc,
+                                             g_requested_target_enc, mode, engine));
 
     /* Retry guard: never re-attempt the same bundled version once this
      * process has recorded an outcome (OK or FAILED) for it -- a failed

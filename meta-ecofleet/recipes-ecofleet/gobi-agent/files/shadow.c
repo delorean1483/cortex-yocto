@@ -51,6 +51,17 @@ static struct {
      * only, never exposed via shadow_config_t. */
     unsigned apu_command_seq;
 
+    /* Set once an apu_firmware_target flash has reached a terminal outcome, so
+     * the next reported update nulls it in the cloud desired state. Protected
+     * by mutex. */
+    bool clear_apu_fw_desired;
+
+    /* Monotonic sequence bumped every time apply_desired() ACCEPTS an
+     * apu_firmware_target. Lets shadow_ack_apu_firmware_target() compare-and-
+     * clear so a newer target landing while a flash is in flight is not wiped
+     * by a stale ack. Protected by mutex; internal only. */
+    unsigned apu_fw_target_seq;
+
     /* Set once a heater command has been applied to the hardware, so the
      * next reported update nulls desired.heater in the cloud shadow.
      * Protected by mutex. */
@@ -76,6 +87,7 @@ static void set_default_config(shadow_config_t *cfg)
     strncpy(cfg->report_mode,      "normal", sizeof(cfg->report_mode) - 1);
     strncpy(cfg->firmware_target,  "",       sizeof(cfg->firmware_target) - 1);
     strncpy(cfg->apu_command,      "",       sizeof(cfg->apu_command) - 1);
+    strncpy(cfg->apu_firmware_target, "",    sizeof(cfg->apu_firmware_target) - 1);
     cfg->heater_desired_valid = false;
     cfg->heater_on            = -1;  /* sentinel: not provided/invalid */
     cfg->heater_level         = -1;  /* sentinel: not provided/invalid */
@@ -156,6 +168,19 @@ static bool apply_desired(const cJSON *desired)
         } else {
             fprintf(stderr, "[shadow] unknown apu_command '%s' — ignored\n", cmd);
         }
+    }
+
+    /* STM32 APU-controller firmware flash target (semver "M.m.p"). Accepted
+     * permissively here (like firmware_target); the telemetry loop re-validates
+     * with stu_parse_version() and only flashes when it matches the bundled
+     * image. Stored NUL-terminated; a bumped sequence lets the ack compare-and-
+     * clear. */
+    v = cJSON_GetObjectItemCaseSensitive(desired, "apu_firmware_target");
+    if (cJSON_IsString(v) && v->valuestring && v->valuestring[0]) {
+        strncpy(s.config.apu_firmware_target, v->valuestring,
+                sizeof(s.config.apu_firmware_target) - 1);
+        s.config.apu_firmware_target[sizeof(s.config.apu_firmware_target) - 1] = '\0';
+        s.apu_fw_target_seq++;
     }
 
     /* Heater-scoped remote control: desired.heater = { "on": 0|1, "level": 1..10 },
@@ -417,6 +442,7 @@ int shadow_publish_reported(struct mosquitto *mosq,
     pthread_mutex_lock(&s.config_mutex);
     bool clear_reboot  = s.config.reboot_requested;
     bool clear_apu_cmd = s.clear_apu_cmd_desired;
+    bool clear_apu_fw  = s.clear_apu_fw_desired;
     bool clear_heater  = s.clear_heater_desired;
     if (clear_reboot) {
         cJSON_AddBoolToObject(rep, "reboot", false);
@@ -424,14 +450,17 @@ int shadow_publish_reported(struct mosquitto *mosq,
     }
     if (clear_apu_cmd)
         s.clear_apu_cmd_desired = false;
+    if (clear_apu_fw)
+        s.clear_apu_fw_desired = false;
     if (clear_heater)
         s.clear_heater_desired = false;
     pthread_mutex_unlock(&s.config_mutex);
 
-    if (clear_reboot || clear_apu_cmd || clear_heater) {
+    if (clear_reboot || clear_apu_cmd || clear_apu_fw || clear_heater) {
         cJSON *des = cJSON_AddObjectToObject(state, "desired");
         if (clear_reboot)  cJSON_AddNullToObject(des, "reboot");
         if (clear_apu_cmd) cJSON_AddNullToObject(des, "apu_command");
+        if (clear_apu_fw)  cJSON_AddNullToObject(des, "apu_firmware_target");
         if (clear_heater)  cJSON_AddNullToObject(des, "heater");
     }
 
@@ -485,6 +514,38 @@ void shadow_ack_apu_command(unsigned seq)
     if (seq == s.apu_command_seq) {
         s.config.apu_command[0] = '\0';
         s.clear_apu_cmd_desired = true;
+    }
+    pthread_mutex_unlock(&s.config_mutex);
+}
+
+bool shadow_peek_apu_firmware_target(char *out, size_t out_len, unsigned *seq)
+{
+    if (!s.initialised || !out || out_len == 0 || !seq) return false;
+
+    pthread_mutex_lock(&s.config_mutex);
+    bool pending = s.config.apu_firmware_target[0] != '\0';
+    if (pending) {
+        strncpy(out, s.config.apu_firmware_target, out_len - 1);
+        out[out_len - 1] = '\0';
+        *seq = s.apu_fw_target_seq;
+    }
+    pthread_mutex_unlock(&s.config_mutex);
+    return pending;
+}
+
+void shadow_ack_apu_firmware_target(unsigned seq)
+{
+    if (!s.initialised) return;
+
+    pthread_mutex_lock(&s.config_mutex);
+    /* Only clear the target that was actually peeked. If apply_desired()
+     * accepted a newer apu_firmware_target while the flash for this one was in
+     * flight, s.apu_fw_target_seq has since moved on — leave the (newer)
+     * pending target alone so it is retried next cycle instead of being
+     * silently wiped by this stale ack. */
+    if (seq == s.apu_fw_target_seq) {
+        s.config.apu_firmware_target[0] = '\0';
+        s.clear_apu_fw_desired = true;
     }
     pthread_mutex_unlock(&s.config_mutex);
 }

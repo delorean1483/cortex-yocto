@@ -523,6 +523,21 @@ static void modbus_read_besteffort(telemetry_t *t)
 }
 
 /* ── JSON payload builders ───────────────────────────────────────────────── */
+
+/* Map the STM32 flash task's lifecycle status to the apu_flash_state string the
+ * dashboard's apuFlashStateLabel() expects: idle | flashing | done | failed.
+ * (stu_status_str()'s vocabulary — available/ok/disabled — is the internal one;
+ * this is the UI-facing subset.) */
+static const char *apu_flash_state_str(stu_status_t s)
+{
+    switch (s) {
+        case STU_FLASHING: return "flashing";
+        case STU_OK:       return "done";
+        case STU_FAILED:   return "failed";
+        default:           return "idle";   /* IDLE / AVAILABLE / DISABLED */
+    }
+}
+
 static char *build_telemetry_json(const telemetry_t *t)
 {
     cJSON *root = cJSON_CreateObject();
@@ -562,6 +577,12 @@ static char *build_telemetry_json(const telemetry_t *t)
     cJSON_AddNumberToObject(root, "apu_fw_version", t->fw_version);
     cJSON_AddStringToObject(root, "stm32_update_status", stu_status_str(stm32_flash_status()));
     cJSON_AddNumberToObject(root, "stm32_update_pct", stm32_flash_status_pct());
+    /* APU-controller firmware OTA, for the dashboard FirmwareTab: the bundled
+     * image's encoded version (0 -> shown as "—" when no manifest is bundled)
+     * and the flash lifecycle mapped to the frontend's apuFlashStateLabel()
+     * vocabulary (idle | flashing | done | failed). */
+    cJSON_AddNumberToObject(root, "apu_bundled_fw_version", stm32_flash_bundled_ver_enc());
+    cJSON_AddStringToObject(root, "apu_flash_state", apu_flash_state_str(stm32_flash_status()));
 
     /* VEVOR heater (best-effort; heater_present=false on firmware without
      * the block — every heater register then reads its zero default). */
@@ -879,7 +900,43 @@ int main(void)
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
             modbus_read_besteffort(&t);
+            /* Remote STM32 APU-firmware flash request (peek → arm → ack),
+             * mirrors the apu_command idiom on this same thread. main.c re-arms
+             * the flash task from the shadow desired each cycle (0 = no
+             * request), so the task's arm tracks the live request; the tick
+             * flashes the bundled image only when the target matches it and the
+             * APU is idle. Inert until go-live: with no manifest bundled,
+             * stm32_flash_bundled_ver_enc() == 0, so any target mismatches and
+             * is acked-and-dropped without ever flashing. */
+            char     apu_fw_tgt[32];
+            unsigned apu_fw_seq = 0;
+            uint16_t apu_fw_tgt_enc = 0;
+            bool apu_fw_pending = shadow_peek_apu_firmware_target(
+                                      apu_fw_tgt, sizeof(apu_fw_tgt), &apu_fw_seq);
+            if (apu_fw_pending && !stu_parse_version(apu_fw_tgt, &apu_fw_tgt_enc)) {
+                /* Unparseable target — ack-and-drop so it can't loop. */
+                shadow_ack_apu_firmware_target(apu_fw_seq);
+                apu_fw_pending = false;
+                apu_fw_tgt_enc = 0;
+            }
+            stm32_flash_request(apu_fw_tgt_enc);   /* arm (0 = disarm) */
+
             stm32_flash_tick(t.fw_version, t.mode, t.engine_status);
+
+            /* Resolve the request once the flash reaches a terminal outcome, or
+             * when it can never apply (target != the bundled image, or the
+             * device is already at/newer than it), by clearing the cloud
+             * desired so it doesn't loop. A flash still waiting for the APU to
+             * go idle is left armed and retried next cycle. */
+            if (apu_fw_pending) {
+                stu_status_t fst   = stm32_flash_status();
+                uint16_t     bnd   = stm32_flash_bundled_ver_enc();
+                if (fst == STU_OK || fst == STU_FAILED ||
+                    apu_fw_tgt_enc != bnd ||
+                    !stu_is_newer(t.fw_version, bnd)) {
+                    shadow_ack_apu_firmware_target(apu_fw_seq);
+                }
+            }
 
             /* (Touchscreen commands are applied in the 1 Hz wait loop below, in
              * this same thread — the libmodbus context is never touched

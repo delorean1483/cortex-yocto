@@ -42,6 +42,21 @@ int stu_is_newer(uint16_t running_enc, uint16_t bundled_enc);
 int stu_should_flash(uint16_t running_enc, uint16_t bundled_enc,
                       uint8_t mode, uint8_t engine, int auto_enabled);
 
+/* 1 iff an explicit, operator-initiated remote flash request should proceed:
+ * target_enc == bundled_enc (the device only carries the bundled image, so a
+ * request can only ever flash that), stu_is_newer(running_enc, bundled_enc),
+ * mode==0 and engine==0. Unlike stu_should_flash there is NO auto_enabled
+ * gate — the explicit request is the enable — but the idle/newer safety
+ * conditions are identical. Otherwise 0. */
+int stu_should_flash_request(uint16_t running_enc, uint16_t bundled_enc,
+                             uint16_t target_enc, uint8_t mode, uint8_t engine);
+
+/* Parse a "M.m.p" version string (strict: three unsigned decimals, dots only,
+ * no signs/whitespace/trailing garbage) into the reg-2 encoding. Returns 1 and
+ * sets *enc on success; returns 0 (leaving *enc untouched) otherwise. Used by
+ * the agent to re-validate a shadow-supplied apu_firmware_target. */
+int stu_parse_version(const char *s, uint16_t *enc);
+
 /* Parse a manifest JSON object of the shape:
  *   { "version":"1.1.0", "slotA":"g0b1-apu-1.1.0-slotA.bin",
  *     "slotB":"g0b1-apu-1.1.0-slotB.bin" }
