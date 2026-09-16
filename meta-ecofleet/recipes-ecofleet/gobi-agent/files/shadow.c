@@ -385,6 +385,8 @@ int shadow_publish_reported(struct mosquitto *mosq,
     cJSON_AddNumberToObject(rep, "poll_interval_s",  poll);
     cJSON_AddStringToObject(rep, "report_mode",      mode);
     cJSON_AddStringToObject(rep, "firmware_version", s.firmware_version);
+    cJSON_AddStringToObject(rep, "ota_status",
+                            reported->ota_status[0] ? reported->ota_status : "idle");
     cJSON_AddStringToObject(rep, "apu_state",        reported->apu_state);
     cJSON_AddNumberToObject(rep, "dc_v",             reported->dc_v);
     cJSON_AddNumberToObject(rep, "batt_soc",         reported->batt_soc);

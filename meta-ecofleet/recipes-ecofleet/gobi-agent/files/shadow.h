@@ -50,6 +50,10 @@ typedef struct {
     char     fault[10];          /* hex string, e.g. "0x0000"                    */
     char     firmware_version[32];
     uint64_t last_seen_ts;       /* epoch ms                                     */
+    char     ota_status[64];     /* last OTA state from the root worker, e.g.
+                                  * "idle" | "downloading 1.2.48" |
+                                  * "installing 1.2.48" | "failed: install 1.2.48"
+                                  * — lets the dashboard see OTA progress/failure  */
 
     /* VEVOR heater (Sub-project #1 firmware, frozen regs 53..67) — mirrors
      * the heater_* fields in build_telemetry_json(). The whole "heater"

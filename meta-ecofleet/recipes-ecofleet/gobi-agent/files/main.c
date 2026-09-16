@@ -276,6 +276,7 @@ static int db_flush(const char *table, const char *topic)
  */
 #define OTA_REQ_DIR          "/var/lib/ecofleet/ota"
 #define OTA_REQ_FILE         OTA_REQ_DIR "/request"
+#define OTA_STATUS_FILE      OTA_REQ_DIR "/status"
 #define RUNNING_VERSION_FILE "/etc/ecofleet/firmware-version"
 
 /* Running cortex image version — the file holds e.g. "v1.2.45"; `out` gets
@@ -293,6 +294,19 @@ static void running_version(char *out, size_t out_len)
         strncpy(out, s, out_len - 1);
         out[out_len - 1] = '\0';
     }
+    fclose(f);
+}
+
+/* Read the root worker's last OTA status line (e.g. "installing 1.2.48" or
+ * "failed: ...") into `out`, or "" if there's no status file. Reported to the
+ * shadow each cycle so the dashboard sees OTA progress/failure. */
+static void read_ota_status(char *out, size_t out_len)
+{
+    out[0] = '\0';
+    FILE *f = fopen(OTA_STATUS_FILE, "r");
+    if (!f) return;
+    if (fgets(out, out_len, f))
+        out[strcspn(out, "\r\n")] = '\0';
     fclose(f);
 }
 
@@ -922,6 +936,10 @@ int main(void)
             srep.heater_fan_rpm = t.heater_fan_rpm;
             srep.heater_safe_off = heater_safe_off(t.heater_flags);
             srep.heater_comms_ok = heater_comms_ok(t.heater_flags);
+
+            /* OTA progress/failure from the root worker (so a failed OTA shows
+             * as e.g. "failed: install 1.2.48" instead of a stuck "pending"). */
+            read_ota_status(srep.ota_status, sizeof(srep.ota_status));
 
             shadow_publish_reported(g_mosq, &srep);
 
