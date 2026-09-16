@@ -606,7 +606,16 @@ async function handleGetReports(event) {
   await getInfluxToken();
   const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
 
-  const [engineHrsRows, faultRows] = await Promise.all([
+  // engine_hrs is a cumulative counter; runtime accrued in the window is
+  // (last - first) per unit, so fetch both ends of the window.
+  const [engineHrsFirstRows, engineHrsLastRows, faultRows] = await Promise.all([
+    queryApi.collectRows(`
+      from(bucket: "telemetry")
+        |> range(start: ${safeStart})
+        |> filter(fn: (r) => r._measurement == "telemetry" and r._field == "engine_hrs")
+        |> group(columns: ["unit"])
+        |> first()
+    `),
     queryApi.collectRows(`
       from(bucket: "telemetry")
         |> range(start: ${safeStart})
@@ -623,7 +632,7 @@ async function handleGetReports(event) {
     `),
   ]);
 
-  const report = buildReports({ engineHrsRows, faultRows });
+  const report = buildReports({ engineHrsFirstRows, engineHrsLastRows, faultRows });
   return resp(200, { start: safeStart, generated_at: Date.now(), ...report });
 }
 
