@@ -120,17 +120,17 @@ export default function APUHistoryPage() {
           </div>
           <table className="dtbl">
             <thead>
-              <tr><th>Time</th><th>DC V</th><th>SOC %</th><th>Oil PSI</th><th>Coolant °C</th><th>Runtime h</th></tr>
+              <tr><th>Time</th><th>Batt V</th><th>RPM</th><th>Cabin °F</th><th>Oil</th><th>Engine h</th></tr>
             </thead>
             <tbody>
               {tele.slice(0, 20).map((t, i) => (
                 <tr key={i}>
                   <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, whiteSpace: 'nowrap' }}>{new Date(t.ts).toLocaleString()}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.dc_v?.toFixed(1) ?? '—'}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.batt_soc?.toFixed(0) ?? '—'}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.oil_psi?.toFixed(1) ?? '—'}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.coolant_t?.toFixed(0) ?? '—'}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.runtime_hrs?.toFixed(0) ?? '—'}</td>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.batt_v?.toFixed(1) ?? '—'}</td>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.rpm ?? '—'}</td>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.cabin_temp_f?.toFixed(0) ?? '—'}</td>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.oil_ok == null ? '—' : (t.oil_ok ? 'OK' : 'Low')}</td>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.engine_hrs?.toFixed(0) ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

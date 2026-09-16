@@ -97,3 +97,14 @@ export function apuFlashStateLabel(state) {
   }
   return map[state] || map.idle
 }
+
+// Linux-image OTA status from the shadow (reported.ota_status), written by the
+// unit's OTA worker: "idle" | "downloading <v>" | "installing <v>" |
+// "success <v>" | "failed: <reason>". Returns a pill view-model; `show` is false
+// for idle/empty (nothing worth displaying), failures are flagged red (p-a),
+// in-progress/success green (p-g).
+export function otaStatusView(s) {
+  const raw = String(s || '').trim()
+  if (!raw || raw === 'idle') return { show: false, label: '', cls: 'p-n' }
+  return { show: true, label: raw, cls: raw.startsWith('failed') ? 'p-a' : 'p-g' }
+}

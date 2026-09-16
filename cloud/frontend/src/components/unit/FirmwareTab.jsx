@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useCommand, useReleases } from '../../data/hooks.js'
+import { useCommand, useReleases, useShadow } from '../../data/hooks.js'
 import { useCan } from '../../components/RoleGate.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
-import { apuVersionLabel, apuFlashStateLabel } from '../../api/contract.js'
+import { apuVersionLabel, apuFlashStateLabel, otaStatusView } from '../../api/contract.js'
 import { APU_OTA_ENABLED } from '../../config/flags.js'
 
 export default function FirmwareTab({ tele, unit, isDemo }) {
@@ -15,6 +15,11 @@ export default function FirmwareTab({ tele, unit, isDemo }) {
 
   const releases = rel?.releases || []
   const latest = rel?.latest || null
+
+  // Live OTA state the unit reports in its shadow (downloading/installing/failed),
+  // so the operator sees real progress instead of just the optimistic "queued".
+  const { data: shadow } = useShadow(unit)
+  const ota = otaStatusView(shadow?.reported?.ota_status)
 
   // Default the target to the latest available release once loaded.
   useEffect(() => { if (latest && !target) setTarget(latest) }, [latest, target])
@@ -63,6 +68,7 @@ export default function FirmwareTab({ tele, unit, isDemo }) {
       <div className="card">
         <div className="sec-hd">
           <span className="sec-title">Firmware / OTA</span>
+          {ota.show && <span className={`pill ${ota.cls}`} title="Live OTA status reported by the unit">{ota.label}</span>}
           {latest && <span className="pill p-n">latest: {latest}</span>}
         </div>
 
