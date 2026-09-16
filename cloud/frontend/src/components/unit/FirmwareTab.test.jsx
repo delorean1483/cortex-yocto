@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 const mutate = vi.fn()
+let otaStatus = 'idle'
 vi.mock('../../data/hooks.js', () => ({
   useCommand: () => ({ mutate, isPending: false }),
   useReleases: () => ({ data: { releases: [], latest: null }, isLoading: false, error: null }),
+  useShadow: () => ({ data: { reported: { ota_status: otaStatus } } }),
 }))
 vi.mock('../../contexts/AuthContext.jsx', () => ({ useAuth: () => ({ role: 'admin' }) }))
 
@@ -26,7 +28,7 @@ const TELE = {
   apu_flash_state: 'idle',
 }
 
-beforeEach(() => { mutate.mockClear(); apuOtaEnabled = false })
+beforeEach(() => { mutate.mockClear(); apuOtaEnabled = false; otaStatus = 'idle' })
 
 describe('FirmwareTab — APU controller firmware section', () => {
   it('always renders the read-only APU status (decoded versions)', () => {
@@ -54,5 +56,25 @@ describe('FirmwareTab — APU controller firmware section', () => {
     apuOtaEnabled = true
     render(<FirmwareTab tele={TELE} unit="APU-DEMO-01" isDemo={true} />)
     expect(screen.getByRole('button', { name: /flash apu firmware/i }).disabled).toBe(true)
+  })
+})
+
+describe('FirmwareTab — live OTA status', () => {
+  it('shows the unit-reported OTA status when active', () => {
+    otaStatus = 'downloading 1.2.49'
+    render(<FirmwareTab tele={TELE} unit="APU-1" isDemo={false} />)
+    expect(screen.getByText('downloading 1.2.49')).toBeTruthy()
+  })
+
+  it('shows a failure so it is not a silent stuck "pending"', () => {
+    otaStatus = 'failed: download 9.9.9'
+    render(<FirmwareTab tele={TELE} unit="APU-1" isDemo={false} />)
+    expect(screen.getByText('failed: download 9.9.9')).toBeTruthy()
+  })
+
+  it('shows no OTA status pill when idle', () => {
+    otaStatus = 'idle'
+    render(<FirmwareTab tele={TELE} unit="APU-1" isDemo={false} />)
+    expect(screen.queryByText(/downloading|installing|failed/i)).toBeNull()
   })
 })

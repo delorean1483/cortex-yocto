@@ -1,6 +1,25 @@
 import { describe, it, expect } from 'vitest'
 import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
-         heaterFlags, diagOutputs, connLabel } from './contract.js'
+         heaterFlags, diagOutputs, connLabel, otaStatusView } from './contract.js'
+
+describe('otaStatusView', () => {
+  it('hidden when idle/empty/null', () => {
+    expect(otaStatusView('idle').show).toBe(false)
+    expect(otaStatusView('').show).toBe(false)
+    expect(otaStatusView(null).show).toBe(false)
+  })
+  it('failure is shown red (p-a)', () => {
+    const v = otaStatusView('failed: download 9.9.9')
+    expect(v.show).toBe(true)
+    expect(v.cls).toBe('p-a')
+    expect(v.label).toBe('failed: download 9.9.9')
+  })
+  it('in-progress and success are green (p-g)', () => {
+    expect(otaStatusView('downloading 1.2.49').cls).toBe('p-g')
+    expect(otaStatusView('installing 1.2.49').cls).toBe('p-g')
+    expect(otaStatusView('success 1.2.49').cls).toBe('p-g')
+  })
+})
 
 describe('unitStatus', () => {
   it('off when no telemetry', () => expect(unitStatus(null)).toBe('off'))
