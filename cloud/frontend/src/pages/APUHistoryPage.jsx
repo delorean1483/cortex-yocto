@@ -24,7 +24,8 @@ export default function APUHistoryPage() {
     api.listUnits().then(d => {
       const list = d.units || []
       setUnits(list)
-      if (!selectedUnit && list.length > 0) setSelectedUnit(list[0])
+      // list items are { unit, demo } objects — select the unit id string.
+      if (!selectedUnit && list.length > 0) setSelectedUnit(list[0].unit)
     }).catch(() => {})
   }, [])
 
@@ -58,7 +59,7 @@ export default function APUHistoryPage() {
           style={{ fontSize: 13, border: '0.5px solid var(--color-border-secondary)', borderRadius: 6, padding: '5px 10px', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', cursor: 'pointer' }}
         >
           {!selectedUnit && <option value="">— select unit —</option>}
-          {units.map(u => <option key={u} value={u}>{u}</option>)}
+          {units.map(u => <option key={u.unit} value={u.unit}>{u.unit}{u.demo ? ' (demo)' : ''}</option>)}
         </select>
         <select
           value={range}
