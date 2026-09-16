@@ -27,8 +27,11 @@ rc=$?
 rm -f "$SWU"
 
 if [ "$rc" -eq 0 ]; then
-    logger -t gobi-ota-apply "install ok — rebooting"
-    exec reboot
+    # A normal `reboot` HANGS this board before U-Boot SPL (WDOG_B doesn't trigger
+    # the PMIC cold reset). gobi-cold-reboot does the reboot via a BD71847 I2C cold
+    # reset instead — the only path that reliably power-cycles the eMMC/DDR rails.
+    logger -t gobi-ota-apply "install ok — rebooting via PMIC cold reset"
+    exec /usr/sbin/gobi-cold-reboot
 fi
 
 logger -t gobi-ota-apply "swupdate failed (exit $rc) — staying on current slot"
