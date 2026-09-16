@@ -1,0 +1,28 @@
+#!/bin/sh
+# gobi-cold-reboot — reliably reboot this i.MX8M-Mini board.
+#
+# WHY THIS EXISTS: a normal `reboot` (Linux -> PSCI/SMC -> TF-A -> WDOG_B) HANGS
+# this board (Variscite DART-MX8M-MINI / DT8MCustomBoard) before U-Boot SPL ever
+# prints. TF-A *does* assert WDOG_B, but on this carrier the WDOG_B assertion does
+# not trigger the BD71847 PMIC's cold reset, so the eMMC/DDR rails are never
+# power-cycled — the boot ROM/SPL wedges and only a physical cold power-cycle
+# recovers.
+#
+# Bench-proven 2026-09-16 (TRUCK-001): commanding the PMIC's OWN cold reset over
+# I2C — BD71847 SWRESET register 0x01 = 0x05 (SWRESET_SEL=10 cold + trigger bit) —
+# bypasses the WDOG_B pin path and cleanly power-cycles the rails, so the board
+# reboots WITHOUT anyone touching the power. This is what makes hands-free OTA
+# activation work. Details + diagnosis:
+#   docs/superpowers/plans/2026-09-15-warm-reboot-hang-followup.md
+#
+# The BD71847 is on i2c1 (/dev/i2c-0), address 0x4b. i2cset -f is required because
+# the bd718x7 regulator driver owns the device. This does NOT return on success
+# (the board is reset out from under it); on failure it exits non-zero and the
+# caller stays on the current slot (an already-flipped A/B slot still activates on
+# the next cold boot, so no worse than the manual workaround).
+set -u
+
+sync
+sync
+logger -t gobi-cold-reboot "PMIC I2C cold reset (bd71847 SWRESET 0x01=0x05) — WDOG_B reboot hangs this board"
+exec i2cset -f -y 0 0x4b 0x01 0x05

@@ -31,6 +31,7 @@ SRC_URI = " \
     file://stm32_flash_task.h \
     file://CMakeLists.txt \
     file://gobi-ota-apply \
+    file://gobi-cold-reboot \
     file://gobi-agent.sudoers \
     file://gobi-agent.service \
     file://weather-fetch.service \
@@ -51,7 +52,9 @@ DEPENDS = "libmodbus mosquitto sqlite3 cjson curl"
 # weather-fetch does TLS to Open-Meteo; ca-certificates supplies the trust store
 # (only Amazon's root ships for MQTT, which won't validate a public API host).
 # sudo: the non-root agent applies OTA via the gobi-ota-apply root helper.
-RDEPENDS:${PN} += "ca-certificates sudo"
+# i2c-tools: gobi-cold-reboot uses i2cset to command the BD71847 PMIC cold reset
+# (a normal reboot hangs this board before U-Boot SPL).
+RDEPENDS:${PN} += "ca-certificates sudo i2c-tools"
 
 inherit cmake systemd useradd
 
@@ -119,6 +122,9 @@ do_install:append() {
     # swupdate + reboot need root). sudoers.d files must be 0440 root:root.
     install -d ${D}${sbindir}
     install -m 0755 ${WORKDIR}/gobi-ota-apply          ${D}${sbindir}/gobi-ota-apply
+    # PMIC-cold-reset reboot helper (a normal reboot hangs this board before SPL);
+    # gobi-ota-apply calls it instead of `reboot`.
+    install -m 0755 ${WORKDIR}/gobi-cold-reboot        ${D}${sbindir}/gobi-cold-reboot
     # /etc/sudoers.d is co-owned with the sudo package, which ships it 0750
     # root:root — match that mode exactly or do_rootfs hits a file conflict
     # ("/etc/sudoers.d conflicts between gobi-agent and sudo-lib").
@@ -140,6 +146,7 @@ FILES:${PN} += " \
     ${sysconfdir}/ecofleet/ \
     /var/lib/ecofleet/ \
     ${sbindir}/gobi-ota-apply \
+    ${sbindir}/gobi-cold-reboot \
     ${sysconfdir}/sudoers.d/gobi-agent \
     ${systemd_system_unitdir}/gobi-agent.service \
     ${systemd_system_unitdir}/weather-fetch.service \

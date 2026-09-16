@@ -1,7 +1,7 @@
 # Warm-reboot hang on i.MX8M Mini (TRUCK-001) — follow-up plan
 
-**Status:** open, scoped. Bootloader-level project, uncertain effort. Needs bench + serial + power access + build/reflash cycles.
-**Diagnosed:** 2026-09-15 bench session. This doc captures what's known so a future session doesn't re-derive it.
+**Status:** ✅ **SOLVED 2026-09-16 — bench-proven, OTA-able workaround.** Reboot the board via a **BD71847 PMIC I2C cold reset** instead of the normal `reboot`: `sync; sync; i2cset -f -y 0 0x4b 0x01 0x05` (SWRESET reg 0x01 = cold-select+trigger). This bypasses the WDOG_B pin path — which on this carrier fails to trigger the PMIC cold reset — and cleanly power-cycles the eMMC/DDR rails, so the board reboots with **no physical power-cycle**. Verified 2/2 on TRUCK-001 (uptime 66 s, then 31 s; a normal `reboot` had *always* hung). Shipped as the `gobi-cold-reboot` helper; `gobi-ota-apply` now calls it instead of `reboot` (branch `feat/ota-pmic-cold-reboot`) → **hands-free web OTA activation works.** No imx-boot reflash, no hardware mod. The root-cause diagnosis below stands; a *permanent* fix (WDOG_B→PMIC actually working) is still a HW-rework / imx-boot item but is no longer blocking.
+**Diagnosed:** 2026-09-15 bench session; **solved 2026-09-16.** This doc captures what's known so a future session doesn't re-derive it.
 
 ---
 
