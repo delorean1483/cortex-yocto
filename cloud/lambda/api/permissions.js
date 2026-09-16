@@ -8,12 +8,12 @@
 // via POST /fleet/config; reboot + firmware_target ride with `ota` (disruptive
 // → admin/fm only). See configActions()/authorizeConfig() below.
 //
-// `apu_ota` (flashing the STM32 APU-controller firmware over RS-485) is
-// declared here so the matrix stays in sync with the frontend mirror, but no
-// command maps to it yet: validateCommand does NOT accept `apu_firmware_target`
-// and commandActions does NOT emit `apu_ota`. Wiring that live trigger is scope
-// Phase 2, gated on the STM32 flash path being bench-validated + PR #18 merged
-// (docs/superpowers/specs/2026-09-14-apu-firmware-ota-control-scope.md).
+// `apu_ota` (flashing the STM32 APU-controller firmware over RS-485): admin/fm
+// only. validateCommand accepts `apu_firmware_target` (semver) and
+// commandActions emits `apu_ota` (Phase 2, wired 2026-09-16). The trigger stays
+// inert end-to-end until go-live: the frontend keeps it behind APU_OTA_ENABLED,
+// and the agent has no firmware manifest on the device (IMAGE_INSTALL is gated
+// on bench Cases A/B), so a stray request has nothing to flash.
 const MATRIX = {
   admin: new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users']),
   fm:    new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users']),
@@ -59,6 +59,16 @@ function validateCommand(body) {
     desired.firmware_target = body.firmware_target;
   }
 
+  // STM32 APU-controller firmware flash over RS-485 (rides the apu_ota action;
+  // agent flashes only the bundled image, so this target must match it). The
+  // frontend keeps this behind APU_OTA_ENABLED until the flash path is
+  // bench-validated; the agent stays inert with no manifest on the device.
+  if (body.apu_firmware_target !== undefined) {
+    if (typeof body.apu_firmware_target !== 'string' || !/^\d+\.\d+\.\d+$/.test(body.apu_firmware_target))
+      return { ok: false, error: 'apu_firmware_target must be a semver string (e.g. 1.1.1)' };
+    desired.apu_firmware_target = body.apu_firmware_target;
+  }
+
   if (body.clmt_setpoint_f !== undefined) {
     const v = body.clmt_setpoint_f;
     if (typeof v !== 'number' || v < 50 || v > 90)
@@ -83,6 +93,7 @@ function commandActions(desired) {
   if (desired.heater) actions.add('heater');
   if (desired.apu_command) actions.add('apu');
   if (desired.firmware_target) actions.add('ota');
+  if (desired.apu_firmware_target) actions.add('apu_ota');
   if (desired.clmt_setpoint_f !== undefined || desired.batt_setpoint_v !== undefined)
     actions.add('setpoint');
   return [...actions];

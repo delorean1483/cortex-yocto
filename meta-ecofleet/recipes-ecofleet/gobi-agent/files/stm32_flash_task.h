@@ -34,6 +34,22 @@ stu_status_t stm32_flash_status(void);
  * succeeded or failed). -1 before any flash attempt has ever started. */
 int stm32_flash_status_pct(void);
 
+/* The bundled image's encoded version (as parsed from the on-device manifest),
+ * or 0 when there is no valid manifest bundled (the steady state on units that
+ * have never received an STM32 update). For the telemetry snapshot so the
+ * dashboard can show the bundled-vs-running versions. */
+uint16_t stm32_flash_bundled_ver_enc(void);
+
+/* Arm an explicit, operator-initiated flash of the bundled image for
+ * target_enc (from a remote apu_firmware_target request). Unlike the automatic
+ * path this works even when G0B1_AUTO_FLASH_DEFAULT is 0, but the flash still
+ * only proceeds when the target matches the bundled version AND the APU is idle
+ * (checked in stm32_flash_tick via stu_should_flash_request); a mismatched or
+ * stale target never flashes. Idempotent: re-arming the same target is a
+ * no-op. Call each poll cycle while the request is pending; the flash task
+ * clears the arm once it reaches a terminal outcome for that target. */
+void stm32_flash_request(uint16_t target_enc);
+
 /* Called once per poll iteration.
  *
  * running_ver_enc: the APU's reg-2 firmware version as read this cycle,

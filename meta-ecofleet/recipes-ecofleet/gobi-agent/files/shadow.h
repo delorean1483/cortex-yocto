@@ -33,6 +33,12 @@ typedef struct {
                                   * | "stop" | "" (legacy "start" == "climate")
                                   * — applied by the telemetry loop, then cleared
                                   * via shadow_ack_apu_command() once it lands */
+    char     apu_firmware_target[32]; /* one-shot STM32 APU-controller flash
+                                  * target semver (e.g. "1.1.1"); "" = none.
+                                  * Applied by the telemetry loop (flashes the
+                                  * bundled image only, iff it matches + idle),
+                                  * then cleared via
+                                  * shadow_ack_apu_firmware_target() */
     bool     heater_desired_valid; /* true while at least one of heater_on /
                                     * heater_level from desired.heater is
                                     * pending application */
@@ -138,6 +144,28 @@ bool shadow_peek_apu_command(char *out, size_t out_len, unsigned *seq);
  * newer command stays pending and is retried next cycle rather than being
  * wiped by a stale ack (TOCTOU: peek → slow reg-10 write → ack). Thread-safe. */
 void shadow_ack_apu_command(unsigned seq);
+
+/* ── One-shot STM32 APU-controller firmware flash request ────────────────────
+ * Same one-shot peek→apply→ack idiom as the APU op-state command above, for a
+ * remote STM32 firmware flash. The target semver arrives via
+ * desired.apu_firmware_target; each poll cycle the main loop peeks it, arms the
+ * flash task to flash the BUNDLED image (which happens only when the target
+ * matches the bundled version and the APU is idle), and acks once the flash
+ * task reaches a terminal outcome so the command can't loop. Applied from the
+ * telemetry thread only, never the MQTT callback thread. */
+
+/* Copy any pending apu_firmware_target semver into `out` (NUL-terminated)
+ * without clearing it, plus the current sequence number into *seq (guard NULL
+ * like `out`) — pass it back unchanged to shadow_ack_apu_firmware_target() so
+ * the ack only clears the target it actually saw. Returns true if a flash
+ * target is pending. Thread-safe. */
+bool shadow_peek_apu_firmware_target(char *out, size_t out_len, unsigned *seq);
+
+/* Clear the pending apu_firmware_target IF `seq` still matches the live
+ * sequence (compare-and-clear — a newer target that landed while the flash was
+ * in flight is left pending) and schedule a desired=null update so the cloud
+ * shadow is cleared too. Thread-safe. */
+void shadow_ack_apu_firmware_target(unsigned seq);
 
 /* ── Heater-scoped start/stop/level command ─────────────────────────────────
  * Same one-shot idiom as the APU command above, scoped to the VEVOR heater

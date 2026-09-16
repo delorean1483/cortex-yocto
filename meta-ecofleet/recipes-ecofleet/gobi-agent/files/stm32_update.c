@@ -35,6 +35,18 @@ int stu_should_flash(uint16_t running_enc, uint16_t bundled_enc,
             mode == 0 && engine == 0 && auto_enabled) ? 1 : 0;
 }
 
+int stu_should_flash_request(uint16_t running_enc, uint16_t bundled_enc,
+                             uint16_t target_enc, uint8_t mode, uint8_t engine)
+{
+    /* The device carries only the bundled image, so a request can only ever
+     * flash that: the requested target must match it. No auto_enabled gate —
+     * the explicit request is the enable — but the idle/newer safety
+     * conditions are identical to the automatic path. */
+    return (target_enc == bundled_enc &&
+            stu_is_newer(running_enc, bundled_enc) &&
+            mode == 0 && engine == 0) ? 1 : 0;
+}
+
 /* Strictly parse "M.m.p" (three unsigned decimal integers separated by
  * literal dots, nothing else). Rejects signs, whitespace, and trailing
  * garbage that sscanf's %u would otherwise silently tolerate or misparse. */
@@ -50,6 +62,14 @@ static int parse_version_str(const char *s, unsigned *maj, unsigned *min, unsign
     if (sscanf(s, "%u.%u.%u%n", maj, min, pat, &consumed) != 3) return 0;
     if (s[consumed] != '\0') return 0;   /* trailing garbage after M.m.p */
 
+    return 1;
+}
+
+int stu_parse_version(const char *s, uint16_t *enc)
+{
+    unsigned maj, min, pat;
+    if (!enc || !parse_version_str(s, &maj, &min, &pat)) return 0;
+    *enc = stu_encode_version(maj, min, pat);
     return 1;
 }
 

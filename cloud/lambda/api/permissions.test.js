@@ -3,8 +3,9 @@
 const assert = require('node:assert');
 const { canWrite, validateCommand, commandActions } = require('./permissions');
 
-let failed = 0;
+let failed = 0, total = 0;
 const check = (name, fn) => {
+  total++;
   try { fn(); console.log(`  [PASS] ${name}`); }
   catch (e) { failed++; console.error(`  [FAIL] ${name}: ${e.message}`); }
 };
@@ -63,12 +64,15 @@ check('ota firmware_target valid', () => {
   assert.strictEqual(r.ok, true);
   assert.deepStrictEqual(commandActions(r.desired), ['ota']);
 });
-check('apu_firmware_target NOT yet wired (scope Phase 2 — trigger inert)', () => {
-  // apu_ota exists in the matrix, but no command maps to it yet: an
-  // apu_firmware_target-only body is an unrecognized field and is rejected,
-  // so the APU flash trigger cannot fire server-side until Phase 2 wires it.
+check('apu_firmware_target valid, requires apu_ota action (Phase 2 wired)', () => {
   const r = validateCommand({ apu_firmware_target: '1.1.1' });
-  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.desired.apu_firmware_target, '1.1.1');
+  assert.deepStrictEqual(commandActions(r.desired), ['apu_ota']);
+});
+check('bad apu_firmware_target rejected', () => {
+  assert.strictEqual(validateCommand({ apu_firmware_target: 'latest' }).ok, false);
+  assert.strictEqual(validateCommand({ apu_firmware_target: '1.1' }).ok, false);
 });
 check('empty command rejected', () => {
   assert.strictEqual(validateCommand({}).ok, false);
@@ -83,6 +87,12 @@ check('maint denied apu command', () => {
 });
 check('fm allowed heater command', () => {
   assert.strictEqual(authorizeCommand('fm', { heater: { on: 1 } }).ok, true);
+});
+check('apu_ota authorize: admin/fm yes, maint/eu no', () => {
+  assert.strictEqual(authorizeCommand('admin', { apu_firmware_target: '1.1.1' }).ok, true);
+  assert.strictEqual(authorizeCommand('fm',    { apu_firmware_target: '1.1.1' }).ok, true);
+  assert.strictEqual(authorizeCommand('maint', { apu_firmware_target: '1.1.1' }).ok, false);
+  assert.strictEqual(authorizeCommand('eu',    { apu_firmware_target: '1.1.1' }).ok, false);
 });
 
 // --- configActions / authorizeConfig (role-gate POST /fleet/config) ---
@@ -118,5 +128,5 @@ check('config with mixed keys needs every implied action', () => {
   assert.strictEqual(authorizeConfig('maint', { poll_interval_s: 10, firmware_target: '1.2.41' }).ok, false);
 });
 
-console.log(`\n${25 - failed}/25 checks passed`);
+console.log(`\n${total - failed}/${total} checks passed`);
 process.exit(failed === 0 ? 0 : 1);

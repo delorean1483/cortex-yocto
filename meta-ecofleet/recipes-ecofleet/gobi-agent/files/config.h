@@ -122,5 +122,10 @@
 #define G0B1_ENTER_BL_REG       35
 #define G0B1_ENTER_BL_VALUE     0x00A5
 #define G0B1_ERASE_TIMEOUT_MS   10000   /* 112-page slot erase before ACK */
-#define G0B1_AUTO_FLASH_DEFAULT 1       /* auto-flash STM32 when APU idle */
+#define G0B1_AUTO_FLASH_DEFAULT 0       /* 0 = explicit web-trigger only (flash
+                                         * on operator apu_firmware_target request
+                                         * when idle); 1 = also auto-flash when
+                                         * the APU is idle and a newer image is
+                                         * bundled. Explicit-only is the chosen
+                                         * go-live posture for controlled rollout. */
 #define G0B1_APP_SLOT_SIZE      0x38000 /* 224 KB — max .bin read bound */
