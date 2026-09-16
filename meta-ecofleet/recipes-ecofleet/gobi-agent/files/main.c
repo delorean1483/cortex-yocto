@@ -754,7 +754,7 @@ int main(void)
      * lines were ever visible. Logging to stderr is also the idiomatic channel
      * for a systemd-managed service. */
     openlog("gobi-agent", LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);
-    syslog(LOG_INFO, "gobi-agent starting (fw=%s)", FIRMWARE_VERSION);
+    syslog(LOG_INFO, "gobi-agent starting (agent build %s)", FIRMWARE_VERSION);
 
     signal(SIGTERM, handle_signal);
     signal(SIGINT,  handle_signal);
@@ -772,7 +772,16 @@ int main(void)
              "ecofleet/%s/faults", g_unit_serial);
 
     /* ── 2. Shadow init ──────────────────────────────────────────────────── */
-    if (shadow_init(g_unit_serial, FIRMWARE_VERSION, on_shadow_config, NULL) != 0)
+    /* Report the running CORTEX IMAGE version (e.g. "1.2.47" from
+     * /etc/ecofleet/firmware-version) so the dashboard can compare reported vs
+     * desired.firmware_target; fall back to the agent build version if the file
+     * is missing. (FIRMWARE_VERSION is only the agent recipe's PV, e.g. "1.0".) */
+    char reported_fw[32];
+    running_version(reported_fw, sizeof(reported_fw));
+    if (reported_fw[0] == '\0')
+        snprintf(reported_fw, sizeof(reported_fw), "%s", FIRMWARE_VERSION);
+    syslog(LOG_INFO, "cortex image version: %s", reported_fw);
+    if (shadow_init(g_unit_serial, reported_fw, on_shadow_config, NULL) != 0)
         syslog(LOG_ERR, "shadow_init failed — continuing without shadow support");
 
     /* ── 3. SQLite ───────────────────────────────────────────────────────── */
