@@ -28,26 +28,29 @@
   --border-radius-md: 6px;
   --border-radius-lg: 10px;
   --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, monospace;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background-primary: #18181a;
-    --color-background-secondary: #222224;
-    --color-border-tertiary: rgba(255,255,255,0.07);
-    --color-border-secondary: rgba(255,255,255,0.13);
-    --color-text-primary: #f0f0ee;
-    --color-text-secondary: #b0b0ae;
-    --color-text-tertiary: #70706e;
-    --color-background-danger: #2a1818;
-    --color-background-warning: #2a2010;
-    --color-background-info: #102030;
-    --color-background-success: #102218;
-    --color-border-danger: #4a2828;
-    --color-border-warning: #4a3810;
-    --color-border-info: #1a4060;
-    --color-border-success: #1a4030;
-  }
+/* Dark theme applies via [data-theme="dark"] on <html>, set by the no-flash
+   init script in index.html (resolved from the user's saved choice or the OS
+   preference) and flipped by the topbar toggle — see src/theme.js. */
+:root[data-theme="dark"] {
+  --color-background-primary: #18181a;
+  --color-background-secondary: #222224;
+  --color-border-tertiary: rgba(255,255,255,0.07);
+  --color-border-secondary: rgba(255,255,255,0.13);
+  --color-text-primary: #f0f0ee;
+  --color-text-secondary: #b0b0ae;
+  --color-text-tertiary: #70706e;
+  --color-background-danger: #2a1818;
+  --color-background-warning: #2a2010;
+  --color-background-info: #102030;
+  --color-background-success: #102218;
+  --color-border-danger: #4a2828;
+  --color-border-warning: #4a3810;
+  --color-border-info: #1a4060;
+  --color-border-success: #1a4030;
+  color-scheme: dark;
 }
 
 html, body, #root {
@@ -68,9 +71,7 @@ button { font-family: inherit; }
    surfaces it sits on a subtle light plate so the full-color mark stays legible. */
 .brand-logo-wrap { display: inline-block; line-height: 0; }
 .brand-logo-wrap img { display: block; }
-@media (prefers-color-scheme: dark) {
-  .brand-logo-wrap { background: #ffffff; padding: 6px 10px; border-radius: 8px; }
-}
+:root[data-theme="dark"] .brand-logo-wrap { background: #ffffff; padding: 6px 10px; border-radius: 8px; }
 
 /* Pills */
 .pill { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 10.5px; font-weight: 500; white-space: nowrap; }
@@ -80,13 +81,11 @@ button { font-family: inherit; }
 .p-b  { background: #E6F1FB; color: #0C447C; }
 .p-v  { background: #EEEDFE; color: #534AB7; }
 .p-n  { background: var(--color-background-secondary); color: var(--color-text-secondary); }
-@media (prefers-color-scheme: dark) {
-  .p-g { background: #04342C; color: #5DCAA5; }
-  .p-a { background: #412402; color: #FAC775; }
-  .p-r { background: #501313; color: #F09595; }
-  .p-b { background: #042C53; color: #85B7EB; }
-  .p-v { background: #26215C; color: #AFA9EC; }
-}
+:root[data-theme="dark"] .p-g { background: #04342C; color: #5DCAA5; }
+:root[data-theme="dark"] .p-a { background: #412402; color: #FAC775; }
+:root[data-theme="dark"] .p-r { background: #501313; color: #F09595; }
+:root[data-theme="dark"] .p-b { background: #042C53; color: #85B7EB; }
+:root[data-theme="dark"] .p-v { background: #26215C; color: #AFA9EC; }
 
 /* Buttons */
 .btn {
@@ -113,12 +112,10 @@ button { font-family: inherit; }
 .rb-fm    { background: #E1F5EE; color: #085041; }
 .rb-maint { background: #FAEEDA; color: #633806; }
 .rb-eu    { background: #E6F1FB; color: #0C447C; }
-@media (prefers-color-scheme: dark) {
-  .rb-admin { background: #26215C; color: #AFA9EC; }
-  .rb-fm    { background: #04342C; color: #9FE1CB; }
-  .rb-maint { background: #412402; color: #FAC775; }
-  .rb-eu    { background: #042C53; color: #85B7EB; }
-}
+:root[data-theme="dark"] .rb-admin { background: #26215C; color: #AFA9EC; }
+:root[data-theme="dark"] .rb-fm    { background: #04342C; color: #9FE1CB; }
+:root[data-theme="dark"] .rb-maint { background: #412402; color: #FAC775; }
+:root[data-theme="dark"] .rb-eu    { background: #042C53; color: #85B7EB; }
 
 /* Stat cards */
 .sgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 9px; }
