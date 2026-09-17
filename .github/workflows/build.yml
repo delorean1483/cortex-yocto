@@ -139,6 +139,21 @@ jobs:
       - name: List release artifacts
         run: ls -lh /tmp/yocto-release
 
+      # Non-tag (branch) builds don't publish to S3 or a GitHub release, so make
+      # the OTA bundle + full-reflash image downloadable via `gh run download`
+      # for bench validation. Retained briefly; not a release channel.
+      - name: Upload build artifacts (branch builds)
+        uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: ecofleet-bench-image
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            /tmp/yocto-release/ecofleet-*.swu
+            /tmp/yocto-release/ecofleet-image-imx8mm-var-dart.rootfs.wic.zst
+            /tmp/yocto-release/ecofleet-image-imx8mm-var-dart.rootfs.wic.bmap
+
       - name: Publish signed bundle to OTA bucket
         if: startsWith(github.ref, 'refs/tags/')
         env:
