@@ -19,4 +19,8 @@ if [ -z "$NEXT_SLOT" ]; then
 fi
 
 fw_setenv slot_active "$NEXT_SLOT"
-echo "post-install: slot_active set to '${NEXT_SLOT}' — reboot to activate"
+# Arm the boot trial: the bootloader will count attempts on the new slot and roll
+# back if it never confirms healthy (see ecofleet-boot.cmd + ecofleet-boot-confirm).
+fw_setenv upgrade_available 1
+fw_setenv bootcount 0
+echo "post-install: slot_active set to '${NEXT_SLOT}', boot trial armed (upgrade_available=1)"
