@@ -151,19 +151,20 @@ export default function AlertsPage() {
       {role !== 'maint' && role !== 'eu' && (
         <div>
           <div className="sec-hd">
-            <span className="sec-title">Alert thresholds</span>
-            <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>stored in device config</span>
+            <span className="sec-title">Monitored fault conditions</span>
+            <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>raised by the APU controller</span>
           </div>
           <table className="dtbl">
-            <thead><tr><th>Parameter</th><th>Condition</th><th>Severity</th></tr></thead>
+            <thead><tr><th>Fault</th><th>Trigger</th><th>Severity</th></tr></thead>
             <tbody>
-              <tr><td>Oil pressure</td><td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>&lt; 15 psi</td><td><span className="pill p-r">Critical</span></td></tr>
-              <tr><td>DC voltage</td><td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>&lt; 25.5 V</td><td><span className="pill p-a">Warning</span></td></tr>
-              <tr><td>Coolant temp</td><td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>&gt; 95 °C</td><td><span className="pill p-r">Critical</span></td></tr>
-              <tr><td>Battery SOC</td><td style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>&lt; 20 %</td><td><span className="pill p-a">Warning</span></td></tr>
+              <tr><td>Low oil pressure</td><td>Engine oil-pressure switch open</td><td><span className="pill p-r">Critical</span></td></tr>
+              <tr><td>High engine temp</td><td>Coolant / engine over-temperature</td><td><span className="pill p-r">Critical</span></td></tr>
+              <tr><td>Low battery</td><td>Battery voltage below the safe threshold</td><td><span className="pill p-a">Warning</span></td></tr>
+              <tr><td>A/C pressure</td><td>Refrigerant pressure out of range (low or high)</td><td><span className="pill p-r">Critical</span></td></tr>
+              <tr><td>Start / RPM fault</td><td>Failed to start, engine stalled, or no RPM</td><td><span className="pill p-r">Critical</span></td></tr>
             </tbody>
           </table>
-          <div className="notice" style={{ marginTop: 8, fontSize: 11.5 }}>Thresholds are defined in the device firmware (gobi-agent). Configurable via Device Shadow config in a future release.</div>
+          <div className="notice" style={{ marginTop: 8, fontSize: 11.5 }}>These are the fault conditions the APU controller (gobi-agent firmware) reports; exact trip points are set in firmware and configurable via Device Shadow config in a future release.</div>
         </div>
       )}
     </>

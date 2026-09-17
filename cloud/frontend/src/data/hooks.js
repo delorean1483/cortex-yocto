@@ -6,6 +6,10 @@ export function useUnits() {
     queryKey: ['units'],
     queryFn: () => api.listUnits(),
     refetchInterval: 30000,
+    // Refetch immediately when the tab regains focus: the interval pauses while
+    // backgrounded, so without this the freshness/"stale" state can linger for
+    // a beat after the user returns to the tab.
+    refetchOnWindowFocus: true,
     select: (d) => d.units || [],
   })
 }
@@ -16,6 +20,7 @@ export function useUnitLatest(unit) {
     enabled: !!unit,
     queryFn: () => api.getLatest(unit),
     refetchInterval: 5000,
+    refetchOnWindowFocus: true,
     select: (d) => d.latest,
   })
 }

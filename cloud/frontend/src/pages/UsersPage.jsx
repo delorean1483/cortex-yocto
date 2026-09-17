@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { IconUserPlus, IconTrash, IconRefresh, IconLoader2 } from '@tabler/icons-react'
 import { api } from '../api/client.js'
 import { useAuth, ROLE_CFG } from '../contexts/AuthContext.jsx'
+import ConfirmDialog from '../components/ConfirmDialog.jsx'
 
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'EcoFleet Admin' },
@@ -22,6 +23,8 @@ export default function UsersPage() {
   const [loading, setLoading]   = useState(false)
   const [msg, setMsg]           = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [delEmail, setDelEmail] = useState(null)   // pending delete confirmation
+  const [deleting, setDeleting] = useState(false)
 
   // Create form
   const [fEmail, setFEmail]     = useState('')
@@ -73,8 +76,9 @@ export default function UsersPage() {
     }
   }
 
-  async function handleDelete(email) {
-    if (!confirm(`Delete user ${email}?`)) return
+  async function doDelete() {
+    const email = delEmail
+    setDeleting(true)
     setMsg('')
     try {
       await api.deleteUser(email)
@@ -83,6 +87,9 @@ export default function UsersPage() {
       setTimeout(() => setMsg(''), 3000)
     } catch (err) {
       setMsg(`Error: ${err.message}`)
+    } finally {
+      setDeleting(false)
+      setDelEmail(null)
     }
   }
 
@@ -173,7 +180,8 @@ export default function UsersPage() {
                   {isAdmin && (
                     <td style={tdStyle}>
                       {u.email !== me?.email && (
-                        <button className="btn btn-sm btn-red" style={{ padding: '3px 8px' }} onClick={() => handleDelete(u.email)}>
+                        <button className="btn btn-sm btn-red" style={{ padding: '3px 8px' }}
+                          aria-label={`Delete ${u.email}`} onClick={() => setDelEmail(u.email)}>
                           <IconTrash size={12} />
                         </button>
                       )}
@@ -185,6 +193,17 @@ export default function UsersPage() {
           </table>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!delEmail}
+        title="Delete user"
+        body={`Delete user ${delEmail}? This removes their account and access.`}
+        confirmLabel="Delete user"
+        danger
+        pending={deleting}
+        onConfirm={doDelete}
+        onCancel={() => setDelEmail(null)}
+      />
     </>
   )
 }
