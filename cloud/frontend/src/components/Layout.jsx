@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   IconLayoutDashboard, IconMap2,
   IconTool, IconBell, IconChartBar,
   IconHistory, IconUsers, IconSettings, IconLogout, IconChevronDown,
+  IconSun, IconMoon,
 } from '@tabler/icons-react'
 import { useAuth, ROLE_CFG } from '../contexts/AuthContext.jsx'
+import { currentTheme, nextTheme, applyTheme } from '../theme.js'
 import logo from '../assets/ecofleet_logo.svg'
 
 const NAV = [
@@ -25,6 +28,15 @@ export default function Layout({ children }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const cfg = ROLE_CFG[role]
+
+  // Theme is applied to <html> before paint by the init script in index.html;
+  // this local state just tracks it so the toggle icon re-renders.
+  const [theme, setTheme] = useState(() => currentTheme())
+  function toggleTheme() {
+    const t = nextTheme(theme)
+    applyTheme(t)
+    setTheme(t)
+  }
 
   function handleNav(path) {
     if (!cfg.nav.includes(path)) return
@@ -98,6 +110,15 @@ export default function Layout({ children }) {
               : NAV.find(n => n.id === pathname)?.label ?? NAV.find(n => pathname.startsWith(n.id) && n.id !== '/')?.label ?? 'Dashboard'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={toggleTheme}
+              className="btn btn-sm"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label="Toggle light/dark theme"
+              style={{ padding: '4px 7px' }}
+            >
+              {theme === 'dark' ? <IconSun size={15} /> : <IconMoon size={15} />}
+            </button>
             <span className={`rbadge ${cfg.badge}`}>{cfg.lbl}</span>
             <select
               value={role}
