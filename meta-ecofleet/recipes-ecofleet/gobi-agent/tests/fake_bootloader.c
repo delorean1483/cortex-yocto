@@ -92,6 +92,7 @@ void fake_bl_fail_verify_crc(fake_bootloader_t *fb){ fb->fail_verify_crc = 1; }
 void fake_bl_drop_verify_ack(fake_bootloader_t *fb, int times){ fb->drop_verify_ack = times; }
 void fake_bl_drop_verify_req(fake_bootloader_t *fb, int times){ fb->drop_verify_req = times; }
 void fake_bl_kill_status(fake_bootloader_t *fb){ fb->status_dead = 1; }
+void fake_bl_info_boot_delay(fake_bootloader_t *fb, int polls){ fb->info_boot_delay = polls; }
 
 void fake_bl_fail_data_times(fake_bootloader_t *fb, int chunk_index, int times){
     fb->fail_nth_data = chunk_index;
@@ -145,6 +146,11 @@ int fake_bl_xfer(void *ctx, const uint8_t *req, uint16_t req_len,
         switch(sub){
         case BL_SUB_INFO: {
             if(fb->state == FAKE_BL_APP) return -1; /* nothing to answer with */
+            if(fb->info_boot_delay > 0){
+                /* still coming up after the enter-BL reset: silent */
+                fb->info_boot_delay--;
+                return -1;
+            }
             return reply_info(resp, fb);
         }
         case BL_SUB_ERASE: {

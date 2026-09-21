@@ -51,6 +51,9 @@ typedef struct {
     int drop_verify_req;      /* for the next N VERIFYs: drop with no processing
                                * (stay ERASED), modelling a lost request */
     int status_dead;          /* STATUS query always returns -1 (dead link) */
+    int info_boot_delay;      /* for the next N INFO polls: return -1 (silent),
+                               * modelling a bootloader still coming up after the
+                               * enter-BL reset before it answers INFO */
     int fail_nth_data;        /* 1-based chunk index to NAK fail_nth_data_times times, then succeed; 0 = disabled */
     int fail_nth_data_times;  /* how many consecutive attempts at that chunk to NAK before allowing success */
 
@@ -76,6 +79,10 @@ void fake_bl_drop_verify_req(fake_bootloader_t *fb, int times);
 /* Make STATUS queries fail (dead link): combined with drop_verify_ack this
  * pins the retry budget -> BLR_WRITE_FAIL. */
 void fake_bl_kill_status(fake_bootloader_t *fb);
+/* The bootloader stays silent for the first `polls` INFO requests after the
+ * enter-BL reset, then answers -- models a slow/variable post-reset handshake.
+ * The INFO retry window must outlast it. */
+void fake_bl_info_boot_delay(fake_bootloader_t *fb, int polls);
 /* NAK the n-th DATA chunk exactly once, then succeed on retry. */
 void fake_bl_fail_nth_data(fake_bootloader_t *fb, int n);
 /* NAK the given 1-based chunk index `times` consecutive times, then let it

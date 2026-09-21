@@ -288,6 +288,32 @@ int main(void){
         CHECK(fb.committed == 0);
     }
 
+    /* ---- slow bootloader startup: the BL is silent for the first several INFO
+     * polls after the enter-BL reset (observed ~8-15s at the 2026-09-21 go-live,
+     * where NO_DEVICE aborted the flash before the BL answered), then comes up.
+     * The INFO retry window must outlast the boot delay -> BLR_OK. ---- */
+    {
+        fake_bootloader_t fb;
+        fake_bl_init(&fb);
+        fake_bl_info_boot_delay(&fb, 8);  /* silent for 8 INFO polls (> old 5-retry budget) */
+        fb.reg2_after_commit = 200u;
+
+        uint8_t img[300];
+        fill_pattern(img, sizeof(img), 0x0Cu);
+
+        bl_transport_t t = { fake_bl_xfer, fake_bl_wait_reset, &fb };
+        bl_flash_params_t p;
+        memset(&p, 0, sizeof(p));
+        p.img_slotA = img;
+        p.len_slotA = sizeof(img);
+        p.expected_ver_enc = 200u;
+
+        bl_result_t r = bl_session_flash(&t, &p);
+        CHECK(r == BLR_OK);
+        CHECK(memcmp(fb.slotA, img, sizeof(img)) == 0);
+        CHECK(fb.committed == 1);
+    }
+
     printf(fails ? "test_bl_session FAILED (%d)\n" : "test_bl_session ok\n", fails);
     return fails ? 1 : 0;
 }
