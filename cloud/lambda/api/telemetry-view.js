@@ -10,7 +10,7 @@ const TELEMETRY_FIELD_NAMES = [
   'oil_change', 'oil_change_n',
   'engine_hrs', 'oil_hrs', 'machine_hrs',
   'clmt_setpoint_f', 'batt_setpoint_v', 'fan_speed', 'fan_auto',
-  'diag_active', 'diag_outputs', 'apu_fw_version',
+  'diag_active', 'diag_outputs', 'apu_fw_version', 'apu_bundled_fw_version', 'apu_flash_state',
   'heater_present', 'heater_state', 'heater_target_level', 'heater_active_level',
   'heater_error', 'heater_supply_v', 'heater_fan_rpm', 'heater_pump_hz',
   'heater_exchanger', 'heater_state_seconds', 'heater_age_ms', 'heater_flags',

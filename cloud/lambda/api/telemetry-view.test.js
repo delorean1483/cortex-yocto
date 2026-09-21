@@ -28,7 +28,11 @@ check('carries enum label + n', () => {
   assert.strictEqual(out.mode, 'battery');
   assert.strictEqual(out.mode_n, 2);
 });
+check('carries STM32 OTA fields (bundled + flash state)', () => {
+  assert.strictEqual(out.apu_bundled_fw_version, 10300);
+  assert.strictEqual(out.apu_flash_state, 'flashing');
+});
 check('no _time leaks through', () => assert.ok(!('_time' in out)));
 
-console.log(`\n${5 - failed}/5 checks passed`);
+console.log(`\n${6 - failed}/6 checks passed`);
 process.exit(failed === 0 ? 0 : 1);

@@ -34,6 +34,12 @@ check('bool field oil_ok', () => {
 check('heater field carried', () => {
   assert.deepStrictEqual(p.fields.heater_transport_errors, { type: 'int', value: 4213 });
 });
+check('apu_bundled_fw_version int field (STM32 OTA)', () => {
+  assert.deepStrictEqual(p.fields.apu_bundled_fw_version, { type: 'int', value: 10300 });
+});
+check('apu_flash_state enum tag (STM32 OTA)', () => {
+  assert.strictEqual(p.tags.apu_flash_state, 'flashing');
+});
 check('legacy names NOT present', () => {
   assert.ok(!('oil_psi' in p.fields), 'oil_psi should be gone');
   assert.ok(!('dc_v' in p.fields), 'dc_v should be gone');
@@ -45,5 +51,5 @@ check('missing fields tolerated', () => {
   assert.strictEqual(bare.fields.batt_v.value, 0);
 });
 
-console.log(`\n${8 - failed}/8 checks passed`);
+console.log(`\n${10 - failed}/10 checks passed`);
 process.exit(failed === 0 ? 0 : 1);

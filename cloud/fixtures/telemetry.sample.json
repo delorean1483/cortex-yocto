@@ -27,6 +27,8 @@
   "diag_active": false,
   "diag_outputs": 0,
   "apu_fw_version": 10240,
+  "apu_bundled_fw_version": 10300,
+  "apu_flash_state": "flashing",
   "heater_present": true,
   "heater_state": "off",
   "heater_target_level": 3,
