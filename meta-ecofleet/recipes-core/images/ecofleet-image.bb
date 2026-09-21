@@ -55,8 +55,9 @@ IMAGE_INSTALL:append = " \
     swupdate-keys \
 "
 
-# STM32 (g0b1/APU) firmware delivery — RELEASE-pending.
-# Uncomment once real g0b1-apu-<ver>-slot{A,B}.bin are placed in
-# recipes-ecofleet/g0b1-apu-firmware/files/ (from sub-project #1 build-slots.sh).
-# Enabling before then breaks the rootfs build (do_fetch: missing file://...bin).
-#IMAGE_INSTALL:append = " g0b1-apu-firmware"
+# STM32 (g0b1/APU) firmware delivery — GO-LIVE 2026-09-18.
+# Ships the real g0b1-apu-1.1.2-slot{A,B}.bin + manifest.json (from the fixed
+# CubeIDE Release build: linker/_estack fix + RPM fix, bench-validated Cases
+# A/B). The blobs ride the signed .swu; the agent flashes the STM32 inactive
+# slot on an operator dashboard request (APU_OTA_ENABLED + apu_firmware_target).
+IMAGE_INSTALL:append = " g0b1-apu-firmware"
