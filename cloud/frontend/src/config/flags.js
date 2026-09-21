@@ -5,11 +5,12 @@
 // (current / bundled version + flash state) always renders; only the Flash
 // button + command path is behind this flag.
 //
-// Keep it OFF until the STM32 flash path is proven end-to-end on real hardware:
-//   1. sub-project #1 (bootloader + A/B slots) bench-validated — specifically
-//      the engine-running refusal and A/B trial-revert cases,
-//   2. PR #18 (agent flash + real .bin delivery) merged, and
-//   3. the backend command endpoint accepts `apu_firmware_target` under the
-//      `apu_ota` action (scope Phase 2) and the agent acts on it (Phase 1).
-// See docs/superpowers/specs/2026-09-14-apu-firmware-ota-control-scope.md.
-export const APU_OTA_ENABLED = false
+// GO-LIVE 2026-09-18: all preconditions met —
+//   1. sub-project #1 bench-validated on silicon: engine-running refusal
+//      (Case A) + A/B trial-revert (Case B) both proven,
+//   2. agent flash path + real v1.1.2 .bin delivery merged + bundled in the
+//      image (IMAGE_INSTALL enabled), and
+//   3. backend accepts `apu_firmware_target` under `apu_ota` (deployed) and the
+//      agent acts on it.
+// See docs/bench/2026-09-16-stm32-ota-go-live-runbook.md.
+export const APU_OTA_ENABLED = true
