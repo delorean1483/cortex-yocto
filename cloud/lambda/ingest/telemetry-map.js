@@ -4,7 +4,8 @@
 // InfluxDB point descriptor. No I/O. Field names ARE the contract (see
 // cloud/CONTRACT.md); they must match cloud/lambda/api/telemetry-view.js.
 
-const TAGS = ['mode', 'engine_status', 'control_status', 'error', 'oil_change', 'heater_state'];
+const TAGS = ['mode', 'engine_status', 'control_status', 'error', 'oil_change', 'heater_state',
+  'apu_flash_state'];
 
 const FLOAT = [
   'cabin_temp_f', 'ext_temp_f', 'batt_v', 'clmt_setpoint_f', 'batt_setpoint_v',
@@ -13,6 +14,7 @@ const FLOAT = [
 const INT = [
   'rpm', 'mode_n', 'engine_status_n', 'control_status_n', 'error_n', 'oil_change_n',
   'engine_hrs', 'oil_hrs', 'machine_hrs', 'fan_speed', 'diag_outputs', 'apu_fw_version',
+  'apu_bundled_fw_version',
   'heater_target_level', 'heater_active_level', 'heater_error', 'heater_fan_rpm',
   'heater_exchanger', 'heater_state_seconds', 'heater_age_ms', 'heater_flags',
   'heater_valid_frames', 'heater_checksum_failures', 'heater_transport_errors',
