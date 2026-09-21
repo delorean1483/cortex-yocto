@@ -15,7 +15,14 @@
  * recovery. BL_DATA_MAX_ATTEMPTS = 1 initial attempt + BL_DATA_MAX_RETRIES. */
 #define BL_DATA_MAX_RETRIES  3
 #define BL_DATA_MAX_ATTEMPTS (1 + BL_DATA_MAX_RETRIES)
-#define BL_INFO_RETRY_MAX    5
+/* INFO poll after the enter-BL reset. The bootloader can be slow/variable to
+ * start answering on the RS-485 bus after the app resets into it (observed
+ * ~8-15s at the 2026-09-21 go-live, where a 5-attempt budget aborted with
+ * NO_DEVICE before the BL replied). Each silent attempt blocks ~BL_SHORT_TIMEOUT_MS
+ * on the transport's first-byte poll, so N attempts ~= N seconds -- 20 gives a
+ * ~20s window with margin. (Count-based, not wall-clock, to keep this module
+ * pure/host-testable; a responsive BL answers on the first attempt regardless.) */
+#define BL_INFO_RETRY_MAX    20
 #define BL_VERSION_RETRY_MAX 5
 /* VERIFY, like each DATA chunk, is retried on a lost/garbled response: the
  * image is already written, so a dropped VERIFY ACK must not fail the flash.
