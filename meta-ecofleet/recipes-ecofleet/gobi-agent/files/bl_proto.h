@@ -50,6 +50,18 @@ typedef enum {
 #define BL_ERR_CRC   3u
 #define BL_ERR_FLASH 4u
 
+/* Bootloader session states, as reported in the STATUS reply's state byte
+ * (see the 0x41 STATUS layout above). Mirrors g0b1-firmware bl_session.h
+ * bl_state_t verbatim -- used by the host to disambiguate a VERIFY whose ACK
+ * was lost on the wire (state == BL_ST_VERIFIED means the verify took). */
+enum {
+    BL_ST_IDLE       = 0u,
+    BL_ST_ERASED     = 1u,
+    BL_ST_VERIFIED   = 2u,
+    BL_ST_COMMITTING = 3u,
+    BL_ST_ERROR      = 4u
+};
+
 typedef struct {
     uint8_t  bl_version;
     uint8_t  inactive_slot;

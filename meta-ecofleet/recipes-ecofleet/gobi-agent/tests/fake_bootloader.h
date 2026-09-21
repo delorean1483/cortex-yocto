@@ -45,6 +45,12 @@ typedef struct {
     /* fault hooks */
     int refuse_enter;         /* reg-35 enter write -> Modbus exception 0x04 */
     int fail_verify_crc;      /* VERIFY always NAKs with BL_ERR_CRC */
+    int drop_verify_ack;      /* for the next N VERIFYs: process (-> VERIFIED) but
+                               * drop the response (-1), modelling a lost ACK on
+                               * an image that IS written and CRC-correct */
+    int drop_verify_req;      /* for the next N VERIFYs: drop with no processing
+                               * (stay ERASED), modelling a lost request */
+    int status_dead;          /* STATUS query always returns -1 (dead link) */
     int fail_nth_data;        /* 1-based chunk index to NAK fail_nth_data_times times, then succeed; 0 = disabled */
     int fail_nth_data_times;  /* how many consecutive attempts at that chunk to NAK before allowing success */
 
@@ -60,6 +66,16 @@ void fake_bl_init(fake_bootloader_t *fb);
 /* Fault hooks. */
 void fake_bl_refuse_enter(fake_bootloader_t *fb);
 void fake_bl_fail_verify_crc(fake_bootloader_t *fb);
+/* Drop the VERIFY *response* `times` times: the device verifies (image is
+ * correct -> VERIFIED) but the ACK is lost on the wire. Recovery is via a
+ * STATUS query, which reports VERIFIED. */
+void fake_bl_drop_verify_ack(fake_bootloader_t *fb, int times);
+/* Drop the VERIFY *request* `times` times: the device never sees it and stays
+ * ERASED. Recovery is via a plain VERIFY retry. */
+void fake_bl_drop_verify_req(fake_bootloader_t *fb, int times);
+/* Make STATUS queries fail (dead link): combined with drop_verify_ack this
+ * pins the retry budget -> BLR_WRITE_FAIL. */
+void fake_bl_kill_status(fake_bootloader_t *fb);
 /* NAK the n-th DATA chunk exactly once, then succeed on retry. */
 void fake_bl_fail_nth_data(fake_bootloader_t *fb, int n);
 /* NAK the given 1-based chunk index `times` consecutive times, then let it

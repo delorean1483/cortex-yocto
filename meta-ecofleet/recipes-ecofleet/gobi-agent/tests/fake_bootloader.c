@@ -47,6 +47,25 @@ static int reply_info(uint8_t *resp, const fake_bootloader_t *fb){
     return (int)bl_frame_finalize(resp, 12u);
 }
 
+static int reply_status(uint8_t *resp, const fake_bootloader_t *fb){
+    uint8_t st;
+    switch(fb->state){
+    case FAKE_BL_ERASED:   st = (uint8_t)BL_ST_ERASED;   break;
+    case FAKE_BL_VERIFIED: st = (uint8_t)BL_ST_VERIFIED; break;
+    case FAKE_BL_IDLE:     st = (uint8_t)BL_ST_IDLE;     break;
+    default:               st = (uint8_t)BL_ST_IDLE;     break;
+    }
+    resp[0] = 1u;
+    resp[1] = BL_FC_CONTROL;
+    resp[2] = (uint8_t)BL_SUB_STATUS;
+    resp[3] = st;
+    resp[4] = (uint8_t)((fb->written_len >> 24) & 0xFFu);
+    resp[5] = (uint8_t)((fb->written_len >> 16) & 0xFFu);
+    resp[6] = (uint8_t)((fb->written_len >> 8) & 0xFFu);
+    resp[7] = (uint8_t)(fb->written_len & 0xFFu);
+    return (int)bl_frame_finalize(resp, 8u);
+}
+
 static int reply_read_reg2(uint8_t *resp, uint16_t val){
     resp[0] = 1u;
     resp[1] = 0x03u;
@@ -70,6 +89,9 @@ void fake_bl_init(fake_bootloader_t *fb){
 
 void fake_bl_refuse_enter(fake_bootloader_t *fb){ fb->refuse_enter = 1; }
 void fake_bl_fail_verify_crc(fake_bootloader_t *fb){ fb->fail_verify_crc = 1; }
+void fake_bl_drop_verify_ack(fake_bootloader_t *fb, int times){ fb->drop_verify_ack = times; }
+void fake_bl_drop_verify_req(fake_bootloader_t *fb, int times){ fb->drop_verify_req = times; }
+void fake_bl_kill_status(fake_bootloader_t *fb){ fb->status_dead = 1; }
 
 void fake_bl_fail_data_times(fake_bootloader_t *fb, int chunk_index, int times){
     fb->fail_nth_data = chunk_index;
@@ -140,6 +162,11 @@ int fake_bl_xfer(void *ctx, const uint8_t *req, uint16_t req_len,
             if(fb->state != FAKE_BL_ERASED){
                 return reply_nak(resp, BL_FC_CONTROL, BL_ERR_STATE);
             }
+            if(fb->drop_verify_req > 0){
+                /* request lost before the device could act on it: stay ERASED */
+                fb->drop_verify_req--;
+                return -1;
+            }
             if(fb->fail_verify_crc){
                 return reply_nak(resp, BL_FC_CONTROL, BL_ERR_CRC);
             }
@@ -151,6 +178,11 @@ int fake_bl_xfer(void *ctx, const uint8_t *req, uint16_t req_len,
             uint32_t computed = bl_crc32(target, length);
             if(computed == crc_req && length == fb->written_len){
                 fb->state = FAKE_BL_VERIFIED;
+                if(fb->drop_verify_ack > 0){
+                    /* device IS verified, but the ACK is lost on the wire */
+                    fb->drop_verify_ack--;
+                    return -1;
+                }
                 return reply_ack(resp, BL_FC_CONTROL, (uint8_t)BL_SUB_VERIFY);
             }
             return reply_nak(resp, BL_FC_CONTROL, BL_ERR_CRC);
@@ -172,6 +204,8 @@ int fake_bl_xfer(void *ctx, const uint8_t *req, uint16_t req_len,
             return reply_ack(resp, BL_FC_CONTROL, (uint8_t)BL_SUB_ABORT);
         }
         case BL_SUB_STATUS:
+            if(fb->status_dead) return -1;
+            return reply_status(resp, fb);
         default:
             return reply_nak(resp, BL_FC_CONTROL, BL_ERR_STATE);
         }

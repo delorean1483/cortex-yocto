@@ -211,6 +211,83 @@ int main(void){
         CHECK(fb.committed == 1);
     }
 
+    /* ---- verify-ACK dropped: the device DID verify (image byte-correct)
+     * but the ACK frame was lost/garbled on the wire. A single-shot VERIFY
+     * would fail an otherwise-perfect flash; the session must recover via a
+     * STATUS query (state == VERIFIED) and still COMMIT -> BLR_OK. Direct
+     * regression for the go-live flash that failed at 92% (VERIFY) despite a
+     * byte-perfect slot B. ---- */
+    {
+        fake_bootloader_t fb;
+        fake_bl_init(&fb);
+        fake_bl_drop_verify_ack(&fb, 1);
+        fb.reg2_after_commit = 200u;
+
+        uint8_t img[300];
+        fill_pattern(img, sizeof(img), 0x09u);
+
+        bl_transport_t t = { fake_bl_xfer, fake_bl_wait_reset, &fb };
+        bl_flash_params_t p;
+        memset(&p, 0, sizeof(p));
+        p.img_slotA = img;
+        p.len_slotA = sizeof(img);
+        p.expected_ver_enc = 200u;
+
+        bl_result_t r = bl_session_flash(&t, &p);
+        CHECK(r == BLR_OK);
+        CHECK(memcmp(fb.slotA, img, sizeof(img)) == 0);
+        CHECK(fb.committed == 1);
+    }
+
+    /* ---- verify-request dropped once (device never saw it, stays ERASED):
+     * a plain VERIFY retry re-verifies -> BLR_OK. ---- */
+    {
+        fake_bootloader_t fb;
+        fake_bl_init(&fb);
+        fake_bl_drop_verify_req(&fb, 1);
+        fb.reg2_after_commit = 200u;
+
+        uint8_t img[300];
+        fill_pattern(img, sizeof(img), 0x0Au);
+
+        bl_transport_t t = { fake_bl_xfer, fake_bl_wait_reset, &fb };
+        bl_flash_params_t p;
+        memset(&p, 0, sizeof(p));
+        p.img_slotA = img;
+        p.len_slotA = sizeof(img);
+        p.expected_ver_enc = 200u;
+
+        bl_result_t r = bl_session_flash(&t, &p);
+        CHECK(r == BLR_OK);
+        CHECK(memcmp(fb.slotA, img, sizeof(img)) == 0);
+        CHECK(fb.committed == 1);
+    }
+
+    /* ---- dead link at VERIFY: every VERIFY response AND every STATUS query
+     * is lost. The retry budget is exhausted with no way to confirm -> the
+     * session gives up cleanly with BLR_WRITE_FAIL, uncommitted. ---- */
+    {
+        fake_bootloader_t fb;
+        fake_bl_init(&fb);
+        fake_bl_drop_verify_ack(&fb, 99);  /* drop every VERIFY response */
+        fake_bl_kill_status(&fb);          /* ...and every STATUS query */
+        fb.reg2_after_commit = 200u;
+
+        uint8_t img[300];
+        fill_pattern(img, sizeof(img), 0x0Bu);
+
+        bl_transport_t t = { fake_bl_xfer, fake_bl_wait_reset, &fb };
+        bl_flash_params_t p;
+        memset(&p, 0, sizeof(p));
+        p.img_slotA = img;
+        p.len_slotA = sizeof(img);
+        p.expected_ver_enc = 200u;
+
+        bl_result_t r = bl_session_flash(&t, &p);
+        CHECK(r == BLR_WRITE_FAIL);
+        CHECK(fb.committed == 0);
+    }
+
     printf(fails ? "test_bl_session FAILED (%d)\n" : "test_bl_session ok\n", fails);
     return fails ? 1 : 0;
 }
