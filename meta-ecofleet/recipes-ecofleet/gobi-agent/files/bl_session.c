@@ -17,6 +17,13 @@
 #define BL_DATA_MAX_ATTEMPTS (1 + BL_DATA_MAX_RETRIES)
 #define BL_INFO_RETRY_MAX    5
 #define BL_VERSION_RETRY_MAX 5
+/* VERIFY, like each DATA chunk, is retried on a lost/garbled response: the
+ * image is already written, so a dropped VERIFY ACK must not fail the flash.
+ * VERIFY is idempotent only from the ERASED state (the device advances to
+ * VERIFIED on the first success), so a retry after a lost ACK NAKs with
+ * BL_ERR_STATE -- disambiguated with a STATUS query. */
+#define BL_VERIFY_MAX_RETRIES  3
+#define BL_VERIFY_MAX_ATTEMPTS (1 + BL_VERIFY_MAX_RETRIES)
 
 static void bl_progress(const bl_flash_params_t *p, const char *phase, int pct){
     if(p->progress) p->progress(p->progress_ud, phase, pct);
@@ -30,6 +37,22 @@ static void bl_send_abort(const bl_transport_t *t){
     uint16_t n = bl_req_ctrl(req, BL_SUB_ABORT);
     n = bl_frame_finalize(req, n);
     (void)t->xfer(t->ctx, req, n, resp, sizeof(resp), BL_SHORT_TIMEOUT_MS);
+}
+
+/* Query the bootloader session state via FC 0x41 STATUS. Returns the state
+ * byte (BL_ST_*) or -1 on timeout/malformed/unexpected reply. Used to recover
+ * a VERIFY whose ACK was lost: BL_ST_VERIFIED means the verify actually took. */
+static int bl_query_state(const bl_transport_t *t){
+    uint8_t req[BL_MAX_FRAME];
+    uint8_t resp[BL_MAX_FRAME];
+    uint16_t n = bl_req_ctrl(req, BL_SUB_STATUS);
+    n = bl_frame_finalize(req, n);
+    int rlen = t->xfer(t->ctx, req, n, resp, sizeof(resp), BL_SHORT_TIMEOUT_MS);
+    if(rlen < 0 || bl_frame_check(resp, (uint16_t)rlen) != 0) return -1;
+    /* STATUS reply body: [1][0x41][0x06][state:1][high_water:4 BE] */
+    if(rlen < 6 || resp[1] != BL_FC_CONTROL || resp[2] != (uint8_t)BL_SUB_STATUS)
+        return -1;
+    return (int)resp[3];
 }
 
 bl_result_t bl_session_flash(const bl_transport_t *t, const bl_flash_params_t *p){
@@ -134,26 +157,38 @@ bl_result_t bl_session_flash(const bl_transport_t *t, const bl_flash_params_t *p
         }
     }
 
-    /* 6. VERIFY (long timeout). */
+    /* 6. VERIFY (long timeout), retried like a DATA chunk. The image is
+     * already written, so a lost/garbled VERIFY *response* must not fail the
+     * flash. On any inconclusive attempt (timeout, malformed frame, or a
+     * BL_ERR_STATE NAK -- which is what a retry gets once the device already
+     * advanced to VERIFIED from a prior request whose ACK we lost) we ask the
+     * device its state: BL_ST_VERIFIED means the verify took. A real CRC
+     * mismatch (BL_ERR_CRC) is fatal and never retried. */
     bl_progress(p, "verify", 92);
     {
         uint32_t crc = bl_crc32(img, len);
-        uint16_t n = bl_req_verify(req, len, crc);
-        n = bl_frame_finalize(req, n);
-        rlen = t->xfer(t->ctx, req, n, resp, sizeof(resp), BL_LONG_TIMEOUT_MS);
-        if(rlen < 0 || bl_frame_check(resp, (uint16_t)rlen) != 0){
-            bl_send_abort(t);
-            return BLR_WRITE_FAIL;
+        int verified = 0;
+        int attempt;
+        for(attempt = 0; attempt < BL_VERIFY_MAX_ATTEMPTS && !verified; attempt++){
+            uint16_t n = bl_req_verify(req, len, crc);
+            n = bl_frame_finalize(req, n);
+            rlen = t->xfer(t->ctx, req, n, resp, sizeof(resp), BL_LONG_TIMEOUT_MS);
+            if(rlen >= 0 && bl_frame_check(resp, (uint16_t)rlen) == 0){
+                uint8_t nak_err = 0;
+                int r = bl_resp_ack(resp, (uint16_t)rlen, BL_FC_CONTROL,
+                                    BL_SUB_VERIFY, &nak_err);
+                if(r == 0){ verified = 1; break; }          /* clean ACK */
+                if(r == 1 && nak_err == BL_ERR_CRC){        /* genuine mismatch */
+                    bl_send_abort(t);
+                    return BLR_VERIFY_CRC;
+                }
+                /* r == 1 with BL_ERR_STATE (already-verified, or a lost
+                 * ERASE), or any other malformed reply: fall through to the
+                 * STATUS probe below before spending another attempt. */
+            }
+            if(bl_query_state(t) == BL_ST_VERIFIED){ verified = 1; break; }
         }
-        uint8_t nak_err = 0;
-        int r = bl_resp_ack(resp, (uint16_t)rlen, BL_FC_CONTROL, BL_SUB_VERIFY, &nak_err);
-        if(r == 1){
-            bl_send_abort(t);
-            if(nak_err == BL_ERR_CRC) return BLR_VERIFY_CRC;
-            if(nak_err == BL_ERR_STATE) return BLR_ERASE_FAIL;
-            return BLR_WRITE_FAIL;
-        }
-        if(r != 0){
+        if(!verified){
             bl_send_abort(t);
             return BLR_WRITE_FAIL;
         }
