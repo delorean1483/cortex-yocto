@@ -67,3 +67,14 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -o "$here/test_ota_status"
 
 "$here/test_ota_status"
+
+# Shadow firmware_target compare-and-clear: drives the REAL shadow.c state logic
+# (apply_desired + shadow_clear_firmware_target) with tests/mqstub/ standing in
+# for libmosquitto. Guards the standing-delta regression (a satisfied
+# desired.firmware_target must be nulled once the OTA converges).
+cc -std=c11 -Wall -Wextra -Wpedantic -g \
+   -fsanitize=address,undefined \
+   -I"$here/mqstub" -I"$files" -I"$cjson/include" \
+   "$here/test_shadow_fw_target.c" \
+   -L"$cjson/lib" -lcjson -lpthread \
+   -o "$here/test_shadow_fw_target" && "$here/test_shadow_fw_target"
