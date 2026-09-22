@@ -1,7 +1,7 @@
 'use strict';
 // Run: node cloud/lambda/api/reports-view.test.js
 const assert = require('node:assert');
-const { buildReports, APU_SAVINGS_USD_PER_HR } = require('./reports-view');
+const { buildReports, APU_SAVINGS_USD_PER_HR, faultCountFlux } = require('./reports-view');
 
 let failed = 0, total = 0;
 const check = (name, fn) => {
@@ -62,6 +62,17 @@ check('empty input yields zeros + empty operators', () => {
   const r = buildReports({});
   assert.deepStrictEqual(r.totals, { runtime_hrs: 0, fuel_saved_usd: 0, mtbf_hrs: 0, fault_events: 0 });
   assert.deepStrictEqual(r.operators, []);
+});
+check('fault-count flux counts only non-cleared events (active==true), not every fault row', () => {
+  const flux = faultCountFlux('-7d');
+  // Must count the `active` boolean's true rows -- the fault lambda writes an
+  // `active` field on every fault message (true=onset, false=fault-cleared),
+  // so counting the `fault` field would double-count each episode.
+  assert.ok(/_field == "active"/.test(flux), 'filters on the active field');
+  assert.ok(/_value == true/.test(flux),      'counts only active (non-cleared) rows');
+  assert.ok(/group\(columns: \["unit"\]\)/.test(flux), 'groups by unit');
+  assert.ok(/count\(\)/.test(flux),           'counts per unit');
+  assert.ok(flux.includes('-7d'),             'uses the provided (sanitized) start');
 });
 
 console.log(`\n${total - failed}/${total} checks passed`);

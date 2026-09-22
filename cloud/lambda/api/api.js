@@ -16,7 +16,7 @@ const { randomUUID }                                               = require('cr
 const { mapTelemetryRow }                                          = require('./telemetry-view');
 const { validateCommand, authorizeCommand, authorizeConfig }       = require('./permissions');
 const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./demo');
-const { buildReports }                                             = require('./reports-view');
+const { buildReports, faultCountFlux }                             = require('./reports-view');
 const { parseReleases }                                            = require('./releases-view');
 
 // ── Environment ───────────────────────────────────────────────────────────────
@@ -633,13 +633,9 @@ async function handleGetReports(event) {
         |> group(columns: ["unit"])
         |> last()
     `),
-    queryApi.collectRows(`
-      from(bucket: "faults")
-        |> range(start: ${safeStart})
-        |> filter(fn: (r) => r._measurement == "faults" and r._field == "fault")
-        |> group(columns: ["unit"])
-        |> count()
-    `),
+    // Non-cleared fault onsets per unit (excludes fault-cleared events); see
+    // reports-view.js faultCountFlux for why it counts `active`, not `fault`.
+    queryApi.collectRows(faultCountFlux(safeStart)),
   ]);
 
   const report = buildReports({ engineHrsFirstRows, engineHrsLastRows, faultRows });
