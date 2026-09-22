@@ -21,6 +21,12 @@ export default function FirmwareTab({ tele, unit, isDemo }) {
   const { data: shadow } = useShadow(unit)
   const ota = otaStatusView(shadow?.reported?.ota_status)
 
+  // The cortex/Linux image version the unit is actually running (device reports
+  // it in the shadow), so the operator can see current-vs-latest at a glance
+  // rather than only the channel's latest.
+  const cortexCurrent = shadow?.reported?.firmware_version || null
+  const upToDate = cortexCurrent && latest && cortexCurrent === latest
+
   // Default the target to the latest available release once loaded.
   useEffect(() => { if (latest && !target) setTarget(latest) }, [latest, target])
 
@@ -69,7 +75,23 @@ export default function FirmwareTab({ tele, unit, isDemo }) {
         <div className="sec-hd">
           <span className="sec-title">Firmware / OTA</span>
           {ota.show && <span className={`pill ${ota.cls}`} title="Live OTA status reported by the unit">{ota.label}</span>}
-          {latest && <span className="pill p-n">latest: {latest}</span>}
+          {cortexCurrent && latest ? (
+            <span className={`pill ${upToDate ? 'p-g' : 'p-n'}`}
+                  title={`Running ${cortexCurrent}; latest published is ${latest}`}>
+              {upToDate ? 'up to date' : 'update available'}
+            </span>
+          ) : latest ? (
+            <span className="pill p-n">latest: {latest}</span>
+          ) : null}
+        </div>
+
+        {/* Current (what the unit runs) vs Latest (newest in the channel), so an
+            out-of-date unit is obvious without opening the push dropdown. */}
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 12.5, marginBottom: 14 }}>
+          <div><span style={{ color: 'var(--color-text-tertiary)' }}>Current</span>{' '}
+            <span style={{ fontFamily: 'var(--font-mono)' }}>{cortexCurrent || '—'}</span></div>
+          <div><span style={{ color: 'var(--color-text-tertiary)' }}>Latest</span>{' '}
+            <span style={{ fontFamily: 'var(--font-mono)' }}>{latest || '—'}</span></div>
         </div>
 
         {isLoading && <div className="notice" style={{ fontSize: 11.5 }}>Loading available releases…</div>}

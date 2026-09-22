@@ -103,6 +103,7 @@ export const mockApi = {
   getShadow: (unit) => delay({ unit, shadow_exists: true, version: 12,
     reported: { report_mode: 'normal', poll_interval_s: 10, online: true, stale_seconds: 4,
       apu_fw_version: SNAPSHOTS[unit]?.apu_fw_version ?? 10240,
+      firmware_version: '1.2.39',  // one behind the channel latest (1.2.40) -> demo shows "update available"
       heater_desired_seq: HEATER_SEQ[unit] || 0 },
     desired: {}, delta: {}, last_updated: Date.now() }),
 
