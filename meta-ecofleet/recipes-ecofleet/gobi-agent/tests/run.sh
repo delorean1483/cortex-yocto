@@ -25,6 +25,13 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" "$here/test_bl_session.c" "$files/bl_session.c" "$files/bl_frame.c" "$files/bl_crc32.c" "$here/fake_bootloader.c" \
    -o "$here/test_bl_session" && "$here/test_bl_session"
 
+# Transport-layer test: drives the REAL bl_transport_serial_xfer byte-framing
+# loop over a pty (txstub/modbus.h stands in for libmodbus on the host). Covers
+# the delayed-reply fragmentation that caused the remote-flash VERIFY failures.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$here/txstub" -I"$files" "$here/test_bl_transport_serial.c" "$files/bl_frame.c" \
+   -lpthread -o "$here/test_bl_transport_serial" && "$here/test_bl_transport_serial"
+
 cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -fsanitize=address,undefined \
    -I"$files" -I"$cjson/include" \

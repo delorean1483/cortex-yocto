@@ -16,11 +16,22 @@
 #include <time.h>
 #include <errno.h>
 
-/* RTU inter-byte idle gap used to delimit a response frame: >= 3.5 char
- * times at 9600 8N1 (1 char ~= 1.146 ms, 3.5 chars ~= 4.01 ms). 5 ms adds
- * a little scheduling-jitter margin without meaningfully eating into the
- * overall timeout_ms budget. */
-#define BL_IDLE_GAP_MS 5
+/* Inter-byte idle gap that delimits a complete response frame. The RTU
+ * minimum is 3.5 char times (~4 ms at 9600 8N1), but the STM32 bootloader's
+ * DELAYED replies (INFO/VERIFY/STATUS -- sent after it computes a CRC over the
+ * slot or turns the RS-485 line around) arrive with internal inter-byte gaps
+ * well past that. An on-silicon byte capture (2026-09-22) showed a 6-byte
+ * VERIFY ACK "01 41 03 00 51 3C" split such that a 5 ms gap truncated it after
+ * the 4-byte header; the dropped "51 3C" tail then desynced the next exchange
+ * -- the root cause of the remote-flash VERIFY failures (NOT the long-suspected
+ * RS-485 self-echo: the reads were truncated/desynced, never the echoed
+ * request). Use a generous 30 ms so those internal gaps can't split a frame.
+ * Cost: each reply takes +25 ms to be declared complete (~+5 s over a full
+ * ~180-chunk flash) -- negligible; the streamed DATA acks are contiguous and
+ * unaffected. A stray byte arriving within 30 ms of a complete frame would be
+ * appended, but the device is quiet between exchanges and bl_frame_check()'s
+ * CRC rejects any such corruption -> the caller retries. */
+#define BL_IDLE_GAP_MS 30
 
 /* Bounded settle after COMMIT/enter-bootloader before resuming polling;
  * the session's own INFO/reg-2 retry loops cover the rest of the actual
