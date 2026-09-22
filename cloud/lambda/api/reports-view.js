@@ -40,4 +40,23 @@ function buildReports({ engineHrsFirstRows = [], engineHrsLastRows = [], faultRo
   };
 }
 
-module.exports = { buildReports, APU_SAVINGS_USD_PER_HR };
+// Flux to count fault ONSETS per unit over the window, for buildReports'
+// faultRows. The fault lambda (lambda/fault/faults.js) writes a point on every
+// fault message with an `active` boolean field: true on a new/continuing fault,
+// false on a fault-CLEARED (recovery) event. Counting the `fault` field would
+// count both onset and clear -- roughly double per episode -- deflating MTBF.
+// Counting the `active` field's true rows excludes the clears. (`active` is
+// used rather than string-matching fault=="0x0000" so any zero spelling the
+// device sends still counts as cleared.) `safeStart` must already be
+// sanitized by the caller (it is interpolated into the query verbatim).
+function faultCountFlux(safeStart) {
+  return `
+    from(bucket: "faults")
+      |> range(start: ${safeStart})
+      |> filter(fn: (r) => r._measurement == "faults" and r._field == "active" and r._value == true)
+      |> group(columns: ["unit"])
+      |> count()
+  `;
+}
+
+module.exports = { buildReports, APU_SAVINGS_USD_PER_HR, faultCountFlux };
