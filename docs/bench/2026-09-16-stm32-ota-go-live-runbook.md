@@ -105,6 +105,17 @@ The STM32 blobs ride the normal signed `.swu`; no CI change.
 - [ ] Wait for success; confirm `s3://ecofleet-ota/releases/X.Y.Z/ecofleet-X.Y.Z.swu`
       (HTTP 200) + GitHub release. (`X.Y.Z` has no leading `v` in the asset name.)
 
+> ⚠️ **Diagnostic / validation / RC builds MUST use a prerelease-suffixed tag**
+> — `vX.Y.Z-diag`, `-rc`, `-validate` (e.g. `v1.2.55-diag`). Such a build still
+> publishes to `releases/<version>/` (so you can OTA it to the bench via the
+> shadow `firmware_target`, exactly like a real release) **but is hidden from
+> the operator "Push version" dropdown**: the backend `parseReleases`
+> (`cloud/lambda/api/releases-view.js`) lists only strict `N.N.N` versions, and
+> `build.yml` marks the GitHub release `prerelease`. **Only a clean `vX.Y.Z` is
+> ever offered to operators — never tag a diagnostic build as a clean version**
+> (that's how `v1.2.54`/`v1.2.55` leaked into the dropdown, 2026-09-22, and had
+> to be pruned from S3 + GitHub afterward).
+
 ### 2e. Deliver the image to a unit
 Hands-free OTA works end-to-end (warm-reboot fix + decoupled worker shipped):
 - [ ] Push the target to the unit's shadow:
