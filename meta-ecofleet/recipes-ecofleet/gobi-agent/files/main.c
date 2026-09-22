@@ -674,18 +674,36 @@ static void write_latest_snapshot(const char *payload)
  * (reg - 1). Best-effort: a bad file or a failed write is logged and the file
  * removed so it can't wedge the queue.
  *
- * Returns 0 on a successful write, -1 on failure. The local command-file
- * callers below all ignore this (fire-and-forget, matching prior behaviour
- * unchanged); the shadow heater apply path uses it to decide whether to ack
- * the pending command or leave it pending for a retry next cycle. */
+ * Retried a few times on failure: this 9600 RS-485 bus has a documented
+ * transient self-echo / idle-gap-framing glitch (the same class that bit the
+ * STM32 bootloader INFO/VERIFY handshakes), and the local command-file callers
+ * are fire-and-forget, so a single dropped write would silently lose an
+ * operator action — e.g. a Home AUTO tap not starting the APU (first-tap miss;
+ * the second tap "works" only because it retries). modbus_flush() drains any
+ * stale/late RX between attempts so the retry starts on a clean bus.
+ *
+ * Returns 0 on a successful write (on any attempt), -1 if all attempts fail.
+ * The local command-file callers below still ignore this (fire-and-forget);
+ * the shadow heater apply path uses it to decide whether to ack the pending
+ * command or leave it pending for a retry next cycle. */
+#define MB_WRITE_ATTEMPTS 3   /* 1 initial + 2 retries */
 static int mb_write_reg(int reg1based, int value, const char *what)
 {
-    if (modbus_write_register(g_modbus, reg1based - 1, value) == 1) {
-        syslog(LOG_INFO, "control: %s -> reg %d = %d", what, reg1based, value);
-        return 0;
+    int attempt;
+    for (attempt = 1; attempt <= MB_WRITE_ATTEMPTS; attempt++) {
+        if (modbus_write_register(g_modbus, reg1based - 1, value) == 1) {
+            if (attempt == 1)
+                syslog(LOG_INFO, "control: %s -> reg %d = %d", what, reg1based, value);
+            else
+                syslog(LOG_INFO, "control: %s -> reg %d = %d (ok on attempt %d)",
+                       what, reg1based, value, attempt);
+            return 0;
+        }
+        syslog(LOG_WARNING, "control: %s write reg %d failed (attempt %d/%d): %s",
+               what, reg1based, attempt, MB_WRITE_ATTEMPTS, modbus_strerror(errno));
+        if (attempt < MB_WRITE_ATTEMPTS)
+            modbus_flush(g_modbus);   /* drain stale RX (self-echo) before retry */
     }
-    syslog(LOG_WARNING, "control: %s write reg %d failed: %s",
-           what, reg1based, modbus_strerror(errno));
     return -1;
 }
 
