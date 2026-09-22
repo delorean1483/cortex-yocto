@@ -2,8 +2,8 @@ SUMMARY = "EcoFleet g0b1/APU STM32 firmware images (A/B slots) for RS-485 remote
 LICENSE = "CLOSED"
 
 SRC_URI = " \
-    file://g0b1-apu-1.1.3-slotA.bin \
-    file://g0b1-apu-1.1.3-slotB.bin \
+    file://g0b1-apu-1.1.4-slotA.bin \
+    file://g0b1-apu-1.1.4-slotB.bin \
     file://manifest.json \
 "
 S = "${WORKDIR}"
@@ -15,8 +15,8 @@ S = "${WORKDIR}"
 # resolves here via the usrmerge /lib -> usr/lib symlink.
 do_install() {
     install -d ${D}${nonarch_base_libdir}/firmware/g0b1-apu
-    install -m 0644 ${WORKDIR}/g0b1-apu-1.1.3-slotA.bin ${D}${nonarch_base_libdir}/firmware/g0b1-apu/
-    install -m 0644 ${WORKDIR}/g0b1-apu-1.1.3-slotB.bin ${D}${nonarch_base_libdir}/firmware/g0b1-apu/
+    install -m 0644 ${WORKDIR}/g0b1-apu-1.1.4-slotA.bin ${D}${nonarch_base_libdir}/firmware/g0b1-apu/
+    install -m 0644 ${WORKDIR}/g0b1-apu-1.1.4-slotB.bin ${D}${nonarch_base_libdir}/firmware/g0b1-apu/
     install -m 0644 ${WORKDIR}/manifest.json            ${D}${nonarch_base_libdir}/firmware/g0b1-apu/
 }
 
