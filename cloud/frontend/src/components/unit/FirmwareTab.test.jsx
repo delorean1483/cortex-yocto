@@ -3,10 +3,13 @@ import { render, screen } from '@testing-library/react'
 
 const mutate = vi.fn()
 let otaStatus = 'idle'
+let cortexCurrent           // shadow.reported.firmware_version (the running cortex/image version)
+let releasesLatest = null   // useReleases().latest
+let releasesList = []       // useReleases().releases
 vi.mock('../../data/hooks.js', () => ({
   useCommand: () => ({ mutate, isPending: false }),
-  useReleases: () => ({ data: { releases: [], latest: null }, isLoading: false, error: null }),
-  useShadow: () => ({ data: { reported: { ota_status: otaStatus } } }),
+  useReleases: () => ({ data: { releases: releasesList, latest: releasesLatest }, isLoading: false, error: null }),
+  useShadow: () => ({ data: { reported: { ota_status: otaStatus, firmware_version: cortexCurrent } } }),
 }))
 vi.mock('../../contexts/AuthContext.jsx', () => ({ useAuth: () => ({ role: 'admin' }) }))
 
@@ -28,7 +31,30 @@ const TELE = {
   apu_flash_state: 'idle',
 }
 
-beforeEach(() => { mutate.mockClear(); apuOtaEnabled = false; otaStatus = 'idle' })
+beforeEach(() => {
+  mutate.mockClear(); apuOtaEnabled = false; otaStatus = 'idle'
+  cortexCurrent = undefined; releasesLatest = null; releasesList = []
+})
+
+describe('FirmwareTab — cortex firmware current vs latest', () => {
+  it('shows the running cortex version and flags when it is behind the latest', () => {
+    cortexCurrent = '1.2.50'          // distinct from the release list -> unambiguous in the DOM
+    releasesLatest = '1.2.56'
+    releasesList = ['1.2.56', '1.2.55']
+    render(<FirmwareTab tele={TELE} unit="TRUCK-1" isDemo={false} />)
+    expect(screen.getByText('1.2.50')).toBeTruthy()          // the running version is shown, not just "latest"
+    expect(screen.getByText(/update available/i)).toBeTruthy()
+  })
+
+  it('shows "up to date" when the running version equals the latest', () => {
+    cortexCurrent = '1.2.56'
+    releasesLatest = '1.2.56'
+    releasesList = ['1.2.56']
+    render(<FirmwareTab tele={TELE} unit="TRUCK-1" isDemo={false} />)
+    expect(screen.getByText(/up to date/i)).toBeTruthy()
+    expect(screen.queryByText(/update available/i)).toBeNull()
+  })
+})
 
 describe('FirmwareTab — APU controller firmware section', () => {
   it('always renders the read-only APU status (decoded versions)', () => {
