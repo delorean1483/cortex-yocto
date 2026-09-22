@@ -351,15 +351,23 @@ static void write_ota_request(const char *line)
         syslog(LOG_ERR, "ota: cannot commit request %s: %s", OTA_REQ_FILE, strerror(errno));
 }
 
-/* Request an OTA to <version> via the root worker. Loop-guard: skip if already
- * running that version, so the dashboard can leave desired.firmware_target set
- * without causing a re-install/reboot loop on every reconnect. */
+/* Request an OTA to <version> via the root worker. Loop-guard: if already
+ * running that version (converged), don't re-install — and clear the now-
+ * satisfied desired.firmware_target so it stops re-firing a shadow delta on
+ * every telemetry publish (the dashboard "Push OTA" set it; nothing else
+ * clears it). */
 static void ota_trigger(const char *version)
 {
     char running[32];
     running_version(running, sizeof(running));
     if (running[0] != '\0' && strcmp(running, version) == 0) {
-        syslog(LOG_INFO, "ota: already on %s — skipping", version);
+        /* Converged: clear the now-satisfied desired.firmware_target so it stops
+         * re-firing a shadow update/delta on every telemetry publish (the agent
+         * reports firmware_version, never firmware_target, so an uncleared target
+         * mismatches reported forever — a standing delta that also double-applies
+         * transient commands like apu_command). */
+        syslog(LOG_INFO, "ota: already on %s — clearing desired.firmware_target", version);
+        shadow_clear_firmware_target(version);
         return;
     }
     char line[64];

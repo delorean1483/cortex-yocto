@@ -51,6 +51,16 @@ static struct {
      * only, never exposed via shadow_config_t. */
     unsigned apu_command_seq;
 
+    /* Set once the cortex/image OTA has CONVERGED (running firmware_version ==
+     * desired firmware_target), so the next reported update nulls
+     * desired.firmware_target in the cloud shadow. Without this the satisfied
+     * target lingers in desired and — because the agent reports firmware_version,
+     * not firmware_target — AWS re-fires an update/delta on EVERY telemetry
+     * publish (a standing delta storm that also double-applies transient
+     * commands like apu_command). Value-based, not seq: only the exact version
+     * we converged on is cleared, so a newer target is never wiped. Mutex. */
+    bool clear_fw_target_desired;
+
     /* Set once an apu_firmware_target flash has reached a terminal outcome, so
      * the next reported update nulls it in the cloud desired state. Protected
      * by mutex. */
@@ -440,10 +450,11 @@ int shadow_publish_reported(struct mosquitto *mosq,
      * shadow_ack_heater_cmd), so a command is never lost while a Modbus
      * write is still pending or retrying. */
     pthread_mutex_lock(&s.config_mutex);
-    bool clear_reboot  = s.config.reboot_requested;
-    bool clear_apu_cmd = s.clear_apu_cmd_desired;
-    bool clear_apu_fw  = s.clear_apu_fw_desired;
-    bool clear_heater  = s.clear_heater_desired;
+    bool clear_reboot    = s.config.reboot_requested;
+    bool clear_apu_cmd   = s.clear_apu_cmd_desired;
+    bool clear_apu_fw    = s.clear_apu_fw_desired;
+    bool clear_heater    = s.clear_heater_desired;
+    bool clear_fw_target = s.clear_fw_target_desired;
     if (clear_reboot) {
         cJSON_AddBoolToObject(rep, "reboot", false);
         s.config.reboot_requested = false;
@@ -454,14 +465,17 @@ int shadow_publish_reported(struct mosquitto *mosq,
         s.clear_apu_fw_desired = false;
     if (clear_heater)
         s.clear_heater_desired = false;
+    if (clear_fw_target)
+        s.clear_fw_target_desired = false;
     pthread_mutex_unlock(&s.config_mutex);
 
-    if (clear_reboot || clear_apu_cmd || clear_apu_fw || clear_heater) {
+    if (clear_reboot || clear_apu_cmd || clear_apu_fw || clear_heater || clear_fw_target) {
         cJSON *des = cJSON_AddObjectToObject(state, "desired");
-        if (clear_reboot)  cJSON_AddNullToObject(des, "reboot");
-        if (clear_apu_cmd) cJSON_AddNullToObject(des, "apu_command");
-        if (clear_apu_fw)  cJSON_AddNullToObject(des, "apu_firmware_target");
-        if (clear_heater)  cJSON_AddNullToObject(des, "heater");
+        if (clear_reboot)    cJSON_AddNullToObject(des, "reboot");
+        if (clear_apu_cmd)   cJSON_AddNullToObject(des, "apu_command");
+        if (clear_apu_fw)    cJSON_AddNullToObject(des, "apu_firmware_target");
+        if (clear_heater)    cJSON_AddNullToObject(des, "heater");
+        if (clear_fw_target) cJSON_AddNullToObject(des, "firmware_target");
     }
 
     char *json = cJSON_PrintUnformatted(root);
@@ -514,6 +528,24 @@ void shadow_ack_apu_command(unsigned seq)
     if (seq == s.apu_command_seq) {
         s.config.apu_command[0] = '\0';
         s.clear_apu_cmd_desired = true;
+    }
+    pthread_mutex_unlock(&s.config_mutex);
+}
+
+void shadow_clear_firmware_target(const char *version)
+{
+    if (!s.initialised || !version || version[0] == '\0') return;
+
+    pthread_mutex_lock(&s.config_mutex);
+    /* Value-based compare-and-clear: only drop the target we actually
+     * converged on. A newer firmware_target would leave running != target, so
+     * ota_trigger() would not have called us — this can't wipe a pending
+     * upgrade. Nulling desired.firmware_target ends the standing update/delta
+     * (the agent reports firmware_version, never firmware_target, so a
+     * satisfied-but-uncleared target mismatches reported forever). */
+    if (strcmp(s.config.firmware_target, version) == 0) {
+        s.config.firmware_target[0] = '\0';
+        s.clear_fw_target_desired = true;
     }
     pthread_mutex_unlock(&s.config_mutex);
 }

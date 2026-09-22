@@ -145,6 +145,17 @@ bool shadow_peek_apu_command(char *out, size_t out_len, unsigned *seq);
  * wiped by a stale ack (TOCTOU: peek → slow reg-10 write → ack). Thread-safe. */
 void shadow_ack_apu_command(unsigned seq);
 
+/* Clear desired.firmware_target once the cortex/image OTA has CONVERGED (the
+ * running firmware_version already equals `version`), scheduling a desired=null
+ * update. Value-based compare-and-clear: only the exact converged version is
+ * dropped, so a newer target is never wiped. REQUIRED, not just hygiene: the
+ * agent reports firmware_version (never firmware_target), so a satisfied-but-
+ * uncleared target mismatches reported forever and AWS re-fires an update/delta
+ * on every telemetry publish (a standing delta storm that also double-applies
+ * transient commands like apu_command). Called from the MQTT callback thread
+ * (ota_trigger's loop-guard). Thread-safe. */
+void shadow_clear_firmware_target(const char *version);
+
 /* ── One-shot STM32 APU-controller firmware flash request ────────────────────
  * Same one-shot peek→apply→ack idiom as the APU op-state command above, for a
  * remote STM32 firmware flash. The target semver arrives via
