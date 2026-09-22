@@ -26,6 +26,19 @@ check('empty input -> null latest', () => {
   assert.deepStrictEqual(r.releases, []);
   assert.strictEqual(r.latest, null);
 });
+check('excludes prerelease-suffixed builds from the operator dropdown', () => {
+  // Convention: diagnostic / validation / release-candidate builds tag as
+  // vX.Y.Z-<suffix>. They still publish to releases/ (so they stay
+  // shadow-target-OTA-able to the bench), but the strict N.N.N filter keeps
+  // them OUT of the operator "Push version" list + latest. Regression guard so
+  // a future parseVersion refactor can't silently reopen the v1.2.54/55-style
+  // pollution (those were tagged as CLEAN v1.2.54/55 by mistake, hence visible).
+  const r = parseReleases([
+    'releases/1.2.56/', 'releases/1.2.55-diag/', 'releases/1.2.54-validate/', 'releases/1.3.0-rc.1/',
+  ]);
+  assert.deepStrictEqual(r.releases, ['1.2.56']);
+  assert.strictEqual(r.latest, '1.2.56');
+});
 
-console.log(`\n${4 - failed}/4 checks passed`);
+console.log(`\n${5 - failed}/5 checks passed`);
 process.exit(failed === 0 ? 0 : 1);

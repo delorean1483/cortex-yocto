@@ -154,6 +154,14 @@ jobs:
             /tmp/yocto-release/ecofleet-image-imx8mm-var-dart.rootfs.wic.zst
             /tmp/yocto-release/ecofleet-image-imx8mm-var-dart.rootfs.wic.bmap
 
+      # S3 releases/<version>/ is the OPERATOR OTA channel — the dashboard's
+      # "Push version" dropdown lists it live (backend parseReleases, which
+      # accepts ONLY strict N.N.N versions). So a prerelease-SUFFIXED tag
+      # (vX.Y.Z-diag / -rc / -validate) still publishes here and stays
+      # shadow-target-OTA-able for the bench, but is HIDDEN from operators by
+      # that filter. => tag diagnostic/validation builds with a suffix; only a
+      # clean vX.Y.Z is ever offered to operators. (v1.2.54/55 leaked into the
+      # dropdown because they were mis-tagged as clean vX.Y.Z.)
       - name: Publish signed bundle to OTA bucket
         if: startsWith(github.ref, 'refs/tags/')
         env:
@@ -187,3 +195,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: /tmp/yocto-release/*
+          # Suffixed tags (vX.Y.Z-diag / -rc) are prereleases: never shown as
+          # "Latest" on GitHub, matching the backend's operator-dropdown filter.
+          prerelease: ${{ contains(github.ref_name, '-') }}
