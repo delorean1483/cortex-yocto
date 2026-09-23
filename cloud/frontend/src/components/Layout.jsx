@@ -92,7 +92,7 @@ export default function Layout({ children }) {
         </div>
 
         {/* Logout */}
-        <button onClick={logout} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, padding: '0 20px', borderTop: '0.5px solid var(--color-border-tertiary)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, gap: 12, color: 'var(--color-text-tertiary)', width: '100%', flexShrink: 0 }}>
+        <button onClick={logout} style={{ display: 'flex', alignItems: 'center', minHeight: 44, padding: '0 20px', borderTop: '0.5px solid var(--color-border-tertiary)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, gap: 12, color: 'var(--color-text-tertiary)', width: '100%', flexShrink: 0 }}>
           <IconLogout size={19} />
           Sign out
         </button>
