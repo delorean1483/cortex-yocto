@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client.js'
 import { chronological } from '../api/contract.js'
 
@@ -74,5 +74,59 @@ export function useCommand() {
       qc.invalidateQueries({ queryKey: ['latest', unit] })
       qc.invalidateQueries({ queryKey: ['shadow', unit] })
     },
+  })
+}
+
+// Assigned map locations for every unit (Fleet map).
+export function useLocations() {
+  return useQuery({
+    queryKey: ['locations'],
+    queryFn: () => api.getLocations(),
+    select: (d) => d.locations || [],
+  })
+}
+
+export function useSetLocation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ unit, lat, lon, label }) => api.setLocation(unit, { lat, lon, label }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
+  })
+}
+
+export function useClearLocation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (unit) => api.clearLocation(unit),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
+  })
+}
+
+// Latest telemetry for many units in one hook (shares the ['latest', unit]
+// cache and poll rate with useUnitLatest).
+export function useFleetLatest(units) {
+  const results = useQueries({
+    queries: (units || []).map((unit) => ({
+      queryKey: ['latest', unit],
+      queryFn: () => api.getLatest(unit),
+      refetchInterval: LATEST_POLL_MS,
+      select: (d) => d.latest,
+    })),
+  })
+  const byUnit = {}
+  const pending = {}
+  ;(units || []).forEach((unit, i) => {
+    byUnit[unit] = results[i]?.data
+    pending[unit] = !!results[i]?.isLoading
+  })
+  return { byUnit, pending }
+}
+
+// Writes device-shadow config (reporting interval, reboot) for one unit.
+export function useSetConfig() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ unit, config }) => api.setConfig(unit, config),
+    onSuccess: (_r, { unit }) => qc.invalidateQueries({ queryKey: ['shadow', unit] }),
   })
 }

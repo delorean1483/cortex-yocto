@@ -80,7 +80,33 @@ let USERS = [
   { email: 'driver@fleet1.com', role: 'eu', fleet: 'FLEET-001', status: 'active' },
 ]
 
+// Assigned map locations (mock). The real unit starts unplaced; demo units
+// have fixed spots, mirroring the API's demo behaviour.
+const LOCATIONS = {}
+const DEMO_LOCATIONS = {
+  'APU-DEMO-01': { lat: 32.7767, lon: -96.7970, label: 'Dallas, TX (demo)' },
+  'APU-DEMO-02': { lat: 35.4676, lon: -97.5164, label: 'Oklahoma City, OK (demo)' },
+  'APU-DEMO-03': { lat: 29.7604, lon: -95.3698, label: 'Houston, TX (demo)' },
+}
+// Reporting interval per unit; a change "confirms" ~8s later, like a real
+// unit picking up its shadow delta on the next cycle.
+const INTERVALS = {}
+function reportedInterval(unit) {
+  const c = INTERVALS[unit]
+  if (!c) return 10
+  return Date.now() >= c.at ? c.next : c.prev
+}
+
 export const mockApi = {
+  getLocations: () => delay({ locations: [
+    ...Object.entries(LOCATIONS).map(([unit, l]) => ({ unit, ...l, source: 'assigned' })),
+    ...DEMO_UNITS.map((unit) => ({ unit, ...DEMO_LOCATIONS[unit], source: 'demo' })),
+  ] }),
+  setLocation: (unit, { lat, lon, label }) => {
+    LOCATIONS[unit] = { lat, lon, label: label || null, updated_by: 'demo@ecofleet.io', updated_at: Date.now() }
+    return delay({ location: { unit, ...LOCATIONS[unit], source: 'assigned' } })
+  },
+  clearLocation: (unit) => { delete LOCATIONS[unit]; return delay({ unit, cleared: true }) },
   login: (email) => delay({ token: fakeJwt(email || 'demo@ecofleet.io', 'admin'),
     refresh_token: 'mock-rt', expires_in: 3600 }),
 
@@ -108,14 +134,18 @@ export const mockApi = {
   ] }),
 
   getShadow: (unit) => delay({ unit, shadow_exists: true, version: 12,
-    reported: { report_mode: 'normal', poll_interval_s: 10, online: true, stale_seconds: 4,
+    reported: { report_mode: 'normal', poll_interval_s: reportedInterval(unit), online: true, stale_seconds: 4,
       apu_fw_version: SNAPSHOTS[unit]?.apu_fw_version ?? 10240,
       firmware_version: '1.2.39',  // one behind the channel latest (1.2.40) -> demo shows "update available"
       heater_desired_seq: HEATER_SEQ[unit] || 0 },
     desired: {}, delta: {}, last_updated: Date.now() }),
 
-  setConfig: (unit, config) => delay({ unit, shadow_version: 13, desired: config,
-    message: 'Config queued (mock).' }),
+  setConfig: (unit, config) => {
+    if (config.poll_interval_s !== undefined) {
+      INTERVALS[unit] = { prev: reportedInterval(unit), next: config.poll_interval_s, at: Date.now() + 8000 }
+    }
+    return delay({ unit, shadow_version: 13, desired: config, message: 'Config queued (mock).' })
+  },
 
   sendCommand: (unit, body) => {
     // Reflect heater/APU/OTA commands into the snapshot so the demo updates live.

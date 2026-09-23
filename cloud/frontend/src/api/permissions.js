@@ -3,9 +3,10 @@
 // `apu_ota` gates flashing the STM32 APU-controller firmware over RS-485 — a
 // higher safety bar than the Linux image `ota`, so it's admin/fm only (maint
 // excluded, same as `ota`). Keep in sync with the api Lambda's matrix.
+// `location` = assign a unit's map location (Fleet map), admin/fm.
 const MATRIX = {
-  admin: new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users']),
-  fm:    new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users']),
+  admin: new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users', 'location']),
+  fm:    new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users', 'location']),
   maint: new Set(['heater', 'setpoint', 'diag', 'config']),
   eu:    new Set([]),
 }
