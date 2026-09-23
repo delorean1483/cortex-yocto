@@ -1,7 +1,7 @@
 'use strict';
 // Run: node cloud/lambda/api/flux.test.js
 const assert = require('node:assert');
-const { latestFlux, telemetryFlux, unitsFlux, UNITS_LOOKBACK } = require('./flux');
+const { latestFlux, telemetryFlux, unitsFlux, faultsFlux, clampLimit, UNITS_LOOKBACK } = require('./flux');
 
 // Index of a pipeline stage in the query text (-1 if absent).
 const at = (q, stage) => q.indexOf(stage);
@@ -41,6 +41,29 @@ const at = (q, stage) => q.indexOf(stage);
   assert.strictEqual(UNITS_LOOKBACK, '-7d');
   assert.ok(unitsFlux().includes(`start: ${UNITS_LOOKBACK}`));
   assert.ok(unitsFlux().includes('schema.tagValues'));
+}
+
+// ── faults: validated range, trimmed before pivot ───────────────────────────
+{
+  const q = faultsFlux('TRUCK-001', '-7d', 100);
+  assert.ok(q.includes('from(bucket: "faults")'));
+  assert.ok(q.includes('range(start: -7d)'));
+  assert.ok(q.includes('r._measurement == "faults" and r.unit == "TRUCK-001"'));
+  assert.ok(at(q, '|> tail(n: 100)') > -1 && at(q, '|> tail(n: 100)') < at(q, '|> pivot('), 'tail before pivot');
+  assert.ok(at(q, '|> group()') < at(q, '|> sort(columns: ["_time"], desc: true)'));
+  assert.ok(/limit\(n: 100\)/.test(q));
+  assert.throws(() => faultsFlux('U', '-7d) |> drop(', 10), /start/, 'range start is validated');
+  assert.ok(faultsFlux('A"B', '-1d', 5).includes('r.unit == "AB"'), 'quote stripped');
+}
+
+// ── clampLimit: query-string limits can't produce NaN or runaway queries ────
+{
+  assert.strictEqual(clampLimit('50', 100, 500), 50);
+  assert.strictEqual(clampLimit(undefined, 100, 500), 100);
+  assert.strictEqual(clampLimit('abc', 100, 500), 100, 'non-numeric -> default');
+  assert.strictEqual(clampLimit('0', 100, 500), 1, 'at least 1');
+  assert.strictEqual(clampLimit('-5', 100, 500), 1);
+  assert.strictEqual(clampLimit('9999', 100, 500), 500, 'capped');
 }
 
 console.log('flux.test.js: all assertions passed');

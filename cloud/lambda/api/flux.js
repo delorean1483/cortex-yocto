@@ -51,6 +51,31 @@ function telemetryFlux(unit, start, limit) {
   `;
 }
 
+// Newest `limit` fault events in range, newest first (same shape as telemetry:
+// trim per series before the pivot, merge, then sort/limit).
+function faultsFlux(unit, start, limit) {
+  if (!RELATIVE_RANGE.test(String(start))) throw new Error(`invalid start: ${start}`);
+  const n = Math.max(1, Math.floor(Number(limit)) || 1);
+  return `
+    from(bucket: "faults")
+      |> range(start: ${start})
+      |> filter(fn: (r) => r._measurement == "faults" and r.unit == "${unitLiteral(unit)}")
+      |> tail(n: ${n})
+      |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+      |> group()
+      |> sort(columns: ["_time"], desc: true)
+      |> limit(n: ${n})
+  `;
+}
+
+// A ?limit= query-string value -> an integer in [1, max]; missing or
+// non-numeric falls back to `fallback` (never NaN inside a Flux query).
+function clampLimit(raw, fallback, max) {
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(n, 1), max);
+}
+
 // Units that reported within UNITS_LOOKBACK (a unit silent longer drops off the list).
 function unitsFlux() {
   return `
@@ -64,4 +89,4 @@ function unitsFlux() {
   `;
 }
 
-module.exports = { latestFlux, telemetryFlux, unitsFlux, UNITS_LOOKBACK, RELATIVE_RANGE };
+module.exports = { latestFlux, telemetryFlux, unitsFlux, faultsFlux, clampLimit, UNITS_LOOKBACK, RELATIVE_RANGE };

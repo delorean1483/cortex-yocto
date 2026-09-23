@@ -18,7 +18,7 @@ const { validateCommand, authorizeCommand, authorizeConfig }       = require('./
 const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./demo');
 const { buildReports, faultCountFlux }                             = require('./reports-view');
 const { parseReleases }                                            = require('./releases-view');
-const { latestFlux, telemetryFlux, unitsFlux, RELATIVE_RANGE }     = require('./flux');
+const { latestFlux, telemetryFlux, unitsFlux, faultsFlux, clampLimit, RELATIVE_RANGE } = require('./flux');
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const REGION            = process.env.AWS_REGION || 'us-east-1';
@@ -202,7 +202,7 @@ async function handleGetTelemetry(event) {
   const unit  = (event.pathParameters || {}).unit;
   const qs    = event.queryStringParameters || {};
   const start = qs.start  || '-1h';
-  const limit = Math.min(parseInt(qs.limit || '200', 10), 1000);
+  const limit = clampLimit(qs.limit, 200, 1000);
 
   if (!unit) return err(400, 'unit path parameter required');
   if (!RELATIVE_RANGE.test(start)) return err(400, 'start must be a relative range like -1h or -7d');
@@ -240,24 +240,15 @@ async function handleGetFaults(event) {
   const unit  = (event.pathParameters || {}).unit;
   const qs    = event.queryStringParameters || {};
   const start = qs.start || '-7d';
-  const limit = Math.min(parseInt(qs.limit || '100', 10), 500);
+  const limit = clampLimit(qs.limit, 100, 500);
 
   if (!unit) return err(400, 'unit path parameter required');
+  if (!RELATIVE_RANGE.test(start)) return err(400, 'start must be a relative range like -1h or -7d');
 
   await getInfluxToken();
   const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
 
-  const flux = `
-    from(bucket: "faults")
-      |> range(start: ${start})
-      |> filter(fn: (r) => r._measurement == "faults" and r.unit == "${unit.replace(/"/g, '')}")
-      |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-      |> group()
-      |> sort(columns: ["_time"], desc: true)
-      |> limit(n: ${limit})
-  `;
-
-  const rows   = await queryApi.collectRows(flux);
+  const rows   = await queryApi.collectRows(faultsFlux(unit, start, limit));
   const faults = rows.map(r => ({
     ts:          new Date(r._time).getTime(),
     fault:       r.fault,
