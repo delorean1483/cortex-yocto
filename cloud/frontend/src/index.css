@@ -313,3 +313,31 @@ details.ref[open] > summary .chev { transform: rotate(90deg); }
   select.control { min-width: 0; width: 100%; }
   .field-inline { width: 100%; }
 }
+
+/* ── Fleet map ─────────────────────────────────────────────────────────────── */
+.map-note { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--color-text-secondary); }
+.map-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.map-wrap { position: relative; }
+.fleet-map { height: min(70vh, 640px); min-height: 360px; border-radius: 12px; border: 1px solid var(--color-border-secondary); z-index: 0; }
+.fleet-map.is-placing { cursor: crosshair; }
+.map-hint { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 500; background: var(--color-background-primary); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 600; }
+.map-side { display: flex; flex-direction: column; gap: 16px; }
+.map-side-h { display: flex; align-items: center; gap: 8px; margin: 0; padding: 14px 16px 6px; font-size: 15px; font-weight: 600; color: var(--color-text-secondary); }
+.map-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--color-border-tertiary); }
+.map-row-unit { font-size: 15px; font-weight: 600; }
+.map-row-sub { font-size: 13px; color: var(--color-text-tertiary); margin-top: 2px; }
+.map-pin { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; font: 700 14px 'IBM Plex Sans', sans-serif; color: #fff; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.map-pin.t-err { background: #B42318; }
+.map-pin.t-warn { background: #9A4E00; }
+.map-pin.t-ok { background: #2E7D32; }
+.map-pin.t-off { background: #5F6A74; }
+.map-pin.placing { background: var(--accent-fill); outline: 3px solid rgba(11,127,174,.35); }
+.map-pop { display: flex; flex-direction: column; gap: 6px; min-width: 180px; font-family: 'IBM Plex Sans', sans-serif; }
+.map-pop-unit { font-size: 15px; font-weight: 600; }
+.map-pop-line { font-size: 13px; }
+.map-pop-src { font-size: 12px; color: #5F6A74; }
+.map-pop .badge { align-self: flex-start; }
+@media (max-width: 900px) {
+  .map-layout { grid-template-columns: minmax(0, 1fr); }
+  .fleet-map { height: 55vh; }
+}
