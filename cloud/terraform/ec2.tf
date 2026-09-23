@@ -170,9 +170,11 @@ resource "aws_dlm_lifecycle_policy" "influxdb" {
         count = 14
       }
 
+      # Project comes from copy_tags (the volume carries it). Adding it here too
+      # makes AWS reject every run ("Tag (Project) is already defined") — that
+      # stalled all InfluxDB snapshots after the 2026-09-11 volume restore.
       tags_to_add = {
         SnapshotCreator = "DLM"
-        Project         = var.project
       }
 
       copy_tags = true
