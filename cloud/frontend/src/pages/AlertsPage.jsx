@@ -1,42 +1,29 @@
 import { useState, useEffect } from 'react'
+import {
+  IconAlertTriangle, IconAlertCircle, IconCircleCheck, IconChevronRight,
+} from '@tabler/icons-react'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
+import { activeFaults, faultInfo, ageText } from '../api/contract.js'
+import UnitPicker from '../components/UnitPicker.jsx'
 
-const SEVERITY_MAP = {
-  0x0001: { label: 'DC under-voltage',  cls: 'a-warn' },
-  0x0002: { label: 'DC under-voltage',  cls: 'a-warn' },
-  0x0004: { label: 'DC over-voltage',   cls: 'a-warn' },
-  0x0008: { label: 'Over-current',       cls: 'a-crit' },
-  0x0010: { label: 'Coolant over-temp',  cls: 'a-crit' },
-  0x0020: { label: 'Low oil pressure',   cls: 'a-crit' },
-  0x0040: { label: 'Comm timeout',       cls: 'a-warn' },
-  0x0080: { label: 'Sensor fault',       cls: 'a-warn' },
+const WINDOW_LABEL = 'last 7 days'
+
+function whenText(ts) {
+  return new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
-function faultClass(fault) {
-  if (!fault || fault === '0x0000' || fault === 0) return null
-  const code = typeof fault === 'string' ? parseInt(fault, 16) : fault
-  for (const [mask, info] of Object.entries(SEVERITY_MAP)) {
-    if (code & Number(mask)) return info.cls
-  }
-  return 'a-warn'
-}
+// Reference only — trip points live in the APU controller firmware.
+const MONITORED = [
+  { name: 'Low oil pressure',  trigger: 'Engine oil-pressure switch open', critical: true },
+  { name: 'High engine temp',  trigger: 'Coolant or engine over-temperature', critical: true },
+  { name: 'Low battery',       trigger: 'Battery voltage below the safe threshold', critical: false },
+  { name: 'A/C pressure',      trigger: 'Refrigerant pressure out of range (low or high)', critical: true },
+  { name: 'Start / RPM fault', trigger: 'Failed to start, engine stalled, or no RPM', critical: true },
+]
 
-function faultLabel(fault) {
-  if (!fault || fault === '0x0000' || fault === 0) return 'Normal'
-  const code = typeof fault === 'string' ? parseInt(fault, 16) : fault
-  const labels = []
-  for (const [mask, info] of Object.entries(SEVERITY_MAP)) {
-    if (code & Number(mask)) labels.push(info.label)
-  }
-  return labels.join(', ') || `0x${code.toString(16).padStart(4, '0').toUpperCase()}`
-}
-
-function fmtAge(ts) {
-  const secs = Math.floor((Date.now() - ts) / 1000)
-  if (secs < 60) return `${secs}s ago`
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
-  return `${Math.floor(secs / 3600)}h ago`
+function SeverityBadge({ info }) {
+  return <span className={`badge badge-sm t-${info.tone}`}>{info.severity}</span>
 }
 
 export default function AlertsPage() {
@@ -55,117 +42,120 @@ export default function AlertsPage() {
 
   useEffect(() => {
     if (!selectedUnit) return
+    let live = true
     setFaults(null)
     setError('')
     api.getFaults(selectedUnit, { start: '-7d', limit: '100' })
-      .then(d => setFaults(d.faults || []))
-      .catch(err => setError(err.message))
+      .then(d => { if (live) setFaults(d.faults || []) })
+      .catch(err => { if (live) setError(err.message) })
+    return () => { live = false }
   }, [selectedUnit])
 
-  const activeFaults = faults ? faults.filter(f => f.fault && f.fault !== '0x0000' && f.fault !== 0) : []
+  const active = faults ? activeFaults(faults) : []
+  const anyCritical = active.some((f) => faultInfo(f).tone === 'err')
+  const tone = active.length === 0 ? 'ok' : anyCritical ? 'err' : 'warn'
+  const BannerIcon = tone === 'ok' ? IconCircleCheck : tone === 'err' ? IconAlertTriangle : IconAlertCircle
 
   return (
     <>
-      {/* Unit selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <select
-          value={selectedUnit || ''}
-          onChange={e => setSelectedUnit(e.target.value)}
-          style={{ fontSize: 13, border: '0.5px solid var(--color-border-secondary)', borderRadius: 6, padding: '5px 10px', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', cursor: 'pointer' }}
-        >
-          {!selectedUnit && <option value="">— select unit —</option>}
-          {units.map(u => <option key={u.unit} value={u.unit}>{u.unit}{u.demo ? ' (demo)' : ''}</option>)}
-        </select>
+      <div className="toolbar">
+        <UnitPicker units={units} value={selectedUnit} onChange={setSelectedUnit} />
       </div>
 
-      {/* Active alerts */}
-      <div>
-        <div className="sec-hd">
-          <span className="sec-title">Active faults</span>
-          <span className="sec-sub">{selectedUnit || '—'} · last 7 days</span>
-        </div>
+      {error && <div className="notice" style={{ color: 'var(--err)' }}>⚠ {error}</div>}
+      {!faults && !error && selectedUnit && <div className="skeleton" style={{ height: 88, borderRadius: 14 }} />}
 
-        {error && <div className="notice" style={{ color: '#E24B4A' }}>⚠ {error}</div>}
-
-        {!faults && !error && (
-          <>{[1,2].map(i => <div key={i} className="skeleton" style={{ height: 50, marginBottom: 5 }} />)}</>
-        )}
-
-        {faults && activeFaults.length === 0 && (
-          <div className="arow a-ok">
-            <div className="atxt">
-              <div className="atitle">No active faults</div>
-              <div className="asub">All systems nominal for {selectedUnit}</div>
-            </div>
+      {faults && (
+        <section aria-label="Fault status" className={`banner b-${tone}`}>
+          <span className={`badge badge-icon t-${tone}`} style={{ width: 52, height: 52 }}>
+            <BannerIcon size={28} aria-hidden="true" />
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 className="banner-title" style={{ margin: 0, color: tone === 'ok' ? 'var(--color-text-primary)' : `var(--${tone})` }}>
+              {active.length === 0 ? 'No active faults' : `${active.length} active fault${active.length === 1 ? '' : 's'}`}
+            </h2>
+            <div className="banner-sub">{selectedUnit} · {WINDOW_LABEL}</div>
           </div>
-        )}
+        </section>
+      )}
 
-        {activeFaults.map((f, i) => {
-          const label = f.error && f.error !== 'none' ? f.error : faultLabel(f.fault)
-          return (
-            <div key={i} className={`arow ${faultClass(f.fault) || 'a-warn'}`}>
-              <div className="atxt">
-                <div className="atitle">{label} — {f.unit || selectedUnit}</div>
-                <div className="asub">
-                  {f.fault} · {f.state || ''} {f.description ? `· ${f.description}` : ''}
+      {active.length > 0 && (
+        <section aria-label="Active faults" className="panel">
+          {active.map((f) => {
+            const info = faultInfo(f)
+            const Icon = info.tone === 'err' ? IconAlertTriangle : IconAlertCircle
+            return (
+              <div key={info.code} className="attn-row">
+                <span className={`badge badge-icon t-${info.tone}`}><Icon size={20} aria-hidden="true" /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="attn-title">{info.name}</div>
+                  <div className="attn-sub">Raised {ageText(Date.now() - f.ts)} · code {info.code}</div>
                 </div>
+                <SeverityBadge info={info} />
               </div>
-              <div className="atime">{fmtAge(f.ts)}</div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </section>
+      )}
 
-      {/* Fault log */}
       {faults && faults.length > 0 && (
-        <div>
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div className="sec-hd">
-            <span className="sec-title">Fault log</span>
-            <span className="sec-sub">{faults.length} events</span>
+            <h2 id="fault-log-h" className="sec-title" style={{ margin: 0 }}>Fault log</h2>
+            <span className="sec-sub">{faults.length} event{faults.length === 1 ? '' : 's'} · {WINDOW_LABEL}</span>
           </div>
-          <table className="dtbl">
-            <thead>
-              <tr><th>Time</th><th>Code</th><th>Description</th><th>State</th></tr>
-            </thead>
+          <div className="panel" style={{ overflowX: 'auto' }}>
+            <table className="dtbl" aria-labelledby="fault-log-h">
+              <thead>
+                <tr><th>When</th><th>Fault</th><th>State</th></tr>
+              </thead>
+              <tbody>
+                {faults.slice(0, 50).map((f, i) => {
+                  const cleared = f.state === 'cleared'
+                  const info = faultInfo(f)
+                  return (
+                    <tr key={i}>
+                      <td style={{ whiteSpace: 'nowrap' }}>{whenText(f.ts)}</td>
+                      <td>
+                        {cleared && info.code === '0x0000' ? 'All faults cleared' : info.name}
+                        <span style={{ marginLeft: 8, fontSize: 12.5, color: 'var(--color-text-tertiary)' }}>{info.code}</span>
+                      </td>
+                      <td>
+                        <span className={`badge badge-sm ${cleared ? 't-ok' : f.state === 'active' ? `t-${info.tone}` : 't-off'}`}>
+                          {cleared ? 'Cleared' : f.state === 'active' ? 'Active' : (f.state || '—')}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {role !== 'maint' && role !== 'eu' && (
+        <details className="ref panel" style={{ padding: '4px 18px' }}>
+          <summary>
+            <IconChevronRight size={18} className="chev" aria-hidden="true" />
+            What the controller monitors
+          </summary>
+          <table className="dtbl" style={{ marginBottom: 12 }}>
+            <thead><tr><th>Fault</th><th>Trigger</th><th>Severity</th></tr></thead>
             <tbody>
-              {faults.slice(0, 50).map((f, i) => (
-                <tr key={i}>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, whiteSpace: 'nowrap' }}>
-                    {new Date(f.ts).toLocaleString()}
-                  </td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{f.fault}</td>
-                  <td>{f.error && f.error !== 'none' ? f.error : (f.description || faultLabel(f.fault))}</td>
-                  <td>
-                    <span className={`pill ${f.state === 'active' ? 'p-r' : f.state === 'cleared' ? 'p-g' : 'p-n'}`}>
-                      {f.state || '—'}
-                    </span>
-                  </td>
+              {MONITORED.map((m) => (
+                <tr key={m.name}>
+                  <td>{m.name}</td>
+                  <td style={{ color: 'var(--color-text-secondary)' }}>{m.trigger}</td>
+                  <td><span className={`badge badge-sm ${m.critical ? 't-err' : 't-warn'}`}>{m.critical ? 'Critical' : 'Warning'}</span></td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {/* Threshold table — read-only for maint/eu */}
-      {role !== 'maint' && role !== 'eu' && (
-        <div>
-          <div className="sec-hd">
-            <span className="sec-title">Monitored fault conditions</span>
-            <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>raised by the APU controller</span>
-          </div>
-          <table className="dtbl">
-            <thead><tr><th>Fault</th><th>Trigger</th><th>Severity</th></tr></thead>
-            <tbody>
-              <tr><td>Low oil pressure</td><td>Engine oil-pressure switch open</td><td><span className="pill p-r">Critical</span></td></tr>
-              <tr><td>High engine temp</td><td>Coolant / engine over-temperature</td><td><span className="pill p-r">Critical</span></td></tr>
-              <tr><td>Low battery</td><td>Battery voltage below the safe threshold</td><td><span className="pill p-a">Warning</span></td></tr>
-              <tr><td>A/C pressure</td><td>Refrigerant pressure out of range (low or high)</td><td><span className="pill p-r">Critical</span></td></tr>
-              <tr><td>Start / RPM fault</td><td>Failed to start, engine stalled, or no RPM</td><td><span className="pill p-r">Critical</span></td></tr>
-            </tbody>
-          </table>
-          <div className="notice" style={{ marginTop: 8, fontSize: 11.5 }}>These are the fault conditions the APU controller (gobi-agent firmware) reports; exact trip points are set in firmware and configurable via Device Shadow config in a future release.</div>
-        </div>
+          <p style={{ margin: '0 0 14px', fontSize: 14, color: 'var(--color-text-secondary)' }}>
+            The APU controller raises these faults. Its trip points are set in the controller's firmware.
+          </p>
+        </details>
       )}
     </>
   )

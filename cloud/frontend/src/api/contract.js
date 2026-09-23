@@ -189,3 +189,84 @@ export function byAttention(a, b) {
   const rb = b.view ? TONE_RANK[b.view.tone] ?? 4 : 5
   return ra - rb
 }
+
+// ── Faults (Alerts page) ─────────────────────────────────────────────────────
+// Controller fault bits. Several can be set at once; any critical bit makes the
+// event critical.
+const FAULT_BITS = [
+  { mask: 0x0001, name: 'DC under-voltage',  critical: false },
+  { mask: 0x0002, name: 'DC under-voltage',  critical: false },
+  { mask: 0x0004, name: 'DC over-voltage',   critical: false },
+  { mask: 0x0008, name: 'Over-current',      critical: true },
+  { mask: 0x0010, name: 'Coolant over-temp', critical: true },
+  { mask: 0x0020, name: 'Low oil pressure',  critical: true },
+  { mask: 0x0040, name: 'Comm timeout',      critical: false },
+  { mask: 0x0080, name: 'Sensor fault',      critical: false },
+]
+
+function faultCode(fault) {
+  if (fault == null || fault === '') return 0
+  const n = typeof fault === 'string' ? parseInt(fault, 16) : Number(fault)
+  return Number.isFinite(n) ? n : 0
+}
+
+function hexCode(code) {
+  return `0x${code.toString(16).padStart(4, '0').toUpperCase()}`
+}
+
+// Display info for one fault event: a name (the device's description when it
+// sent one), the hex code, and severity.
+export function faultInfo(f) {
+  const code = faultCode(f?.fault)
+  const bits = FAULT_BITS.filter((b) => code & b.mask)
+  const critical = bits.some((b) => b.critical)
+  const told = [f?.description, f?.error].find((t) => t && t !== 'none')
+  const name = told || [...new Set(bits.map((b) => b.name))].join(', ') || `Fault ${hexCode(code)}`
+  return { name, code: hexCode(code), tone: critical ? 'err' : 'warn', severity: critical ? 'Critical' : 'Warning' }
+}
+
+// Faults still in effect: walking newest -> oldest, an all-clear (code 0) ends
+// the walk; a clear for one code resolves that code only. Repeats of a code
+// collapse to the newest event. Returns newest first.
+export function activeFaults(events) {
+  const sorted = [...(events || [])].sort((a, b) => Number(b.ts) - Number(a.ts))
+  const cleared = new Set()
+  const out = new Map()
+  for (const e of sorted) {
+    const code = faultCode(e.fault)
+    if (e.state === 'cleared' || code === 0) {
+      if (code === 0) break
+      cleared.add(code)
+      continue
+    }
+    if (!cleared.has(code) && !out.has(code)) out.set(code, e)
+  }
+  return [...out.values()]
+}
+
+// ── Reports ──────────────────────────────────────────────────────────────────
+const APU_SAVINGS_CAPTION = 'Estimate: $2.40 per APU runtime hour'
+const count = (v) => Math.round(Number(v)).toLocaleString('en-US')
+
+// Stat cards for the Reports page. zeroRuntime flags a period where no real
+// unit's engine-hours counter moved, so the page can say so instead of showing
+// a wall of zeros.
+export function reportView(totals) {
+  const has = (v) => v != null && Number.isFinite(Number(v))
+  const t = totals || {}
+  const noFaults = has(t.fault_events) && Number(t.fault_events) === 0
+  return {
+    zeroRuntime: has(t.runtime_hrs) && Number(t.runtime_hrs) === 0,
+    cards: [
+      { key: 'runtime', label: 'APU runtime', value: has(t.runtime_hrs) ? count(t.runtime_hrs) : '—', unit: has(t.runtime_hrs) ? 'h' : '',
+        caption: 'From engine-hours counters, real units only' },
+      { key: 'savings', label: 'Estimated fuel savings', value: has(t.fuel_saved_usd) ? `$${count(t.fuel_saved_usd)}` : '—', unit: '',
+        caption: APU_SAVINGS_CAPTION, tone: 'ok' },
+      { key: 'mtbf', label: 'Mean time between faults',
+        value: noFaults ? 'No faults' : has(t.mtbf_hrs) ? count(t.mtbf_hrs) : '—', unit: !noFaults && has(t.mtbf_hrs) ? 'h' : '',
+        caption: 'APU runtime per fault event' },
+      { key: 'faults', label: 'Fault events', value: has(t.fault_events) ? count(t.fault_events) : '—', unit: '',
+        caption: 'Fault onsets in this period' },
+    ],
+  }
+}
