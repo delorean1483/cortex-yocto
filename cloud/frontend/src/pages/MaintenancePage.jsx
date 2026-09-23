@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { IconPlus, IconTool, IconRefresh, IconLoader2 } from '@tabler/icons-react'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
+import UnitPicker from '../components/UnitPicker.jsx'
+import EmptyState from '../components/EmptyState.jsx'
 
 const TYPE_LABELS = {
   oil_change:  'Oil change',
@@ -12,8 +14,14 @@ const TYPE_LABELS = {
   other:       'Other',
 }
 
-function fmtDate(ts) {
-  return new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+function dateParts(r) {
+  // Real records carry ts; older/mock rows may only have a date string.
+  const d = new Date(r.ts ?? r.date)
+  if (Number.isNaN(d.getTime())) return { day: r.date || '—', time: '' }
+  return {
+    day: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+    time: r.ts != null ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '',
+  }
 }
 
 export default function MaintenancePage() {
@@ -22,7 +30,7 @@ export default function MaintenancePage() {
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
-  const [msg, setMsg]         = useState('')
+  const [msg, setMsg]         = useState(null) // { ok, text }
 
   // Form state
   const [fType, setFType]         = useState('inspection')
@@ -60,118 +68,108 @@ export default function MaintenancePage() {
     e.preventDefault()
     if (!selectedUnit) return
     setSubmitting(true)
-    setMsg('')
+    setMsg(null)
     try {
       await api.addMaintenance({ unit: selectedUnit, type: fType, notes: fNotes, technician: fTech || undefined })
-      setMsg('Record added.')
+      setMsg({ ok: true, text: 'Record added.' })
       setFNotes('')
       setShowForm(false)
       fetchRecords()
-      setTimeout(() => setMsg(''), 3000)
+      setTimeout(() => setMsg(null), 3000)
     } catch (err) {
-      setMsg(`Error: ${err.message}`)
+      setMsg({ ok: false, text: `Couldn't save the record: ${err.message}` })
     } finally {
       setSubmitting(false)
     }
   }
 
+  const addButton = canAdd && !showForm && (
+    <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+      <IconPlus size={16} aria-hidden="true" /> Add record
+    </button>
+  )
+
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <select
-          value={selectedUnit || ''}
-          onChange={e => setSelectedUnit(e.target.value)}
-          style={selStyle}
-        >
-          {!selectedUnit && <option value="">— select unit —</option>}
-          {units.map(u => <option key={u.unit} value={u.unit}>{u.unit}{u.demo ? ' (demo)' : ''}</option>)}
-        </select>
-        <button className="btn btn-sm" onClick={fetchRecords}>
-          <IconRefresh size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+      <div className="toolbar">
+        <UnitPicker units={units} value={selectedUnit} onChange={setSelectedUnit} />
+        <button className="btn" onClick={fetchRecords} disabled={loading || !selectedUnit}>
+          <IconRefresh size={16} className={loading ? 'spin' : undefined} aria-hidden="true" />
           Refresh
         </button>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        {canAdd && !showForm && (
-          <button className="btn btn-amber btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setShowForm(true)}>
-            <IconPlus size={13} /> Add record
-          </button>
-        )}
+        <span style={{ flex: 1 }} />
+        {addButton}
       </div>
 
       {!selectedUnit && <div className="notice">Select a unit above.</div>}
 
       {selectedUnit && showForm && (
-        <div className="card">
-          <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 12 }}>New maintenance record — {selectedUnit}</div>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={lblStyle}>Type</label>
-                <select value={fType} onChange={e => setFType(e.target.value)} style={inputStyle}>
+        <section className="group" aria-labelledby="new-rec-h">
+          <h2 id="new-rec-h" className="group-hd" style={{ margin: 0 }}>New maintenance record · {selectedUnit}</h2>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+              <div className="field" style={{ minWidth: 200 }}>
+                <label htmlFor="rec-type">Type</label>
+                <select id="rec-type" className="control" value={fType} onChange={e => setFType(e.target.value)}>
                   {Object.entries(TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 160 }}>
-                <label style={lblStyle}>Technician (optional)</label>
-                <input type="text" value={fTech} onChange={e => setFTech(e.target.value)} placeholder="Name or badge" style={inputStyle} />
+              <div className="field" style={{ flex: 1, minWidth: 200 }}>
+                <label htmlFor="rec-tech">Technician (optional)</label>
+                <input id="rec-tech" type="text" className="control" value={fTech}
+                  onChange={e => setFTech(e.target.value)} placeholder="Name or badge number" />
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={lblStyle}>Notes</label>
-              <textarea value={fNotes} onChange={e => setFNotes(e.target.value)} rows={3}
-                placeholder="Describe the work performed…"
-                style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+            <div className="field">
+              <label htmlFor="rec-notes">Notes</label>
+              <textarea id="rec-notes" className="control" value={fNotes} onChange={e => setFNotes(e.target.value)}
+                rows={3} placeholder="Describe the work performed" />
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="submit" className="btn btn-amber btn-sm" disabled={submitting}>
-                {submitting ? <IconLoader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <IconPlus size={13} />}
-                Save
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="submit" className="btn btn-primary" disabled={submitting}>
+                {submitting ? <IconLoader2 size={16} className="spin" aria-hidden="true" /> : <IconPlus size={16} aria-hidden="true" />}
+                Save record
               </button>
-              <button type="button" className="btn btn-sm" onClick={() => setShowForm(false)}>Cancel</button>
+              <button type="button" className="btn" onClick={() => setShowForm(false)}>Cancel</button>
             </div>
           </form>
-          {msg && <div style={{ marginTop: 8, fontSize: 11.5, color: msg.startsWith('Error') ? '#E24B4A' : '#1D9E75' }}>{msg}</div>}
-        </div>
+        </section>
       )}
 
-      {selectedUnit && !showForm && msg && (
-        <div style={{ fontSize: 11.5, color: '#1D9E75' }}>{msg}</div>
+      {msg && <div role="status" className={msg.ok ? 'msg-ok' : 'msg-err'}>{msg.text}</div>}
+
+      {selectedUnit && loading && records.length === 0 && (
+        <div className="skeleton" style={{ height: 72, borderRadius: 12 }} />
       )}
 
-      {selectedUnit && (
-        <div className="card" style={{ padding: 0 }}>
-          {loading && <div className="notice" style={{ fontSize: 11 }}>Loading…</div>}
-          {!loading && records.length === 0 && (
-            <div className="notice" style={{ fontSize: 11 }}>No maintenance records for {selectedUnit}.</div>
-          )}
-          {!loading && records.length > 0 && (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-                  {['Date', 'Type', 'Technician', 'Notes'].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '8px 12px', fontSize: 10.5, color: 'var(--color-text-tertiary)', fontWeight: 500 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r, i) => (
-                  <tr key={r.id || i} style={{ borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-                    <td style={tdStyle}>{fmtDate(r.ts)}</td>
-                    <td style={tdStyle}><span className="pill p-n">{TYPE_LABELS[r.type] || r.type}</span></td>
-                    <td style={tdStyle}>{r.technician || '—'}</td>
-                    <td style={{ ...tdStyle, color: 'var(--color-text-secondary)', maxWidth: 280 }}>{r.notes || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+      {selectedUnit && !loading && records.length === 0 && (
+        <EmptyState icon={IconTool} title={`No maintenance logged for ${selectedUnit} yet`} action={showForm ? null : addButton}>
+          {canAdd ? 'Log oil changes, inspections and repairs here to keep the unit’s service history.' : 'Service history appears here once a technician logs work.'}
+        </EmptyState>
+      )}
+
+      {selectedUnit && records.length > 0 && (
+        <section aria-label="Maintenance history" className="panel">
+          {records.map((r, i) => {
+            const { day, time } = dateParts(r)
+            return (
+              <article key={r.id || i} className="mrow">
+                <div>
+                  <div className="mdate">{day}</div>
+                  {time && <div className="mtime">{time}</div>}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span className="badge badge-sm t-off">{TYPE_LABELS[r.type] || r.type}</span>
+                    <span style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>{r.technician || r.tech || 'Technician not recorded'}</span>
+                  </div>
+                  {r.notes && <div className="mnotes">{r.notes}</div>}
+                </div>
+              </article>
+            )
+          })}
+        </section>
       )}
     </>
   )
 }
-
-const selStyle = { fontSize: 13, fontWeight: 500, border: '0.5px solid var(--color-border-secondary)', borderRadius: 6, padding: '5px 10px', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', cursor: 'pointer' }
-const inputStyle = { fontSize: 12, padding: '5px 8px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 6, background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', width: '100%' }
-const lblStyle = { fontSize: 10.5, color: 'var(--color-text-tertiary)' }
-const tdStyle  = { padding: '8px 12px', verticalAlign: 'top' }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
+import UnitPicker from '../components/UnitPicker.jsx'
 
 function eventType(f) {
   if (!f.fault || f.fault === '0x0000' || f.fault === 0) {
@@ -57,24 +58,16 @@ export default function APUHistoryPage() {
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <select
-          value={selectedUnit || ''}
-          onChange={e => setSelectedUnit(e.target.value)}
-          style={{ fontSize: 13, border: '0.5px solid var(--color-border-secondary)', borderRadius: 6, padding: '5px 10px', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', cursor: 'pointer' }}
-        >
-          {!selectedUnit && <option value="">— select unit —</option>}
-          {units.map(u => <option key={u.unit} value={u.unit}>{u.unit}{u.demo ? ' (demo)' : ''}</option>)}
-        </select>
-        <select
-          value={range}
-          onChange={e => setRange(e.target.value)}
-          style={{ fontSize: 12, border: '0.5px solid var(--color-border-secondary)', borderRadius: 6, padding: '5px 8px', background: 'var(--color-background-secondary)', color: 'var(--color-text-primary)', cursor: 'pointer' }}
-        >
+      <div className="toolbar">
+        <UnitPicker units={units} value={selectedUnit} onChange={setSelectedUnit} />
+        <div className="field field-inline">
+          <label htmlFor="history-range">Period</label>
+          <select id="history-range" className="control" value={range} onChange={e => setRange(e.target.value)}>
           <option value="-1d">Last 24 h</option>
           <option value="-7d">Last 7 days</option>
           <option value="-30d">Last 30 days</option>
-        </select>
+          </select>
+        </div>
       </div>
 
       <div>

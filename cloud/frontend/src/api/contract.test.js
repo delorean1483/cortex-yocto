@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
          heaterFlags, diagOutputs, connLabel, otaStatusView,
-         chronological, ageText, modeLabel, unitView, byAttention } from './contract.js'
+         chronological, ageText, modeLabel, unitView, byAttention,
+         activeFaults, faultInfo, reportView } from './contract.js'
 
 describe('otaStatusView', () => {
   it('hidden when idle/empty/null', () => {
@@ -228,5 +229,70 @@ describe('byAttention', () => {
       { id: 'e', view: { tone: 'ok' } }, { id: 'f', view: undefined },
     ]
     expect([...rows].sort(byAttention).map((r) => r.id)).toEqual(['c', 'd', 'b', 'a', 'e', 'f'])
+  })
+})
+
+describe('faultInfo', () => {
+  it('names a known code and its severity', () => {
+    expect(faultInfo({ fault: '0x0020' })).toMatchObject({ name: 'Low oil pressure', tone: 'err', severity: 'Critical' })
+    expect(faultInfo({ fault: '0x0001' })).toMatchObject({ name: 'DC under-voltage', tone: 'warn', severity: 'Warning' })
+  })
+  it('prefers the description the device sent', () => {
+    expect(faultInfo({ fault: '0x0020', description: 'Oil pressure switch open' }).name).toBe('Oil pressure switch open')
+  })
+  it('unknown codes fall back to the hex code as a warning', () => {
+    expect(faultInfo({ fault: '0x4000' })).toMatchObject({ name: 'Fault 0x4000', tone: 'warn' })
+  })
+})
+
+describe('activeFaults', () => {
+  const ev = (min, fault, state = 'active') => ({ ts: 1_000_000_000 - min * 60000, fault, state })
+  it('a fault with no later clear is active', () => {
+    expect(activeFaults([ev(4, '0x0020')]).map((f) => f.fault)).toEqual(['0x0020'])
+  })
+  it('an all-clear (0x0000) resolves everything before it', () => {
+    expect(activeFaults([ev(1, '0x0000', 'cleared'), ev(30, '0x0020')])).toEqual([])
+  })
+  it('faults after the last all-clear are active; older ones are not', () => {
+    const out = activeFaults([ev(2, '0x0004'), ev(10, '0x0000', 'cleared'), ev(60, '0x0020')])
+    expect(out.map((f) => f.fault)).toEqual(['0x0004'])
+  })
+  it('a clear for one code leaves other faults active', () => {
+    const out = activeFaults([ev(1, '0x0020', 'cleared'), ev(5, '0x0020'), ev(6, '0x0004')])
+    expect(out.map((f) => f.fault)).toEqual(['0x0004'])
+  })
+  it('repeats of the same code collapse to the newest event', () => {
+    const out = activeFaults([ev(1, '0x0020'), ev(3, '0x0020')])
+    expect(out).toHaveLength(1)
+    expect(out[0].ts).toBe(1_000_000_000 - 60000)
+  })
+  it('order of the input does not matter', () => {
+    expect(activeFaults([ev(60, '0x0020'), ev(10, '0x0000', 'cleared'), ev(2, '0x0004')]).map((f) => f.fault)).toEqual(['0x0004'])
+  })
+})
+
+describe('reportView', () => {
+  it('zero runtime is called out instead of presented as a result', () => {
+    const v = reportView({ runtime_hrs: 0, fuel_saved_usd: 0, mtbf_hrs: 0, fault_events: 0 })
+    expect(v.zeroRuntime).toBe(true)
+  })
+  it('MTBF reads "No faults" when there were none', () => {
+    const v = reportView({ runtime_hrs: 120, fuel_saved_usd: 288, mtbf_hrs: 120, fault_events: 0 })
+    expect(v.cards.find((c) => c.key === 'mtbf').value).toBe('No faults')
+    expect(v.zeroRuntime).toBe(false)
+  })
+  it('formats runtime, savings and MTBF with captions', () => {
+    const v = reportView({ runtime_hrs: 1240, fuel_saved_usd: 2976, mtbf_hrs: 310, fault_events: 4 })
+    const by = Object.fromEntries(v.cards.map((c) => [c.key, c]))
+    expect(by.runtime).toMatchObject({ value: '1,240', unit: 'h' })
+    expect(by.savings.value).toBe('$2,976')
+    expect(by.savings.caption).toMatch(/\$2\.40 per APU runtime hour/)
+    expect(by.mtbf).toMatchObject({ value: '310', unit: 'h' })
+    expect(by.faults.value).toBe('4')
+  })
+  it('missing totals -> dashes, not zeros', () => {
+    const v = reportView(undefined)
+    expect(v.cards.every((c) => c.value === '—')).toBe(true)
+    expect(v.zeroRuntime).toBe(false)
   })
 })
