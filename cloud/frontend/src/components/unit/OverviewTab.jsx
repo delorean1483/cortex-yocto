@@ -29,7 +29,8 @@ function bannerCopy(tele, view) {
   if (view.tone === 'err') return { title: `Fault: ${view.headline}`, sub: context, tab: ['history', 'View fault history'] }
   if (view.tone === 'warn') return { title: `Warning: ${view.headline}`, sub: context, tab: ['telemetry', 'View telemetry'] }
   // Healthy: the title already names the mode.
-  return { title: `${view.status}: ${modeLabel(tele)}`, sub: engine.charAt(0).toUpperCase() + engine.slice(1), tab: ['telemetry', 'View telemetry'] }
+  const doing = modeLabel(tele) === 'Off' && !running ? 'APU off' : modeLabel(tele)
+  return { title: `${view.status}: ${doing}`, sub: engine.charAt(0).toUpperCase() + engine.slice(1), tab: ['telemetry', 'View telemetry'] }
 }
 
 function Row({ label, children, sm, color }) {

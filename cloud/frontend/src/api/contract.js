@@ -173,8 +173,10 @@ export function unitView(tele, now = Date.now()) {
     return { tone: 'warn', status: 'Warning', headline: 'Low oil pressure', seen, stale: false, attention: true }
   }
   const running = engineRunning(tele)
-  return { tone: 'ok', status: running ? 'Running' : 'Standby',
-    headline: `${modeLabel(tele)} · engine ${running ? 'running' : 'off'}`, seen, stale: false, attention: false }
+  const mode = modeLabel(tele)
+  // Nothing selected and engine off reads as one idea: the APU is off.
+  const headline = !running && mode === 'Off' ? 'APU off' : `${mode} · engine ${running ? 'running' : 'off'}`
+  return { tone: 'ok', status: running ? 'Running' : 'Standby', headline, seen, stale: false, attention: false }
 }
 
 const TONE_RANK = { err: 0, warn: 1, off: 2, ok: 3 }

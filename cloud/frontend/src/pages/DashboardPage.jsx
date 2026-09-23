@@ -31,8 +31,10 @@ function StatusBadge({ view, size = 16 }) {
   )
 }
 
-function rpmText(v) {
-  return v == null ? '—' : `${Math.round(Number(v)).toLocaleString('en-US')} rpm`
+// Number at full size, unit small, so "1,920 rpm" never wraps in a card column.
+function Val({ n, unit }) {
+  if (n == null || Number.isNaN(Number(n))) return '—'
+  return <>{n}{unit && <span className="kv-unit">{unit}</span>}</>
 }
 
 function UnitCard({ u, tele, view }) {
@@ -49,9 +51,9 @@ function UnitCard({ u, tele, view }) {
         {view.headline}
       </div>
       <div className="kv4">
-        <div><div className="kv-lbl">Battery</div><div className="kv-val">{fmt.volts(tele?.batt_v)}</div></div>
+        <div><div className="kv-lbl">Battery</div><div className="kv-val"><Val n={tele?.batt_v == null ? null : Number(tele.batt_v).toFixed(1)} unit=" V" /></div></div>
         <div><div className="kv-lbl">Cabin</div><div className="kv-val">{fmt.tempF(tele?.cabin_temp_f)}</div></div>
-        <div><div className="kv-lbl">Engine</div><div className="kv-val">{rpmText(tele?.rpm)}</div></div>
+        <div><div className="kv-lbl">Engine</div><div className="kv-val"><Val n={tele?.rpm == null ? null : Math.round(Number(tele.rpm)).toLocaleString('en-US')} unit=" rpm" /></div></div>
         <div><div className="kv-lbl">Fan</div><div className="kv-val">{fmt.pct(tele?.fan_speed)}</div></div>
       </div>
       <div className="ucard-foot">

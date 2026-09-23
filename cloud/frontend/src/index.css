@@ -221,7 +221,8 @@ button { font-family: inherit; }
 .ucard-head { font-size: 16px; font-weight: 600; }
 .kv4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 12px 0; border-top: 1px solid var(--color-border-tertiary); border-bottom: 1px solid var(--color-border-tertiary); }
 .kv-lbl { font-size: 13px; color: var(--color-text-tertiary); }
-.kv-val { font-size: 21px; font-weight: 500; margin-top: 2px; }
+.kv-val { font-size: 21px; font-weight: 500; margin-top: 2px; white-space: nowrap; }
+.kv-unit { font-size: 14px; font-weight: 400; color: var(--color-text-secondary); }
 .ucard-foot { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--color-text-tertiary); }
 
 .banner { display: flex; align-items: center; gap: 18px; padding: 20px 22px; border-radius: 14px; border: 2px solid var(--color-border-secondary); background: var(--color-background-secondary); }

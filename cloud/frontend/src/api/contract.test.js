@@ -193,7 +193,10 @@ describe('unitView', () => {
   })
   it('healthy and idle -> ok / Standby', () => {
     const v = unitView(base, NOW)
-    expect(v).toMatchObject({ tone: 'ok', status: 'Standby', headline: 'Off · engine off', seen: 'Reported 6s ago', attention: false, stale: false })
+    expect(v).toMatchObject({ tone: 'ok', status: 'Standby', headline: 'APU off', seen: 'Reported 6s ago', attention: false, stale: false })
+  })
+  it('a program selected but engine off keeps the mode in the headline', () => {
+    expect(unitView({ ...base, mode: 'battery', control_status: 'battery' }, NOW).headline).toBe('Battery charge · engine off')
   })
   it('engine running -> Running', () => {
     const v = unitView({ ...base, mode: 'engine', control_status: 'climate', engine_status: 'running', rpm: 2450 }, NOW)
