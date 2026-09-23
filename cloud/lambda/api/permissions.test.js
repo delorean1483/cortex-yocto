@@ -128,5 +128,12 @@ check('config with mixed keys needs every implied action', () => {
   assert.strictEqual(authorizeConfig('maint', { poll_interval_s: 10, firmware_target: '1.2.41' }).ok, false);
 });
 
+check('location: admin and fm can set unit locations; maint and eu cannot', () => {
+  assert.strictEqual(canWrite('admin', 'location'), true);
+  assert.strictEqual(canWrite('fm', 'location'), true);
+  assert.strictEqual(canWrite('maint', 'location'), false);
+  assert.strictEqual(canWrite('eu', 'location'), false);
+});
+
 console.log(`\n${total - failed}/${total} checks passed`);
 process.exit(failed === 0 ? 0 : 1);
