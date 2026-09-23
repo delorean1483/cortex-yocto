@@ -55,12 +55,12 @@ describe('SystemConfigPage', () => {
     expect(screen.getByText('Not reported yet')).toBeTruthy()
   })
 
-  it('reboot asks first, then sends reboot', () => {
+  it('offers no reboot control: the agent can re-read a stale reboot request after restarting', () => {
+    // gobi-agent clears desired.reboot only in its next report, after the root
+    // worker has already cold-reset the board, so a reboot sent from here can
+    // loop. Reboot stays out of the UI until the agent clears it first.
     render(<SystemConfigPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'Reboot unit' }))
-    expect(screen.getByText(/cold power cycle and will be offline for about 1–2 minutes/)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Reboot' }))
-    expect(state.mutate.mock.calls[0][0]).toEqual({ unit: 'TRUCK-001', config: { reboot: true } })
+    expect(screen.queryByRole('button', { name: /reboot/i })).toBeNull()
   })
 
   it('maint can change the interval but not reboot; eu can do neither', () => {

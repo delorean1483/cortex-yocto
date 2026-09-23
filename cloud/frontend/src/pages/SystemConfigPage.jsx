@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { IconClockHour4, IconPower, IconInfoCircle } from '@tabler/icons-react'
+import { IconClockHour4, IconInfoCircle } from '@tabler/icons-react'
 import { useUnits, useShadow, useUnitLatest, useSetConfig } from '../data/hooks.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useCan } from '../components/RoleGate.jsx'
@@ -34,14 +34,12 @@ export default function SystemConfigPage() {
   const { data: tele } = useUnitLatest(unit)
   const setConfig = useSetConfig()
   const canInterval = useCan('config').allowed
-  const canReboot = useCan('ota').allowed
   const isDemo = (unit || '').startsWith('APU-DEMO-')
 
   const reported = shadow?.reported?.poll_interval_s
   const [choice, setChoice] = useState(null)
   const [request, setRequest] = useState(null) // { value, sentAt }
   const [confirmInterval, setConfirmInterval] = useState(false)
-  const [confirmReboot, setConfirmReboot] = useState(false)
   const [msg, setMsg] = useState(null)
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(t) }, [])
@@ -57,13 +55,6 @@ export default function SystemConfigPage() {
     setConfig.mutate({ unit, config: { poll_interval_s: value } }, {
       onSuccess: () => { setRequest({ value, sentAt: Date.now() }); setMsg(null) },
       onError: (e) => setMsg({ ok: false, text: `Couldn't change the interval: ${e.message}` }),
-    })
-  }
-  const sendReboot = () => {
-    setConfirmReboot(false)
-    setConfig.mutate({ unit, config: { reboot: true } }, {
-      onSuccess: () => setMsg({ ok: true, text: 'Reboot requested. The unit will be offline for about 1–2 minutes.' }),
-      onError: (e) => setMsg({ ok: false, text: `Couldn't request a reboot: ${e.message}` }),
     })
   }
 
@@ -115,17 +106,6 @@ export default function SystemConfigPage() {
               )}
             </section>
 
-            {canReboot && !isDemo && (
-              <section className="group" aria-labelledby="reboot-h">
-                <h2 id="reboot-h" className="group-hd" style={{ margin: 0 }}>
-                  <IconPower size={18} aria-hidden="true" /> Restart
-                </h2>
-                <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)' }}>
-                  Restarts the unit's computer. The APU controller keeps running.
-                </p>
-                <div><button className="btn btn-red" onClick={() => setConfirmReboot(true)}>Reboot unit</button></div>
-              </section>
-            )}
           </div>
 
           <div className="ov-side">
@@ -154,16 +134,6 @@ export default function SystemConfigPage() {
         pending={setConfig.isPending}
         onConfirm={sendInterval}
         onCancel={() => setConfirmInterval(false)}
-      />
-      <ConfirmDialog
-        open={confirmReboot}
-        title={`Reboot ${unit}?`}
-        body="The unit restarts via a cold power cycle and will be offline for about 1–2 minutes."
-        confirmLabel="Reboot"
-        danger
-        pending={setConfig.isPending}
-        onConfirm={sendReboot}
-        onCancel={() => setConfirmReboot(false)}
       />
     </>
   )

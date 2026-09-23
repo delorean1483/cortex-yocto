@@ -81,7 +81,7 @@ Unit picker (shared `UnitPicker`), then for the selected unit:
   - Choices: **5, 10, 15, 20 s** (segmented control). Rationale: the Offline rule is a fixed 60 s, so ≤ 20 s keeps at least three reports inside it without changing offline logic. Helper text: shorter = fresher data, more database load.
   - Changing it sends `POST /fleet/config { unit, config: { poll_interval_s } }` behind a confirmation. Until `reported.poll_interval_s` matches, show **"Pending — waiting for the unit to confirm"**; after a timeout (2 minutes) show "Not confirmed yet — the unit may be offline" (no automatic retry).
   - If the unit reports a value outside the choices (e.g. 30 s set elsewhere), show it as-is with a note, and the choices still work.
-- **Reboot unit** — button behind a confirmation: "The unit restarts via a cold power cycle and will be offline for about 1–2 minutes." Sends `config: { reboot: true }`. Role action `ota` (admin, fm).
+- **Reboot unit** — *Deferred at implementation (2026-09-23 review): the gobi-agent nulls `desired.reboot` only in its next report, after the root worker has already cold-reset the board, and it re-applies a stale `desired.reboot` on startup — so a reboot sent from the UI can loop. The button ships once the agent clears the request before handing off to the worker.* Original design: button behind a confirmation: "The unit restarts via a cold power cycle and will be offline for about 1–2 minutes." Sends `config: { reboot: true }`. Role action `ota` (admin, fm).
 - **Unit info** (read-only): system image version (`reported.firmware_version`), APU firmware (`apu_fw_version` from telemetry, semver), last report age, current OTA status if not idle.
 - **Not shown:** `report_mode` and setpoints (the agent doesn't act on them).
 
