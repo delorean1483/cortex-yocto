@@ -18,6 +18,7 @@ const { validateCommand, authorizeCommand, authorizeConfig }       = require('./
 const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./demo');
 const { buildReports, faultCountFlux }                             = require('./reports-view');
 const { parseReleases }                                            = require('./releases-view');
+const { latestFlux, telemetryFlux, unitsFlux, RELATIVE_RANGE }     = require('./flux');
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const REGION            = process.env.AWS_REGION || 'us-east-1';
@@ -187,17 +188,7 @@ async function handleListUnits() {
   await getInfluxToken();
   const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
 
-  const flux = `
-    import "influxdata/influxdb/schema"
-    schema.tagValues(
-      bucket: "telemetry",
-      tag: "unit",
-      predicate: (r) => r._measurement == "telemetry",
-      start: -30d,
-    )
-  `;
-
-  const rows  = await queryApi.collectRows(flux);
+  const rows  = await queryApi.collectRows(unitsFlux());
   const units = rows.map(r => r._value).filter(Boolean).sort();
   const all   = [
     ...units.map(u => ({ unit: u, demo: false })),
@@ -214,6 +205,7 @@ async function handleGetTelemetry(event) {
   const limit = Math.min(parseInt(qs.limit || '200', 10), 1000);
 
   if (!unit) return err(400, 'unit path parameter required');
+  if (!RELATIVE_RANGE.test(start)) return err(400, 'start must be a relative range like -1h or -7d');
   if (isDemoUnit(unit)) {
     const n = Math.min(parseInt(qs.limit || '48', 10), 168);
     const series = demoSeries(unit, n);
@@ -223,17 +215,7 @@ async function handleGetTelemetry(event) {
   await getInfluxToken();
   const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
 
-  const flux = `
-    from(bucket: "telemetry")
-      |> range(start: ${start})
-      |> filter(fn: (r) => r._measurement == "telemetry" and r.unit == "${unit.replace(/"/g, '')}")
-      |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-      |> group()
-      |> sort(columns: ["_time"], desc: true)
-      |> limit(n: ${limit})
-  `;
-
-  const rows = await queryApi.collectRows(flux);
+  const rows = await queryApi.collectRows(telemetryFlux(unit, start, limit));
   const telemetry = rows.map(mapTelemetryRow);
 
   return resp(200, { unit, count: telemetry.length, telemetry });
@@ -246,23 +228,9 @@ async function handleGetLatest(event) {
   if (isDemoUnit(unit)) return resp(200, { unit, latest: demoLatest(unit) });
   await getInfluxToken();
   const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
-  // group() BEFORE sort/limit is essential: the enum fields (mode,
-  // engine_status, control_status, error, oil_change, heater_state) are
-  // InfluxDB tags, so when the unit's state changes within the window the data
-  // splits into multiple series. Without group(), sort+limit run per-series and
-  // rows[0] is an arbitrary (often stale) series' latest — the unit then looks
-  // "stale" and shows an old state even while it reports live. group() merges
-  // all series into one table so limit(1) is the true global latest.
-  const flux = `
-    from(bucket: "telemetry")
-      |> range(start: -24h)
-      |> filter(fn: (r) => r._measurement == "telemetry" and r.unit == "${unit.replace(/"/g, '')}")
-      |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-      |> group()
-      |> sort(columns: ["_time"], desc: true)
-      |> limit(n: 1)
-  `;
-  const rows = await queryApi.collectRows(flux);
+  // See flux.js: last() before pivot, and group() before sort/limit because
+  // the enum fields are tags (state changes split the data into series).
+  const rows = await queryApi.collectRows(latestFlux(unit));
   if (!rows.length) return resp(200, { unit, latest: null });
   return resp(200, { unit, latest: mapTelemetryRow(rows[0]) });
 }

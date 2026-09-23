@@ -15,12 +15,16 @@ export function useUnits() {
   })
 }
 
+// Each poll runs an InfluxDB query for this unit, per open tab — keep it modest
+// (the Dashboard polls every unit at once). Telemetry arrives every ~6s anyway.
+export const LATEST_POLL_MS = 15000
+
 export function useUnitLatest(unit) {
   return useQuery({
     queryKey: ['latest', unit],
     enabled: !!unit,
     queryFn: () => api.getLatest(unit),
-    refetchInterval: 5000,
+    refetchInterval: LATEST_POLL_MS,
     refetchOnWindowFocus: true,
     select: (d) => d.latest,
   })

@@ -17,7 +17,8 @@ export default function APUHistoryPage() {
   const [units, setUnits]   = useState([])
   const [faults, setFaults] = useState(null)
   const [tele, setTele]     = useState(null)
-  const [range, setRange]   = useState('-30d')
+  // 24 h by default: a 30-day telemetry scan is heavy on InfluxDB, so it's opt-in.
+  const [range, setRange]   = useState('-1d')
   const [error, setError]   = useState('')
 
   useEffect(() => {
