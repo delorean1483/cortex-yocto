@@ -32,7 +32,8 @@ describe('MaintenancePage', () => {
   it('empty: says nothing is logged yet and offers Add record', async () => {
     render(<MaintenancePage />)
     expect(await screen.findByText('No maintenance logged for TRUCK-001 yet')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: /Add record/ }).length).toBeGreaterThan(0)
+    // One Add button: the empty state's, not a second copy in the toolbar.
+    expect(screen.getAllByRole('button', { name: /Add record/ })).toHaveLength(1)
   })
 
   it('lists records with type, technician and notes', async () => {
@@ -41,6 +42,7 @@ describe('MaintenancePage', () => {
     expect(await screen.findByText('Oil change')).toBeTruthy()
     expect(screen.getByText('R. Holt')).toBeTruthy()
     expect(screen.getByText('Changed oil and filter')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /Add record/ })).toHaveLength(1)
   })
 
   it('the add form has labelled fields', async () => {

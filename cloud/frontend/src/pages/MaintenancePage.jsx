@@ -83,6 +83,8 @@ export default function MaintenancePage() {
     }
   }
 
+  const showEmpty = !!selectedUnit && !loading && records.length === 0
+
   const addButton = canAdd && !showForm && (
     <button className="btn btn-primary" onClick={() => setShowForm(true)}>
       <IconPlus size={16} aria-hidden="true" /> Add record
@@ -98,7 +100,8 @@ export default function MaintenancePage() {
           Refresh
         </button>
         <span style={{ flex: 1 }} />
-        {addButton}
+        {/* The empty state carries its own Add button; don't show two. */}
+        {!showEmpty && addButton}
       </div>
 
       {!selectedUnit && <div className="notice">Select a unit above.</div>}
@@ -142,7 +145,7 @@ export default function MaintenancePage() {
         <div className="skeleton" style={{ height: 72, borderRadius: 12 }} />
       )}
 
-      {selectedUnit && !loading && records.length === 0 && (
+      {showEmpty && (
         <EmptyState icon={IconTool} title={`No maintenance logged for ${selectedUnit} yet`} action={showForm ? null : addButton}>
           {canAdd ? 'Log oil changes, inspections and repairs here to keep the unit’s service history.' : 'Service history appears here once a technician logs work.'}
         </EmptyState>
