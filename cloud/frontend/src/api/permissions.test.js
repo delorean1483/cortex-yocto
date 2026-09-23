@@ -18,3 +18,12 @@ describe('canWrite (frontend mirror)', () => {
     for (const a of ['heater', 'apu', 'ota', 'apu_ota']) expect(canWrite('eu', a)).toBe(false)
   })
 })
+
+describe('location permission', () => {
+  it('admin and fm can set locations; maint and eu cannot', () => {
+    expect(canWrite('admin', 'location')).toBe(true)
+    expect(canWrite('fm', 'location')).toBe(true)
+    expect(canWrite('maint', 'location')).toBe(false)
+    expect(canWrite('eu', 'location')).toBe(false)
+  })
+})

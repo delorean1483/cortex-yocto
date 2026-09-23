@@ -9,7 +9,8 @@ import MaintenancePage from './pages/MaintenancePage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
 import ReportsPage from './pages/ReportsPage.jsx'
 import UnitDetailPage from './pages/UnitDetailPage.jsx'
-import StubPage from './pages/StubPage.jsx'
+import SystemConfigPage from './pages/SystemConfigPage.jsx'
+import FleetMapPage from './pages/FleetMapPage.jsx'
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -33,9 +34,9 @@ export default function App() {
                   <Route path="/alerts"      element={<AlertsPage />} />
                   <Route path="/history"     element={<APUHistoryPage />} />
                   <Route path="/maintenance" element={<MaintenancePage />} />
-                  <Route path="/map"         element={<StubPage page="map" />} />
+                  <Route path="/map"         element={<FleetMapPage />} />
                   <Route path="/users"       element={<UsersPage />} />
-                  <Route path="/config"      element={<StubPage page="config" />} />
+                  <Route path="/config"      element={<SystemConfigPage />} />
                   <Route path="/reports"     element={<ReportsPage />} />
                   <Route path="*"            element={<Navigate to="/" replace />} />
                 </Routes>

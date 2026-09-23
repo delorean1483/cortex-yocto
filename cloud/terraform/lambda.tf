@@ -194,6 +194,7 @@ resource "aws_lambda_function" "api" {
       IOT_ENDPOINT_URL     = "https://aj2h2jnzpcr0z-ats.iot.us-east-1.amazonaws.com"
       MAINTENANCE_TABLE    = aws_dynamodb_table.maintenance.name
       USERS_TABLE          = aws_dynamodb_table.users.name
+      LOCATIONS_TABLE      = aws_dynamodb_table.unit_locations.name
       # "on" adds labeled (demo) peer units to fleet screens so they aren't
       # sparse with a single real device; "off" shows only real units.
       DEMO_UNITS = "on"

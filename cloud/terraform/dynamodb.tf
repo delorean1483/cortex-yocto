@@ -34,6 +34,21 @@ resource "aws_dynamodb_table" "users" {
   tags = { Project = var.project }
 }
 
+# ── DynamoDB: assigned unit locations (Fleet map) ─────────────────────────────
+# One item per unit. Units have no GPS yet, so an admin assigns each a location.
+resource "aws_dynamodb_table" "unit_locations" {
+  name         = "${var.project}-${var.env}-unit-locations"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "unit"
+
+  attribute {
+    name = "unit"
+    type = "S"
+  }
+
+  tags = { Project = var.project }
+}
+
 # ── IAM: Lambda DynamoDB + Cognito admin access ───────────────────────────────
 resource "aws_iam_role_policy" "lambda_dynamodb" {
   name = "${var.project}-${var.env}-lambda-dynamodb"
@@ -63,6 +78,17 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
           "dynamodb:Scan",
         ]
         Resource = aws_dynamodb_table.users.arn
+      },
+      {
+        Sid    = "DynamoDBUnitLocations"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Scan",
+        ]
+        Resource = aws_dynamodb_table.unit_locations.arn
       },
       {
         Sid    = "CognitoAdmin"

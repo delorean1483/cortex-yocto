@@ -14,11 +14,12 @@ const { InfluxDB }                                                 = require('@i
 const jwt                                                          = require('jsonwebtoken');
 const { randomUUID }                                               = require('crypto');
 const { mapTelemetryRow }                                          = require('./telemetry-view');
-const { validateCommand, authorizeCommand, authorizeConfig }       = require('./permissions');
+const { validateCommand, authorizeCommand, authorizeConfig, canWrite } = require('./permissions');
 const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./demo');
 const { buildReports, faultCountFlux }                             = require('./reports-view');
 const { parseReleases }                                            = require('./releases-view');
 const { latestFlux, telemetryFlux, unitsFlux, faultsFlux, clampLimit, RELATIVE_RANGE } = require('./flux');
+const { validateLocation, mergeLocations }                         = require('./locations-view');
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const REGION            = process.env.AWS_REGION || 'us-east-1';
@@ -28,6 +29,7 @@ const POOL_ID           = process.env.COGNITO_USER_POOL_ID;
 const CLIENT_ID         = process.env.COGNITO_CLIENT_ID;
 const MAINTENANCE_TABLE = process.env.MAINTENANCE_TABLE || 'ecofleet-prod-maintenance';
 const USERS_TABLE       = process.env.USERS_TABLE       || 'ecofleet-prod-users';
+const LOCATIONS_TABLE   = process.env.LOCATIONS_TABLE   || 'ecofleet-prod-unit-locations';
 const OTA_BUCKET        = process.env.OTA_BUCKET        || 'ecofleet-ota';
 const JWT_EXPIRY        = '1h';
 
@@ -613,6 +615,57 @@ async function handleGetReleases() {
   return resp(200, { releases, latest });
 }
 
+// ── Unit locations (Fleet map) ────────────────────────────────────────────────
+// GET /fleet/locations — assigned locations for every unit (+ fixed demo spots)
+async function handleListLocations() {
+  const res = await ddb.send(new ScanCommand({ TableName: LOCATIONS_TABLE }));
+  return resp(200, { locations: mergeLocations(res.Items || [], listDemoUnits()) });
+}
+
+// Shared guard for location writes: path param, role, demo units.
+function locationWriteGuard(event, claims) {
+  const unit = (event.pathParameters || {}).unit;
+  if (!unit) return { error: err(400, 'unit path parameter required') };
+  if (!canWrite(claims.role || 'eu', 'location'))
+    return { error: err(403, `role "${claims.role || 'eu'}" not permitted to set unit locations`) };
+  if (isDemoUnit(unit)) return { error: err(400, 'demo units have fixed demo locations') };
+  return { unit };
+}
+
+// PATCH /fleet/units/{unit}/location — set or move a unit's assigned location
+async function handleSetLocation(event, claims) {
+  const g = locationWriteGuard(event, claims);
+  if (g.error) return g.error;
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return err(400, 'Invalid JSON'); }
+  const v = validateLocation(body);
+  if (!v.ok) return err(400, v.error);
+
+  const item = {
+    unit: g.unit,
+    lat: v.value.lat,
+    lon: v.value.lon,
+    updated_by: claims.email || null,
+    updated_at: Date.now(),
+  };
+  if (v.value.label) item.label = v.value.label;
+  await ddb.send(new PutCommand({ TableName: LOCATIONS_TABLE, Item: item }));
+  return resp(200, { location: { ...item, label: item.label || null, source: 'assigned' } });
+}
+
+// DELETE /fleet/units/{unit}/location — remove a unit's assigned location
+async function handleClearLocation(event, claims) {
+  const g = locationWriteGuard(event, claims);
+  if (g.error) return g.error;
+  const res = await ddb.send(new DeleteCommand({
+    TableName: LOCATIONS_TABLE,
+    Key: { unit: g.unit },
+    ReturnValues: 'ALL_OLD',
+  }));
+  if (!res.Attributes) return err(404, 'no location set for this unit');
+  return resp(200, { unit: g.unit, cleared: true });
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 exports.handler = async (event) => {
   const method = event.requestContext?.http?.method || event.httpMethod || '';
@@ -634,8 +687,13 @@ exports.handler = async (event) => {
     if (method === 'POST' && path.endsWith('/fleet/users'))    return await handleCreateUser(event, claims);
     if (method === 'GET'  && path.endsWith('/fleet/reports'))  return await handleGetReports(event);
     if (method === 'GET'  && path.endsWith('/fleet/releases')) return await handleGetReleases();
+    if (method === 'GET'  && path.endsWith('/fleet/locations')) return await handleListLocations();
 
     if (path.includes('/fleet/units/')) {
+      if (path.endsWith('/location')) {
+        if (method === 'PATCH')  return await handleSetLocation(event, claims);
+        if (method === 'DELETE') return await handleClearLocation(event, claims);
+      }
       if (path.endsWith('/latest'))       return await handleGetLatest(event);
       if (path.endsWith('/telemetry'))    return await handleGetTelemetry(event);
       if (path.endsWith('/faults'))       return await handleGetFaults(event);

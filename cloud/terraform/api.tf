@@ -100,6 +100,24 @@ resource "aws_apigatewayv2_route" "fleet_releases" {
   target    = "integrations/${aws_apigatewayv2_integration.api.id}"
 }
 
+resource "aws_apigatewayv2_route" "fleet_locations" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /fleet/locations"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_unit_location_set" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "PATCH /fleet/units/{unit}/location"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_unit_location_clear" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "DELETE /fleet/units/{unit}/location"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
 resource "aws_apigatewayv2_route" "fleet_users_list" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "GET /fleet/users"

@@ -116,6 +116,16 @@ export const realApi = {
     const qs = new URLSearchParams(params).toString()
     return apiFetch(`/fleet/reports${qs ? '?' + qs : ''}`)
   },
+
+  getLocations: () => apiFetch('/fleet/locations'),
+
+  setLocation: (unit, { lat, lon, label }) =>
+    apiFetch(`/fleet/units/${encodeURIComponent(unit)}/location`, {
+      method: 'PATCH', body: JSON.stringify({ lat, lon, label }),
+    }),
+
+  clearLocation: (unit) =>
+    apiFetch(`/fleet/units/${encodeURIComponent(unit)}/location`, { method: 'DELETE' }),
 }
 
 // Dev-only: VITE_MOCK=on selects an in-memory mock so the UI renders without a

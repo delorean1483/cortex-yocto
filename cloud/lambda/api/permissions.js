@@ -2,7 +2,7 @@
 
 // Role → write-action permission matrix + command-body validation.
 // Roles: admin, fm (fleet manager), maint (maintenance), eu (end user).
-// Actions: heater, setpoint, apu, diag, ota, apu_ota, config, users.
+// Actions: heater, setpoint, apu, diag, ota, apu_ota, config, users, location.
 //
 // `config` gates benign device-cadence tuning (poll_interval_s, report_mode)
 // via POST /fleet/config; reboot + firmware_target ride with `ota` (disruptive
@@ -14,9 +14,11 @@
 // inert end-to-end until go-live: the frontend keeps it behind APU_OTA_ENABLED,
 // and the agent has no firmware manifest on the device (IMAGE_INSTALL is gated
 // on bench Cases A/B), so a stray request has nothing to flash.
+//
+// `location` gates assigning a unit's map location (Fleet map): admin/fm only.
 const MATRIX = {
-  admin: new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users']),
-  fm:    new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users']),
+  admin: new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users', 'location']),
+  fm:    new Set(['heater', 'setpoint', 'apu', 'diag', 'ota', 'apu_ota', 'config', 'users', 'location']),
   maint: new Set(['heater', 'setpoint', 'diag', 'config']),
   eu:    new Set([]),
 };
