@@ -66,6 +66,12 @@ describe('DashboardPage', () => {
     expect(within(attn).getByText(/Not reporting/)).toBeTruthy()
   })
 
+  it('shows engine speeds of 1,000 rpm and up (thousands separator must not break the value)', () => {
+    state.latest['APU-DEMO-01'] = { ...OK, engine_status: 'running', rpm: 1850, batt_v: 13.9, ts: FRESH() }
+    renderPage()
+    const card = screen.getByRole('link', { name: 'Open APU-DEMO-01' })
+    expect(within(card).getByText('1,850')).toBeTruthy()
+  })
   it('says the fleet is healthy only once every unit has reported', () => {
     state.latest['APU-1'] = { ...OK, ts: FRESH() }
     renderPage()

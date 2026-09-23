@@ -32,10 +32,13 @@ function StatusBadge({ view, size = 16 }) {
 }
 
 // Number at full size, unit small, so "1,920 rpm" never wraps in a card column.
-function Val({ n, unit }) {
-  if (n == null || Number.isNaN(Number(n))) return '—'
-  return <>{n}{unit && <span className="kv-unit">{unit}</span>}</>
+// Validate the raw value; `format` runs after ("1,850" is not a Number).
+function Val({ v, format, unit }) {
+  if (v == null || Number.isNaN(Number(v))) return '—'
+  return <>{format(Number(v))}{unit && <span className="kv-unit">{unit}</span>}</>
 }
+const oneDecimal = (n) => n.toFixed(1)
+const thousands = (n) => Math.round(n).toLocaleString('en-US')
 
 function UnitCard({ u, tele, view }) {
   return (
@@ -51,9 +54,9 @@ function UnitCard({ u, tele, view }) {
         {view.headline}
       </div>
       <div className="kv4">
-        <div><div className="kv-lbl">Battery</div><div className="kv-val"><Val n={tele?.batt_v == null ? null : Number(tele.batt_v).toFixed(1)} unit=" V" /></div></div>
+        <div><div className="kv-lbl">Battery</div><div className="kv-val"><Val v={tele?.batt_v} format={oneDecimal} unit=" V" /></div></div>
         <div><div className="kv-lbl">Cabin</div><div className="kv-val">{fmt.tempF(tele?.cabin_temp_f)}</div></div>
-        <div><div className="kv-lbl">Engine</div><div className="kv-val"><Val n={tele?.rpm == null ? null : Math.round(Number(tele.rpm)).toLocaleString('en-US')} unit=" rpm" /></div></div>
+        <div><div className="kv-lbl">Engine</div><div className="kv-val"><Val v={tele?.rpm} format={thousands} unit=" rpm" /></div></div>
         <div><div className="kv-lbl">Fan</div><div className="kv-val">{fmt.pct(tele?.fan_speed)}</div></div>
       </div>
       <div className="ucard-foot">

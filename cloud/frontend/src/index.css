@@ -211,7 +211,7 @@ button { font-family: inherit; }
 .attn-title { font-size: 15px; font-weight: 600; }
 .attn-sub { font-size: 14px; color: var(--color-text-secondary); margin-top: 2px; }
 
-.ugrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; }
+.ugrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr)); gap: 16px; }
 .ucard { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; border-radius: 12px; background: var(--color-background-primary); border: 1px solid var(--color-border-secondary); cursor: pointer; text-align: left; font: inherit; color: inherit; width: 100%; transition: border-color .1s; }
 .ucard:hover, .ucard:focus-visible { border-color: var(--accent); outline: none; }
 .ucard.c-err { border: 2px solid var(--err); padding: 17px 19px; }
@@ -231,10 +231,11 @@ button { font-family: inherit; }
 .banner.b-ok   { border-color: var(--ok); background: var(--ok-soft); }
 .banner-title { font-size: 24px; font-weight: 600; }
 .banner-sub { font-size: 15px; color: var(--color-text-secondary); margin-top: 4px; }
+.banner-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
 
 .ov-layout { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
-.ov-groups { flex: 1 1 520px; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
-.ov-side { flex: 0 1 320px; min-width: 280px; display: flex; flex-direction: column; gap: 16px; }
+.ov-groups { flex: 1 1 520px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 16px; }
+.ov-side { flex: 0 1 320px; min-width: min(280px, 100%); display: flex; flex-direction: column; gap: 16px; }
 .group { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; border-radius: 12px; background: var(--color-background-primary); border: 1px solid var(--color-border-secondary); }
 .group-hd { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: var(--color-text-secondary); }
 .rd { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--color-border-tertiary); }
@@ -244,7 +245,20 @@ button { font-family: inherit; }
 .rv.sm { font-size: 15px; }
 .actions .btn { width: 100%; }
 
-.tabbar { display: flex; gap: 2px; border-bottom: 1px solid var(--color-border-tertiary); flex-wrap: wrap; }
+.tabbar { display: flex; gap: 2px; border-bottom: 1px solid var(--color-border-tertiary); flex-wrap: wrap; flex-shrink: 0; }
 .tab { min-height: 44px; padding: 0 14px; font-size: 15px; border: none; background: none; cursor: pointer; color: var(--color-text-secondary); border-bottom: 3px solid transparent; margin-bottom: -1px; }
 .tab:hover { color: var(--color-text-primary); }
 .tab.on { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* Phones: cards and banners reflow instead of overflowing */
+@media (max-width: 560px) {
+  .kv4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .banner { flex-wrap: wrap; padding: 16px; }
+  .banner-meta { flex-basis: 100%; flex-direction: row; align-items: center; justify-content: space-between; }
+  .tabbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .tab { flex-shrink: 0; }
+  .banner-title { font-size: 20px; }
+  .attn-row { flex-wrap: wrap; padding: 12px 14px; }
+  .ucard { padding: 16px; }
+  .ucard.c-err, .ucard.c-warn { padding: 15px; }
+}
