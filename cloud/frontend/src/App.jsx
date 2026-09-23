@@ -9,7 +9,7 @@ import MaintenancePage from './pages/MaintenancePage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
 import ReportsPage from './pages/ReportsPage.jsx'
 import UnitDetailPage from './pages/UnitDetailPage.jsx'
-import StubPage from './pages/StubPage.jsx'
+import SystemConfigPage from './pages/SystemConfigPage.jsx'
 import FleetMapPage from './pages/FleetMapPage.jsx'
 
 function Protected({ children }) {
@@ -36,7 +36,7 @@ export default function App() {
                   <Route path="/maintenance" element={<MaintenancePage />} />
                   <Route path="/map"         element={<FleetMapPage />} />
                   <Route path="/users"       element={<UsersPage />} />
-                  <Route path="/config"      element={<StubPage page="config" />} />
+                  <Route path="/config"      element={<SystemConfigPage />} />
                   <Route path="/reports"     element={<ReportsPage />} />
                   <Route path="*"            element={<Navigate to="/" replace />} />
                 </Routes>

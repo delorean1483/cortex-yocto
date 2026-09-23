@@ -252,6 +252,7 @@ button { font-family: inherit; }
 
 /* Phones: cards and banners reflow instead of overflowing */
 @media (max-width: 560px) {
+  .ov-side { flex-basis: 100%; }
   .kv4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .banner { flex-wrap: wrap; padding: 16px; }
   .banner-meta { flex-basis: 100%; flex-direction: row; align-items: center; justify-content: space-between; }
