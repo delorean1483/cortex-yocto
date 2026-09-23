@@ -8,7 +8,7 @@ import {
 } from '@tabler/icons-react'
 import { useAuth, ROLE_CFG } from '../contexts/AuthContext.jsx'
 import { currentTheme, nextTheme, applyTheme } from '../theme.js'
-import logo from '../assets/ecofleet_logo.svg'
+import BrandLogo from './BrandLogo.jsx'
 
 const NAV = [
   { id: '/',            label: 'Dashboard',      Icon: IconLayoutDashboard,        section: 'Overview' },
@@ -47,13 +47,11 @@ export default function Layout({ children }) {
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-background-primary)' }}>
 
       {/* Sidebar */}
-      <nav style={{ width: 172, flexShrink: 0, background: 'var(--color-background-secondary)', borderRight: '0.5px solid var(--color-border-tertiary)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <nav aria-label="Main" style={{ width: 232, flexShrink: 0, background: 'var(--color-background-secondary)', borderRight: '0.5px solid var(--color-border-tertiary)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Brand */}
-        <div style={{ padding: '14px 14px 12px', borderBottom: '0.5px solid var(--color-border-tertiary)', flexShrink: 0 }}>
-          <span className="brand-logo-wrap">
-            <img src={logo} alt="EcoFleet" style={{ height: 46, width: '100%', maxWidth: 144, objectFit: 'contain' }} />
-          </span>
-          <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 144 }}>
+        <div style={{ padding: '18px 18px 14px', borderBottom: '0.5px solid var(--color-border-tertiary)', flexShrink: 0 }}>
+          <BrandLogo theme={theme} height={48} />
+          <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)', marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {user?.email}
           </div>
         </div>
@@ -66,7 +64,7 @@ export default function Layout({ children }) {
             if (!visible.length) return null
             return (
               <div key={section}>
-                <div style={{ padding: '14px 12px 3px', fontSize: 9.5, fontWeight: 500, letterSpacing: '.09em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)' }}>
+                <div style={{ padding: '16px 16px 4px', fontSize: 12, fontWeight: 600, letterSpacing: '.09em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)' }}>
                   {section}
                 </div>
                 {items.map(({ id, label, Icon }) => {
@@ -74,16 +72,16 @@ export default function Layout({ children }) {
                   const active = pathname === id || (id !== '/' && pathname.startsWith(id))
                   if (!allowed) return null
                   return (
-                    <button key={id} onClick={() => handleNav(id)} style={{
-                      display: 'flex', alignItems: 'center', gap: 7,
-                      padding: '7px 10px', borderRadius: 6, margin: '1px 5px',
-                      cursor: 'pointer', fontSize: 12, border: 'none', width: 'calc(100% - 10px)', textAlign: 'left',
+                    <button key={id} onClick={() => handleNav(id)} aria-current={active ? 'page' : undefined} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      minHeight: 40, padding: '0 12px', borderRadius: 8, margin: '1px 8px',
+                      cursor: 'pointer', fontSize: 15, border: 'none', width: 'calc(100% - 16px)', textAlign: 'left',
                       background: active ? 'var(--color-background-primary)' : 'none',
                       color: active ? 'var(--accent)' : 'var(--color-text-secondary)',
-                      fontWeight: active ? 500 : 400,
+                      fontWeight: active ? 600 : 400,
                       transition: 'background .1s, color .1s',
                     }}>
-                      <Icon size={15} style={{ flexShrink: 0, width: 16 }} />
+                      <Icon size={19} style={{ flexShrink: 0 }} />
                       {label}
                     </button>
                   )
@@ -94,8 +92,8 @@ export default function Layout({ children }) {
         </div>
 
         {/* Logout */}
-        <button onClick={logout} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 15px', borderTop: '0.5px solid var(--color-border-tertiary)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-tertiary)', width: '100%', flexShrink: 0 }}>
-          <IconLogout size={15} />
+        <button onClick={logout} style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 44, padding: '0 20px', borderTop: '0.5px solid var(--color-border-tertiary)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, gap: 12, color: 'var(--color-text-tertiary)', width: '100%', flexShrink: 0 }}>
+          <IconLogout size={19} />
           Sign out
         </button>
       </nav>
@@ -103,39 +101,40 @@ export default function Layout({ children }) {
       {/* Main */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         {/* Topbar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '0.5px solid var(--color-border-tertiary)', gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 14, fontWeight: 500 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 64, padding: '10px 24px', borderBottom: '0.5px solid var(--color-border-tertiary)', gap: 8, flexShrink: 0 }}>
+          <span style={{ fontSize: 20, fontWeight: 600 }}>
             {pathname.startsWith('/units/')
-              ? 'Unit detail'
+              ? 'Unit'
               : NAV.find(n => n.id === pathname)?.label ?? NAV.find(n => pathname.startsWith(n.id) && n.id !== '/')?.label ?? 'Dashboard'}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
               onClick={toggleTheme}
-              className="btn btn-sm"
+              className="btn"
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               aria-label="Toggle light/dark theme"
-              style={{ padding: '4px 7px' }}
+              style={{ padding: 0, width: 36 }}
             >
-              {theme === 'dark' ? <IconSun size={15} /> : <IconMoon size={15} />}
+              {theme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
             </button>
             <span className={`rbadge ${cfg.badge}`}>{cfg.lbl}</span>
             <select
               value={role}
               onChange={e => setRole(e.target.value)}
-              style={{ fontSize: 11, border: '0.5px solid var(--color-border-secondary)', borderRadius: 5, padding: '3px 6px', background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
+              aria-label="View as role"
+              style={{ fontSize: 14, minHeight: 36, border: '0.5px solid var(--color-border-secondary)', borderRadius: 8, padding: '0 10px', background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
               title="Switch role (demo)"
             >
-              <option value="admin">Admin</option>
-              <option value="fm">Fleet Manager</option>
-              <option value="maint">Maintenance</option>
-              <option value="eu">End User</option>
+              <option value="admin">View as: Admin</option>
+              <option value="fm">View as: Fleet Manager</option>
+              <option value="maint">View as: Maintenance</option>
+              <option value="eu">View as: End User</option>
             </select>
           </div>
         </div>
 
         {/* Page content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
           {children}
         </div>
       </div>

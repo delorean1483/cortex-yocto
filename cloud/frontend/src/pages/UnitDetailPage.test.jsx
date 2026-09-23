@@ -37,20 +37,21 @@ function renderPage() {
 }
 
 describe('UnitDetailPage', () => {
-  it('renders unit id + connection pill', () => {
+  it('renders the unit id and a status banner', () => {
     renderPage()
-    expect(screen.getByText('APU-1')).toBeTruthy()
-    expect(screen.getByText('live')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'APU-1' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Unit status' })).toBeTruthy()
+    expect(screen.getByText('Reported just now')).toBeTruthy()
   })
   it('renders all tab buttons', () => {
     renderPage()
     for (const t of ['Overview', 'Telemetry', 'Heater', 'Component Test', 'History']) {
-      expect(screen.getByRole('button', { name: t })).toBeTruthy()
+      expect(screen.getByRole('tab', { name: t })).toBeTruthy()
     }
   })
   it('switches to the heater tab', () => {
     renderPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Heater' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Heater' }))
     expect(screen.getByText(/VEVOR diesel heater/i)).toBeTruthy()
   })
 })

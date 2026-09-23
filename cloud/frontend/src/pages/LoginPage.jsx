@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
-import logo from '../assets/ecofleet_logo.svg'
+import BrandLogo from '../components/BrandLogo.jsx'
 
 export default function LoginPage() {
   const [email, setEmail]       = useState('')
@@ -32,9 +32,7 @@ export default function LoginPage() {
       <div style={{ width: 340, background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 12, padding: '28px 28px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* Logo */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-          <span className="brand-logo-wrap">
-            <img src={logo} alt="EcoFleet" style={{ height: 72 }} />
-          </span>
+          <BrandLogo height={72} />
           <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>Fleet management dashboard</div>
         </div>
 

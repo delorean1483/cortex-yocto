@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
          heaterFlags, diagOutputs, connLabel, otaStatusView,
-         chronological } from './contract.js'
+         chronological, ageText, modeLabel, unitView, byAttention } from './contract.js'
 
 describe('otaStatusView', () => {
   it('hidden when idle/empty/null', () => {
@@ -162,4 +162,68 @@ describe('fmt.counter', () => {
   it('plain count', () => expect(fmt.counter(42)).toBe('42'))
   it('flags a saturated uint16 counter', () => expect(fmt.counter(65535)).toBe('65535+'))
   it('dash on null', () => expect(fmt.counter(null)).toBe('—'))
+})
+
+describe('ageText', () => {
+  it('seconds', () => expect(ageText(14000)).toBe('14s ago'))
+  it('under 5s reads as just now', () => expect(ageText(2000)).toBe('just now'))
+  it('minutes', () => expect(ageText(4 * 60000 + 5000)).toBe('4 min ago'))
+  it('hours and minutes', () => expect(ageText((2 * 60 + 14) * 60000)).toBe('2 h 14 min ago'))
+  it('whole hours', () => expect(ageText(3 * 3600000)).toBe('3 h ago'))
+  it('days', () => expect(ageText(50 * 3600000)).toBe('2 d ago'))
+  it('dash on null', () => expect(ageText(null)).toBe('—'))
+})
+
+describe('modeLabel', () => {
+  it('prefers an active control mode', () => expect(modeLabel({ mode: 'engine', control_status: 'climate' })).toBe('Climate'))
+  it('battery', () => expect(modeLabel({ mode: 'battery', control_status: 'idle' })).toBe('Battery charge'))
+  it('off', () => expect(modeLabel({ mode: 'off', control_status: 'off' })).toBe('Off'))
+  it('unknown strings are title-cased', () => expect(modeLabel({ mode: 'engine', control_status: 'idle' })).toBe('Engine'))
+  it('dash when missing', () => expect(modeLabel(null)).toBe('—'))
+})
+
+describe('unitView', () => {
+  const NOW = 1_000_000_000
+  const base = { ts: NOW - 6000, error: 'none', error_n: 0, batt_v: 13.2, oil_ok: true,
+    mode: 'off', control_status: 'off', engine_status: 'off', rpm: 0 }
+
+  it('no telemetry -> off / No data', () => {
+    const v = unitView(undefined, NOW)
+    expect(v.tone).toBe('off'); expect(v.status).toBe('No data'); expect(v.attention).toBe(false)
+  })
+  it('healthy and idle -> ok / Standby', () => {
+    const v = unitView(base, NOW)
+    expect(v).toMatchObject({ tone: 'ok', status: 'Standby', headline: 'Off · engine off', seen: 'Reported 6s ago', attention: false, stale: false })
+  })
+  it('engine running -> Running', () => {
+    const v = unitView({ ...base, mode: 'engine', control_status: 'climate', engine_status: 'running', rpm: 2450 }, NOW)
+    expect(v).toMatchObject({ tone: 'ok', status: 'Running', headline: 'Climate · engine running' })
+  })
+  it('fault -> err with the fault text as headline', () => {
+    const v = unitView({ ...base, error: 'Low oil pressure', error_n: 1 }, NOW)
+    expect(v).toMatchObject({ tone: 'err', status: 'Fault', headline: 'Low oil pressure', attention: true })
+  })
+  it('low battery -> warn', () => {
+    const v = unitView({ ...base, batt_v: 11.6 }, NOW)
+    expect(v).toMatchObject({ tone: 'warn', status: 'Warning', headline: 'Low battery · 11.6 V', attention: true })
+  })
+  it('low oil -> warn', () => {
+    expect(unitView({ ...base, oil_ok: false }, NOW)).toMatchObject({ tone: 'warn', headline: 'Low oil pressure' })
+  })
+  it('stale outranks a fault: the values are old', () => {
+    const v = unitView({ ...base, ts: NOW - (2 * 60 + 14) * 60000, error: 'Low oil pressure', error_n: 1 }, NOW)
+    expect(v).toMatchObject({ tone: 'off', status: 'Offline', stale: true, attention: true,
+      headline: 'Not reporting · last known values', seen: 'Last report 2 h 14 min ago' })
+  })
+})
+
+describe('byAttention', () => {
+  it('orders fault, warning, offline, then healthy; stable within a tone', () => {
+    const rows = [
+      { id: 'a', view: { tone: 'ok' } }, { id: 'b', view: { tone: 'off' } },
+      { id: 'c', view: { tone: 'err' } }, { id: 'd', view: { tone: 'warn' } },
+      { id: 'e', view: { tone: 'ok' } }, { id: 'f', view: undefined },
+    ]
+    expect([...rows].sort(byAttention).map((r) => r.id)).toEqual(['c', 'd', 'b', 'a', 'e', 'f'])
+  })
 })
