@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
-         heaterFlags, diagOutputs, connLabel, otaStatusView } from './contract.js'
+         heaterFlags, diagOutputs, connLabel, otaStatusView,
+         chronological } from './contract.js'
 
 describe('otaStatusView', () => {
   it('hidden when idle/empty/null', () => {
@@ -142,4 +143,23 @@ describe('apuFlashStateLabel', () => {
     expect(apuFlashStateLabel(null).text).toBe('Idle')
     expect(apuFlashStateLabel('weird').text).toBe('Idle')
   })
+})
+
+describe('chronological', () => {
+  it('orders a newest-first series oldest-first for time-axis charts', () => {
+    const out = chronological([{ ts: 3 }, { ts: 1 }, { ts: 2 }])
+    expect(out.map((p) => p.ts)).toEqual([1, 2, 3])
+  })
+  it('does not mutate the input', () => {
+    const src = [{ ts: 2 }, { ts: 1 }]
+    chronological(src)
+    expect(src.map((p) => p.ts)).toEqual([2, 1])
+  })
+  it('tolerates null', () => expect(chronological(null)).toEqual([]))
+})
+
+describe('fmt.counter', () => {
+  it('plain count', () => expect(fmt.counter(42)).toBe('42'))
+  it('flags a saturated uint16 counter', () => expect(fmt.counter(65535)).toBe('65535+'))
+  it('dash on null', () => expect(fmt.counter(null)).toBe('—'))
 })

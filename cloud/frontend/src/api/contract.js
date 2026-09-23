@@ -28,6 +28,15 @@ export const fmt = {
   pct:   (v) => dash(v) ? '—' : `${Math.round(Number(v))}%`,
   int:   (v) => dash(v) ? '—' : `${Math.round(Number(v))}`,
   hours: (v) => dash(v) ? '—' : `${Math.round(Number(v))} h`,
+  // uint16 firmware counters stick at 0xFFFF once saturated — show "65535+"
+  // so a pegged counter doesn't read as an exact count.
+  counter: (v) => dash(v) ? '—' : Number(v) >= 0xFFFF ? '65535+' : `${Math.round(Number(v))}`,
+}
+
+// The telemetry API returns newest-first; time-axis charts need oldest-first
+// or the x-axis runs backwards. Copies — never mutates the query cache.
+export function chronological(series) {
+  return [...(series || [])].sort((a, b) => Number(a.ts) - Number(b.ts))
 }
 
 export const HEATER_FLAG_LABELS = [

@@ -4,9 +4,11 @@ import { useUnits, useUnitLatest } from '../data/hooks.js'
 import { unitStatus, statusDotClass, isStale, fmt } from '../api/contract.js'
 
 function UnitRow({ u, onStatus }) {
-  const { data: tele } = useUnitLatest(u.unit)
+  const { data: tele, isLoading: teleLoading } = useUnitLatest(u.unit)
   const navigate = useNavigate()
-  const status = unitStatus(tele)
+  // 'pending' until the first latest-telemetry response, so the fleet cards
+  // don't count a still-loading unit as offline / fault-free.
+  const status = teleLoading ? 'pending' : unitStatus(tele)
 
   useEffect(() => { onStatus(u.unit, status) }, [u.unit, status, onStatus])
 
@@ -17,7 +19,7 @@ function UnitRow({ u, onStatus }) {
       <span className="uid">{u.unit}</span>
       {u.demo && <span className="pill p-n" style={{ marginRight: 4 }}>demo</span>}
       <span className="umeta">
-        {!tele ? 'no data' : stale ? 'stale' : 'live'}
+        {!tele ? (teleLoading ? '' : 'no data') : stale ? 'stale' : 'live'}
       </span>
       <span className="uval">
         {fmt.volts(tele?.batt_v)}
@@ -27,6 +29,10 @@ function UnitRow({ u, onStatus }) {
       </span>
     </div>
   )
+}
+
+function Pending({ width = 24 }) {
+  return <span className="skeleton" style={{ display: 'inline-block', width, height: 24 }} />
 }
 
 export default function DashboardPage() {
@@ -41,6 +47,7 @@ export default function DashboardPage() {
 
   const list = units || []
   const vals = Object.values(statuses)
+  const settled = !isLoading && list.every((u) => statuses[u.unit] && statuses[u.unit] !== 'pending')
   const online = vals.filter((s) => s !== 'off').length
   const faults = vals.filter((s) => s === 'err').length
   const warnings = vals.filter((s) => s === 'warn').length
@@ -51,27 +58,27 @@ export default function DashboardPage() {
         <div className="scard">
           <div className="scard-lbl">Online units</div>
           <div className="scard-val" style={{ color: 'var(--brand-green-text)' }}>
-            {isLoading ? <span className="skeleton" style={{ display: 'inline-block', width: 34, height: 24 }} /> : online}
+            {settled ? online : <Pending width={34} />}
           </div>
-          <div className="scard-sub">of {list.length} total</div>
+          <div className="scard-sub">{isLoading ? '\u00a0' : `of ${list.length} total`}</div>
         </div>
         <div className="scard">
           <div className="scard-lbl">Active faults</div>
           <div className="scard-val" style={{ color: faults ? '#E24B4A' : 'var(--color-text-primary)' }}>
-            {isLoading ? <span className="skeleton" style={{ display: 'inline-block', width: 24, height: 24 }} /> : faults}
+            {settled ? faults : <Pending />}
           </div>
-          <div className="scard-sub">{faults ? 'attention needed' : 'all clear'}</div>
+          <div className="scard-sub">{!settled ? '\u00a0' : faults ? 'attention needed' : 'all clear'}</div>
         </div>
         <div className="scard">
           <div className="scard-lbl">Warnings</div>
           <div className="scard-val" style={{ color: warnings ? 'var(--brand-orange)' : 'var(--color-text-primary)' }}>
-            {isLoading ? <span className="skeleton" style={{ display: 'inline-block', width: 24, height: 24 }} /> : warnings}
+            {settled ? warnings : <Pending />}
           </div>
           <div className="scard-sub">low batt / oil</div>
         </div>
         <div className="scard">
           <div className="scard-lbl">Fleet size</div>
-          <div className="scard-val">{list.length}</div>
+          <div className="scard-val">{isLoading ? <Pending /> : list.length}</div>
           <div className="scard-sub">units reporting</div>
         </div>
       </div>

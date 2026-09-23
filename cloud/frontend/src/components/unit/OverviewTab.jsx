@@ -1,4 +1,4 @@
-import { fmt } from '../../api/contract.js'
+import { fmt, apuVersionLabel } from '../../api/contract.js'
 
 function Cell({ label, value, color }) {
   return (
@@ -41,7 +41,7 @@ export default function OverviewTab({ tele }) {
           <div><span style={{ color: 'var(--color-text-tertiary)' }}>Engine hrs</span> {fmt.hours(tele.engine_hrs)}</div>
           <div><span style={{ color: 'var(--color-text-tertiary)' }}>Oil hrs</span> {fmt.hours(tele.oil_hrs)}</div>
           <div><span style={{ color: 'var(--color-text-tertiary)' }}>Machine hrs</span> {fmt.hours(tele.machine_hrs)}</div>
-          <div><span style={{ color: 'var(--color-text-tertiary)' }}>FW</span> v{tele.apu_fw_version}</div>
+          <div><span style={{ color: 'var(--color-text-tertiary)' }}>FW</span> {apuVersionLabel(tele.apu_fw_version)}</div>
         </div>
       </div>
     </>
