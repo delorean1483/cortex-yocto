@@ -27,6 +27,11 @@ describe('APUHistoryPage', () => {
     expect(await screen.findByRole('option', { name: /TRUCK-001/ })).toBeTruthy()
     expect(screen.getByRole('option', { name: /APU-DEMO-01/ })).toBeTruthy()
   })
+  it('defaults to the last 24 hours (a 30-day scan is opt-in: it is heavy on InfluxDB)', async () => {
+    render(<APUHistoryPage />)
+    await screen.findByRole('option', { name: /TRUCK-001/ })
+    expect(screen.getByRole('option', { name: 'Last 24 h' }).selected).toBe(true)
+  })
   it('renders the fault log without waiting on the telemetry query', async () => {
     render(<APUHistoryPage />)
     expect(await screen.findByText(/No fault events recorded/)).toBeTruthy()
