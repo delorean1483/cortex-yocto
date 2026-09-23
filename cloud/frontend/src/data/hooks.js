@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client.js'
+import { chronological } from '../api/contract.js'
 
 export function useUnits() {
   return useQuery({
@@ -30,7 +31,7 @@ export function useTelemetrySeries(unit, params = {}) {
     queryKey: ['series', unit, params],
     enabled: !!unit,
     queryFn: () => api.getTelemetry(unit, params),
-    select: (d) => d.telemetry || [],
+    select: (d) => chronological(d.telemetry),
   })
 }
 

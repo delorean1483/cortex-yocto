@@ -4,6 +4,7 @@
 
 const REAL_UNIT = 'APU-000123'
 const DEMO_UNITS = ['APU-DEMO-01', 'APU-DEMO-02', 'APU-DEMO-03']
+const STALE_UNITS = new Set(['APU-DEMO-02'])
 
 function baseSnapshot(unit, over = {}) {
   return {
@@ -88,7 +89,13 @@ export const mockApi = {
     ...DEMO_UNITS.map((u) => ({ unit: u, demo: true })),
   ] }),
 
-  getLatest: (unit) => delay({ unit, latest: SNAPSHOTS[unit] || baseSnapshot(unit) }),
+  // Fresh ts on every poll (a load-time ts goes stale after 60s and every
+  // unit would read Offline); STALE_UNITS keep an old one to demo that state.
+  getLatest: (unit) => {
+    const snap = SNAPSHOTS[unit] || baseSnapshot(unit)
+    const ts = STALE_UNITS.has(unit) ? Date.now() - (2 * 60 + 14) * 60000 : Date.now()
+    return delay({ unit, latest: { ...snap, ts } })
+  },
 
   getTelemetry: (unit, params = {}) => {
     const n = Math.min(parseInt(params.limit || '60', 10), 240)

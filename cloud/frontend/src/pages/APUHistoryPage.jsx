@@ -29,16 +29,20 @@ export default function APUHistoryPage() {
     }).catch(() => {})
   }, [])
 
+  // Faults and telemetry load independently: the 30-day telemetry scan can be
+  // slow, and it must not hold the fault log on skeletons. `live` drops
+  // responses from a previous unit/range selection.
   useEffect(() => {
     if (!selectedUnit) return
+    let live = true
     setFaults(null); setTele(null); setError('')
-    Promise.all([
-      api.getFaults(selectedUnit, { start: range, limit: '100' }),
-      api.getTelemetry(selectedUnit, { start: range, limit: '50' }),
-    ]).then(([fd, td]) => {
-      setFaults(fd.faults || [])
-      setTele(td.telemetry || [])
-    }).catch(err => setError(err.message))
+    api.getFaults(selectedUnit, { start: range, limit: '100' })
+      .then(fd => { if (live) setFaults(fd.faults || []) })
+      .catch(err => { if (live) setError(err.message) })
+    api.getTelemetry(selectedUnit, { start: range, limit: '50' })
+      .then(td => { if (live) setTele(td.telemetry || []) })
+      .catch(() => { if (live) setTele([]) })
+    return () => { live = false }
   }, [selectedUnit, range])
 
   // Merge faults + telemetry state-change events into one timeline

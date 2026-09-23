@@ -90,9 +90,9 @@ export default function HeaterTab({ tele, unit, isDemo }) {
       )}
 
       <div style={{ marginTop: 12, fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-        Link health — valid frames {fmt.int(tele.heater_valid_frames)} ·
-        checksum fails {fmt.int(tele.heater_checksum_failures)} ·
-        transport errors {fmt.int(tele.heater_transport_errors)}
+        Link health — valid frames {fmt.counter(tele.heater_valid_frames)} ·
+        checksum fails {fmt.counter(tele.heater_checksum_failures)} ·
+        transport errors {fmt.counter(tele.heater_transport_errors)}
       </div>
 
       {/* Controls */}

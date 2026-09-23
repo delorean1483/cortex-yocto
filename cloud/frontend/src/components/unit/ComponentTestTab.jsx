@@ -30,7 +30,7 @@ export default function ComponentTestTab({ tele }) {
       </div>
 
       <div className="notice" style={{ fontSize: 11.5 }}>
-        Technician actuation (passcode-gated) is added in Plan 4 — this view is read-only.
+        Live relay states reported by the APU controller. Actuating outputs is done from the in-cab panel (technician passcode required).
       </div>
     </>
   )
