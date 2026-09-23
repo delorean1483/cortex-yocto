@@ -104,7 +104,7 @@ export default function OverviewTab({ tele, unit, isDemo, onOpenTab }) {
           <h2 className="banner-title" style={{ margin: 0, color: TONE_TEXT[view.tone] || 'var(--color-text-primary)' }}>{copy.title}</h2>
           <div className="banner-sub">{copy.sub}</div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
+        <div className="banner-meta">
           <span style={{ fontSize: 14, color: 'var(--color-text-tertiary)' }}>{view.seen}</span>
           {copy.tab && onOpenTab && (
             <button className="btn btn-sm" onClick={() => onOpenTab(copy.tab[0])}>{copy.tab[1]}</button>
