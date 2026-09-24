@@ -13,4 +13,8 @@ QtObject {
     function control(s, upper) { var v = _control[s] !== undefined ? _control[s] : (s || "—"); return upper ? v.toUpperCase() : v }
     function engine(s, upper)  { return control(s, upper) }   // same enum family (control_status_t)
     function error(s)          { return _error[s] !== undefined ? _error[s] : (s || "—") }
+    readonly property var _mode: ({ "off":"Off", "climate":"Climate", "battery":"Battery" })
+    function mode(s)           { return _mode[s] !== undefined ? _mode[s] : title(s) }
+    // "good" -> "Good", "needs_change" -> "Needs change"; "—" for empty
+    function title(s)          { if (!s) return "—"; var t = String(s).replace(/_/g, " "); return t.charAt(0).toUpperCase() + t.slice(1) }
 }

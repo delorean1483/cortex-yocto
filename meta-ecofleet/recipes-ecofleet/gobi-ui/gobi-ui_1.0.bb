@@ -1,6 +1,6 @@
 SUMMARY = "EcoFleet Gobi APU touchscreen dashboard"
 LICENSE = "CLOSED"
-PR = "r10"
+PR = "r11"
 
 SRC_URI = " \
     file://CMakeLists.txt \
@@ -24,12 +24,17 @@ SRC_URI = " \
     file://qml/StatusLabels.qml \
     file://qml/ComponentTestPanel.qml \
     file://qml/HeaterCard.qml \
+    file://qml/SplashArt.qml \
     file://qml/atoms/StatusPill.qml \
     file://qml/atoms/FaultBanner.qml \
     file://qml/atoms/StatCard.qml \
     file://qml/atoms/Icon.qml \
     file://qml/atoms/ScreenHeader.qml \
     file://qml/atoms/Keypad.qml \
+    file://qml/atoms/InfoCard.qml \
+    file://qml/atoms/SegmentedControl.qml \
+    file://qml/atoms/StepButton.qml \
+    file://qml/atoms/Stepper.qml \
     file://qml/templates/BigNumberScreen.qml \
     file://qml/templates/ChoiceList.qml \
     file://qml/templates/TileGrid.qml \
@@ -53,6 +58,11 @@ SRC_URI = " \
     file://gobi-ui.service \
     file://ecofleet_logo.png \
     file://ecofleet_logo_topbar.png \
+    file://fonts/Inter-Regular.ttf \
+    file://fonts/Inter-Medium.ttf \
+    file://fonts/Inter-SemiBold.ttf \
+    file://fonts/Inter-Bold.ttf \
+    file://fonts/Inter-OFL.txt \
 "
 
 S = "${WORKDIR}"
@@ -90,6 +100,7 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/qml/StatusLabels.qml       ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/ComponentTestPanel.qml ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/HeaterCard.qml         ${D}${datadir}/gobi-ui/qml/
+    install -m 0644 ${WORKDIR}/qml/SplashArt.qml          ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/WeatherStrip.qml    ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/WeatherIcon.qml     ${D}${datadir}/gobi-ui/qml/
     install -m 0644 ${WORKDIR}/qml/atoms/*.qml         ${D}${datadir}/gobi-ui/qml/atoms/
@@ -97,6 +108,11 @@ do_install:append() {
     install -m 0644 ${WORKDIR}/qml/screens/*.qml       ${D}${datadir}/gobi-ui/qml/screens/
     install -m 0644 ${WORKDIR}/ecofleet_logo.png        ${D}${datadir}/gobi-ui/
     install -m 0644 ${WORKDIR}/ecofleet_logo_topbar.png ${D}${datadir}/gobi-ui/
+
+    # Inter UI typeface (SIL OFL 1.1), loaded by main.cpp as the app font
+    install -d ${D}${datadir}/gobi-ui/fonts
+    install -m 0644 ${WORKDIR}/fonts/Inter-*.ttf    ${D}${datadir}/gobi-ui/fonts/
+    install -m 0644 ${WORKDIR}/fonts/Inter-OFL.txt  ${D}${datadir}/gobi-ui/fonts/
 }
 
 FILES:${PN} += " \

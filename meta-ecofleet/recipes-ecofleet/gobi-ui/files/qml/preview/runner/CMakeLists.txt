@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.21)
+project(shots LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+find_package(Qt6 REQUIRED COMPONENTS Gui Qml Quick)
+add_executable(shots main.cpp)
+target_link_libraries(shots Qt6::Gui Qt6::Qml Qt6::Quick)

@@ -8,7 +8,7 @@ Item {
     property var pages: []
     signal opened(string target)
     ColumnLayout {
-        anchors.fill: parent; anchors.margins: 16; spacing: 8
+        anchors.fill: parent; anchors.margins: Theme.pad; spacing: 10
         SwipeView {
             id: sv; Layout.fillWidth: true; Layout.fillHeight: true; clip: true
             Repeater {
@@ -18,18 +18,18 @@ Item {
                     Repeater {
                         model: modelData
                         Rectangle {
-                            Layout.fillWidth: true; Layout.fillHeight: true; radius: 12
+                            Layout.fillWidth: true; Layout.fillHeight: true; radius: Theme.radiusLg
                             color: tap.pressed ? Theme.surface2 : Theme.surface
-                            border.color: tap.pressed ? Theme.accent : Theme.border; border.width: 1
+                            border.color: tap.pressed ? Theme.accent : "transparent"; border.width: 1
                             Column { anchors.centerIn: parent; spacing: 10
                                 Icon { anchors.horizontalCenter: parent.horizontalCenter
                                     name: modelData.icon !== undefined ? modelData.icon : ""
-                                    size: 38; color: tap.pressed ? Theme.accent : Theme.accentBlue }
+                                    size: 36; color: Theme.accent }
                                 Text { text: modelData.title; anchors.horizontalCenter: parent.horizontalCenter
-                                    color: Theme.text; font.pixelSize: 15; font.weight: Font.Medium } }
+                                    color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.Medium } }
                             Icon { visible: modelData.locked === true; name: "lock"; size: 16
-                                color: Theme.textMute
-                                anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 10 }
+                                color: Theme.warn
+                                anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 12 }
                             // TapHandler (not MouseArea) so taps register inside the SwipeView's flickable
                             TapHandler { id: tap; gesturePolicy: TapHandler.ReleaseWithinBounds
                                 onTapped: grid.opened(modelData.target) }
@@ -41,8 +41,9 @@ Item {
         Row {
             Layout.alignment: Qt.AlignHCenter; spacing: 8; visible: grid.pages.length > 1
             Repeater { model: grid.pages.length
-                Rectangle { width: 8; height: 8; radius: 4
-                    color: index === sv.currentIndex ? Theme.accent : Theme.border } }
+                Rectangle { width: index === sv.currentIndex ? 20 : 8; height: 8; radius: 4
+                    color: index === sv.currentIndex ? Theme.accent : Theme.border
+                    Behavior on width { NumberAnimation { duration: 150 } } } }
         }
     }
 }

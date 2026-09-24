@@ -21,23 +21,25 @@ ColumnLayout {
     Row {
         Layout.alignment: Qt.AlignHCenter; spacing: 16
         Repeater { model: kp.length
-            Rectangle { width: 16; height: 16; radius: 8
+            Rectangle { width: 14; height: 14; radius: 7
                 border.color: kp.hue; border.width: 2
                 color: index < kp.code.length ? kp.hue : "transparent" } }
     }
 
     GridLayout {
         Layout.alignment: Qt.AlignHCenter
-        columns: 3; rowSpacing: 12; columnSpacing: 12
+        columns: 3; rowSpacing: 10; columnSpacing: 10
         Repeater {
             model: ["1","2","3","4","5","6","7","8","9","","0","back"]
             Rectangle {
-                Layout.preferredWidth: 76; Layout.preferredHeight: 56; radius: 12
-                visible: modelData !== ""
-                color: modelData === "" ? "transparent" : (kma.pressed ? Theme.surface2 : Theme.surface)
-                border.color: Theme.border; border.width: modelData === "" ? 0 : 1
+                Layout.preferredWidth: 84; Layout.preferredHeight: 56; radius: Theme.radius
+                // the blank key keeps its grid cell (invisible items are dropped
+                // from layouts, which would shift 0 and ⌫ one column left)
+                opacity: modelData === "" ? 0 : 1
+                color: kma.pressed ? Theme.surface2 : Theme.surface
+                border.color: Theme.border; border.width: 1
                 Text { visible: modelData !== "back"; anchors.centerIn: parent
-                    text: modelData; color: Theme.text; font.pixelSize: 24 }
+                    text: modelData; color: Theme.text; font.pixelSize: 26; font.weight: Font.Medium }
                 Icon { visible: modelData === "back"; anchors.centerIn: parent
                     name: "backspace"; size: 26; color: Theme.textDim }
                 MouseArea { id: kma; anchors.fill: parent; enabled: modelData !== ""

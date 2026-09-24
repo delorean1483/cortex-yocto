@@ -20,7 +20,7 @@ Item {
     readonly property var relays: [
         { name: "Fuel Pump", i: 0, engine: true }, { name: "Starter", i: 1, engine: true },
         { name: "Glow Plug", i: 2, engine: true }, { name: "Compressor Clutch", i: 3, engine: false },
-        { name: "Heat Reverser", i: 4, engine: false }, { name: "Evap Fan", i: 5, engine: false },
+        { name: "Heat Reverser", i: 4, engine: false }, { name: "Evap Fan relay", i: 5, engine: false },
         { name: "Condenser Fan", i: 6, engine: false }
     ]
     // index of the currently-energized LOW-RISK output we heartbeat (-1 = none)
@@ -159,8 +159,8 @@ Item {
         ColumnLayout {
             Layout.fillWidth: true; spacing: 6
             visible: panel.gate === "locked" || panel.gate === "refused" || panel.gate === "badpin"
-            Text { text: "Component Test"; color: Theme.textDim; font.pixelSize: 15; font.weight: Font.DemiBold }
-            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 12
+            Text { text: "Component Test"; color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
+            Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: Theme.fsLabel
                 color: panel.gate === "refused" ? Theme.warn : Theme.textMute
                 text: panel.gate === "refused"
                       ? "Component test needs the engine off and ignition off (or unsupported firmware)."
@@ -168,9 +168,9 @@ Item {
                       : (panel.preAuthed ? "Enter test mode to actuate individual relays one at a time."
                       : "Relay tests require a maintenance passcode.")) }
             Rectangle {
-                Layout.preferredWidth: 200; Layout.preferredHeight: 44; radius: 10
-                color: ema.pressed ? Theme.surface2 : Theme.surface; border.color: Theme.border; border.width: 1
-                Text { anchors.centerIn: parent; text: "Enter Component Test"; color: Theme.accentBlue; font.pixelSize: 14 }
+                Layout.preferredWidth: 220; Layout.preferredHeight: 48; radius: Theme.radiusSm
+                color: ema.pressed ? Qt.darker(Theme.accent, 1.15) : Theme.accent
+                Text { anchors.centerIn: parent; text: "Enter Component Test"; color: Theme.textOnAccent; font.pixelSize: Theme.fsLabel + 1; font.weight: Font.DemiBold }
                 MouseArea { id: ema; anchors.fill: parent; onClicked: panel.requestEnter() }
             }
         }
@@ -178,50 +178,59 @@ Item {
         // Passcode keypad
         ColumnLayout {
             Layout.fillWidth: true; spacing: 8; visible: panel.gate === "keypad"
-            Text { text: "Maintenance passcode"; color: Theme.textDim; font.pixelSize: 14 }
+            Text { text: "Maintenance passcode"; color: Theme.text; font.pixelSize: Theme.fsLabel + 1 }
             Keypad { Layout.alignment: Qt.AlignHCenter; hue: Theme.warn
                 onEntered: function(code) { panel.submitPin(code) } }
         }
 
-        // Shown while the firmware is still confirming OP_DIAG entry — the grid is
-        // already visible/tappable below (relays arm the instant the APU confirms,
-        // ~1s); if the interlock refuses (engine/ignition on) this yields to the
-        // refused affordance. Hidden once active.
-        Text { visible: panel.gate === "entering"; text: "Arming test mode…"; color: Theme.textMute; font.pixelSize: 12 }
+        // Test-mode bar: status + Exit, pinned above the relay grid so it never
+        // scrolls away. While the firmware is still confirming OP_DIAG entry the
+        // status reads "Arming…" — the grid is already visible/tappable below
+        // (relays arm the instant the APU confirms, ~1s); if the interlock
+        // refuses (engine/ignition on) this yields to the refused affordance.
+        RowLayout {
+            Layout.fillWidth: true; spacing: 8
+            visible: panel.active || panel.gate === "entering"
+            Rectangle { width: 8; height: 8; radius: 4; Layout.alignment: Qt.AlignVCenter
+                color: panel.active ? Theme.ok : Theme.warn }
+            Text { text: panel.active ? "TEST MODE — ONE RELAY AT A TIME" : "ARMING TEST MODE…"
+                color: panel.active ? Theme.textMute : Theme.warn
+                font.pixelSize: Theme.fsCaption; font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold }
+            Item { Layout.fillWidth: true }
+            Rectangle {
+                Layout.preferredWidth: 104; Layout.preferredHeight: 40; radius: Theme.radiusSm
+                color: xma.pressed ? Theme.surface2 : Theme.surface; border.color: Theme.border; border.width: 1
+                Text { anchors.centerIn: parent; text: "Exit test"; color: Theme.text; font.pixelSize: Theme.fsLabel + 1; font.weight: Font.Medium }
+                MouseArea { id: xma; anchors.fill: parent; onClicked: panel.leave() }
+            }
+        }
 
         // Live relay grid — one-at-a-time component test. Visible during entry too
         // so it "just shows" right after the passcode instead of waiting a poll cycle.
         Flickable {
             id: gridSlot; Layout.fillWidth: true; Layout.fillHeight: true; visible: panel.active || panel.gate === "entering"
             contentHeight: grid.height; clip: true
-            ColumnLayout {
-                id: grid; width: gridSlot.width; spacing: 8
-                RowLayout { Layout.fillWidth: true
-                    Text { text: "COMPONENT TEST — one at a time"; color: Theme.textMute
-                        font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold }
-                    Item { Layout.fillWidth: true }
-                    Text { text: "Exit"; color: Theme.accentBlue; font.pixelSize: 14
-                        MouseArea { anchors.fill: parent; anchors.margins: -10; onClicked: panel.leave() } } }
-                GridLayout {
-                    Layout.fillWidth: true; columns: 2; columnSpacing: 8; rowSpacing: 8
-                    Repeater { model: panel.relays
-                        Rectangle {
-                            Layout.fillWidth: true; Layout.preferredHeight: 52; radius: 10
-                            property bool on: panel.shownOn(modelData.i)
-                            color: on ? Qt.rgba(Theme.ok.r, Theme.ok.g, Theme.ok.b, 0.20) : Theme.surface
-                            border.color: on ? Theme.ok : (modelData.engine ? Theme.warn : Theme.border); border.width: 1
-                            RowLayout { anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 6
-                                Text { Layout.fillWidth: true; text: modelData.name; color: Theme.textDim
-                                    font.pixelSize: 13; elide: Text.ElideRight }
-                                Text { visible: modelData.engine; text: "⚠"; color: Theme.warn; font.pixelSize: 13 }
-                                Text { text: parent.parent.on ? "ON" : "OFF"
-                                    color: parent.parent.on ? Theme.ok : Theme.textMute; font.pixelSize: 12; font.weight: Font.Bold } }
-                            MouseArea { anchors.fill: parent
-                                onClicked: {
-                                    if (modelData.engine && !parent.on) { confirm.pending = modelData; confirm.open = true }
-                                    else panel.toggle(modelData)
-                                } }
-                        }
+            boundsBehavior: Flickable.StopAtBounds
+            GridLayout {
+                id: grid; width: gridSlot.width
+                columns: 2; columnSpacing: 8; rowSpacing: 8
+                Repeater { model: panel.relays
+                    Rectangle {
+                        Layout.fillWidth: true; Layout.preferredHeight: 52; radius: Theme.radiusSm + 2
+                        property bool on: panel.shownOn(modelData.i)
+                        color: on ? Theme.tint(Theme.ok, 0.22) : Theme.surface
+                        border.color: on ? Theme.ok : (modelData.engine ? Theme.tint(Theme.warn, 0.7) : Theme.border); border.width: 1
+                        RowLayout { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 12; spacing: 8
+                            Icon { visible: modelData.engine; name: "alert"; size: 16; color: Theme.warn }
+                            Text { Layout.fillWidth: true; text: modelData.name; color: Theme.text
+                                font.pixelSize: Theme.fsLabel + 1; elide: Text.ElideRight }
+                            Text { text: parent.parent.on ? "ON" : "OFF"
+                                color: parent.parent.on ? Theme.ok : Theme.textMute; font.pixelSize: Theme.fsLabel; font.weight: Font.Bold } }
+                        MouseArea { anchors.fill: parent
+                            onClicked: {
+                                if (modelData.engine && !parent.on) { confirm.pending = modelData; confirm.open = true }
+                                else panel.toggle(modelData)
+                            } }
                     }
                 }
             }
@@ -230,17 +239,22 @@ Item {
         // Engine-relay confirm strip (crank/prime hazard)
         Rectangle {
             id: confirm
-            Layout.fillWidth: true; Layout.preferredHeight: 56; radius: 10; visible: confirm.open
-            color: Qt.rgba(Theme.warn.r, Theme.warn.g, Theme.warn.b, 0.12); border.color: Theme.warn; border.width: 1
+            Layout.fillWidth: true; Layout.preferredHeight: 60; radius: Theme.radiusSm + 2; visible: confirm.open
+            color: Theme.tint(Theme.warn, 0.14); border.color: Theme.warn; border.width: 1
             property var pending: null; property bool open: false
-            RowLayout { anchors.fill: parent; anchors.margins: 10; spacing: 10
-                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.warn; font.pixelSize: 12
+            RowLayout { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 8; spacing: 8
+                Icon { name: "alert"; size: 20; color: Theme.warn }
+                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.warn; font.pixelSize: Theme.fsLabel
                     text: confirm.pending ? ("Energize " + confirm.pending.name + "? This can crank/prime the engine.") : "" }
-                Text { text: "Confirm"; color: Theme.warn; font.pixelSize: 14; font.weight: Font.Bold
-                    MouseArea { anchors.fill: parent; anchors.margins: -8
+                Rectangle { Layout.preferredWidth: 96; Layout.preferredHeight: 44; radius: Theme.radiusSm
+                    color: cfma.pressed ? Qt.darker(Theme.warn, 1.15) : Theme.warn
+                    Text { anchors.centerIn: parent; text: "Energize"; color: "#2B2100"; font.pixelSize: Theme.fsLabel + 1; font.weight: Font.Bold }
+                    MouseArea { id: cfma; anchors.fill: parent
                         onClicked: { panel.toggle(confirm.pending); confirm.open = false; confirm.pending = null } } }
-                Text { text: "Cancel"; color: Theme.textMute; font.pixelSize: 14
-                    MouseArea { anchors.fill: parent; anchors.margins: -8; onClicked: { confirm.open = false; confirm.pending = null } } } }
+                Rectangle { Layout.preferredWidth: 84; Layout.preferredHeight: 44; radius: Theme.radiusSm
+                    color: ccma.pressed ? Theme.surface2 : Theme.surface; border.color: Theme.border; border.width: 1
+                    Text { anchors.centerIn: parent; text: "Cancel"; color: Theme.text; font.pixelSize: Theme.fsLabel + 1; font.weight: Font.Medium }
+                    MouseArea { id: ccma; anchors.fill: parent; onClicked: { confirm.open = false; confirm.pending = null } } } }
         }
     }
 }

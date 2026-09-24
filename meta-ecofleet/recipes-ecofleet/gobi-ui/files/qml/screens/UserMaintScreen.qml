@@ -2,58 +2,40 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
+import "../atoms"
 Item {
     id: page
 
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 14; spacing: 10
 
-        RowLayout { Layout.fillWidth: true
-            Text { text: "‹"; color: Theme.accentBlue; font.pixelSize: 26
-                MouseArea { anchors.fill: parent; anchors.margins: -10; onClicked: if (page.StackView.view) page.StackView.view.pop() } }
-            Text { text: "User Maintenance"; color: Theme.textDim; font.pixelSize: 18; font.weight: Font.DemiBold } }
+        ScreenHeader { title: "User Maintenance"; onBack: if (page.StackView.view) page.StackView.view.pop() }
 
-        // ── Hours + serial card ───────────────────────────────────────────────
-        Rectangle {
-            Layout.fillWidth: true; Layout.preferredHeight: 132
-            radius: 12; color: Theme.surface
-            ColumnLayout {
-                anchors.fill: parent; anchors.margins: 14; spacing: 8
-                Text { text: "Service Hours"; color: Theme.textLabel; font.pixelSize: 12; font.weight: Font.Medium }
-                GridLayout {
-                    columns: 2; columnSpacing: 16; rowSpacing: 6
-                    Text { text: "Engine Hours";  color: Theme.textMute; font.pixelSize: 13 }
-                    Text { text: telemetry.engineHrs + " h";  color: Theme.textDim; font.pixelSize: 13; font.weight: Font.Medium }
-                    Text { text: "Machine Hours"; color: Theme.textMute; font.pixelSize: 13 }
-                    Text { text: telemetry.machineHrs + " h"; color: Theme.textDim; font.pixelSize: 13; font.weight: Font.Medium }
-                    Text { text: "Oil Hours";     color: Theme.textMute; font.pixelSize: 13 }
-                    Text { text: telemetry.oilHrs + " h";     color: Theme.textDim; font.pixelSize: 13; font.weight: Font.Medium }
-                    Text { text: "Serial";        color: Theme.textMute; font.pixelSize: 13 }
-                    Text { text: devinfo.serial;              color: Theme.textDim; font.pixelSize: 13; font.weight: Font.Medium }
-                }
-            }
-        }
-
-        // ── Maintenance card (hold-to-reset oil timer) ────────────────────────
-        Rectangle {
-            Layout.fillWidth: true; Layout.preferredHeight: 92
-            radius: 12; color: Theme.surface
-            ColumnLayout {
-                anchors.fill: parent; anchors.margins: 12; spacing: 8
-                RowLayout { Layout.fillWidth: true
-                    Text { text: "Engine Oil"; color: Theme.textLabel; font.pixelSize: 12; font.weight: Font.Medium }
-                    Item { Layout.fillWidth: true }
-                    Text { text: telemetry.oilHrs + " hrs"; color: Theme.textDim; font.pixelSize: 13; font.weight: Font.Medium } }
+        // nested layouts default to fillHeight — size the row to its cards instead
+        RowLayout {
+            Layout.fillWidth: true; Layout.fillHeight: false; spacing: Theme.gap
+            InfoCard { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop
+                title: "Service hours"
+                rows: [ {k: "Engine",  v: telemetry.engineHrs + " h"},
+                        {k: "Machine", v: telemetry.machineHrs + " h"},
+                        {k: "Serial",  v: devinfo.serial} ] }
+            // Engine oil + hold-to-reset
+            InfoCard { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop
+                title: "Engine oil"
+                rows: [ {k: "Since last change", v: telemetry.oilHrs + " h"},
+                        {k: "Status", v: StatusLabels.title(telemetry.oilChange),
+                         hue: telemetry.oilChange === "good" ? Theme.ok : Theme.warn} ]
+                Item { Layout.preferredHeight: 4 }
                 Rectangle {
                     id: oilBtn
-                    Layout.fillWidth: true; Layout.preferredHeight: 40
-                    radius: 10; color: Theme.bg; border.color: Theme.border; border.width: 1
+                    Layout.fillWidth: true; Layout.preferredHeight: 48
+                    radius: Theme.radiusSm; color: Theme.bg; border.color: Theme.border; border.width: 1
                     clip: true
                     property bool done: false
                     Rectangle {
                         id: holdFill
                         height: parent.height; radius: parent.radius; width: 0
-                        color: "#33E3B341"
+                        color: Theme.tint(Theme.warn, 0.22)
                         Behavior on width { NumberAnimation { duration: 1500; easing.type: Easing.Linear } }
                     }
                     Text { anchors.centerIn: parent
