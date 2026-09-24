@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
+import "../atoms"
 Item {
     id: page
 
@@ -10,14 +11,14 @@ Item {
 
     property var sections: [
         { name: "STATUS", tiles: [
-            ["Mode", telemetry.mode, false], ["Control Status", StatusLabels.control(telemetry.controlStatus), false],
+            ["Mode", StatusLabels.mode(telemetry.mode), false], ["Control Status", StatusLabels.control(telemetry.controlStatus), false],
             ["Engine Status", StatusLabels.control(telemetry.engineStatus), false], ["Error", StatusLabels.error(telemetry.error), telemetry.hasError] ] },
         // Cabin Temp is a stand-in reading the APU-enclosure PTC (reg 1) until the
         // cortex has its own cab sensor; Enclosure Temp shows the same PA0 value
         // explicitly. Coolant is the PA4 sender (reg 51).
         { name: "CLIMATE", tiles: [
-            ["Cabin Temp", telemetry.cabinTempF.toFixed(0)+" °F", false], ["Setpoint", telemetry.clmtSetpointF.toFixed(0)+" °F", false],
-            ["Enclosure Temp", telemetry.cabinTempF.toFixed(0)+" °F", false], ["Coolant", telemetry.extTempF.toFixed(0)+" °F", false],
+            ["Cabin Temp", telemetry.cabinTempF.toFixed(0)+"°F", false], ["Setpoint", telemetry.clmtSetpointF.toFixed(0)+"°F", false],
+            ["Enclosure Temp", telemetry.cabinTempF.toFixed(0)+"°F", false], ["Coolant", telemetry.extTempF.toFixed(0)+"°F", false],
             ["Fan Speed", telemetry.fanSpeed>0?telemetry.fanSpeed+"%":"Off", false] ] },
         { name: "POWER & ENGINE", tiles: [
             ["Battery", telemetry.battV.toFixed(2)+" V", false], ["Engine RPM", telemetry.rpm+"", false],
@@ -25,15 +26,12 @@ Item {
             ["Batt Target", telemetry.battSetpointV.toFixed(1)+" V", false] ] },
         { name: "SERVICE", tiles: [
             ["Engine Hours", telemetry.engineHrs+" h", false], ["Oil Hours", telemetry.oilHrs+" h", false],
-            ["Machine Hours", telemetry.machineHrs+" h", false], ["Oil Change", telemetry.oilChange, telemetry.oilChange!=="good"] ] }
+            ["Machine Hours", telemetry.machineHrs+" h", false], ["Oil Change", StatusLabels.title(telemetry.oilChange), telemetry.oilChange!=="good"] ] }
     ]
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 12; spacing: 8
 
-        RowLayout { Layout.fillWidth: true
-            Text { text: "‹"; color: Theme.accentBlue; font.pixelSize: 26
-                MouseArea { anchors.fill: parent; anchors.margins: -12; onClicked: if (page.StackView.view) page.StackView.view.pop() } }
-            Text { text: "Live Diagnostics"; color: Theme.textDim; font.pixelSize: 18; font.weight: Font.DemiBold } }
+        ScreenHeader { title: "Live Diagnostics"; onBack: if (page.StackView.view) page.StackView.view.pop() }
 
         Flickable {
             id: flick
@@ -49,14 +47,14 @@ Item {
                 // ── Live readings ────────────────────────────────────────────────
                 Repeater { model: page.sections
                     ColumnLayout { Layout.fillWidth: true; spacing: 3
-                        Text { text: modelData.name; color: Theme.textMute; font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.DemiBold }
+                        Text { text: modelData.name; color: Theme.textMute; font.pixelSize: Theme.fsCaption; font.letterSpacing: 2; font.weight: Font.DemiBold }
                         GridLayout { Layout.fillWidth: true; columns: 4; columnSpacing: 8; rowSpacing: 8
                             Repeater { model: modelData.tiles
-                                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 56; radius: 10; color: Theme.surface
+                                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 58; radius: Theme.radius; color: Theme.surface
                                     border.color: modelData[2] ? Theme.fault : "transparent"; border.width: modelData[2] ? 1 : 0
                                     Column { anchors.left: parent.left; anchors.leftMargin: 14; anchors.right: parent.right; anchors.rightMargin: 10
                                              anchors.verticalCenter: parent.verticalCenter; spacing: 2
-                                        Text { text: modelData[0]; color: Theme.textMute; font.pixelSize: 12; elide: Text.ElideRight; width: parent.width }
+                                        Text { text: modelData[0]; color: Theme.textMute; font.pixelSize: Theme.fsCaption; elide: Text.ElideRight; width: parent.width }
                                         Text { text: modelData[1]; color: modelData[2] ? Theme.fault : Theme.text; font.pixelSize: 20
                                                font.weight: Font.DemiBold; elide: Text.ElideRight; width: parent.width } } } } } } }
 

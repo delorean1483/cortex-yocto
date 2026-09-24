@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "."
 import "screens"
 
 ApplicationWindow {
@@ -10,7 +11,7 @@ ApplicationWindow {
     height: 800
     title: "EcoFleet"
 
-    background: Rectangle { color: "#0D1117" }
+    background: Rectangle { color: Theme.bg }
 
     // ── Rail IA on a fixed 800x480 canvas that letterbox-scales to the panel ──
     ScaleRoot {
@@ -30,46 +31,31 @@ ApplicationWindow {
     Component { id: menuC; MenuScreen { appShell: shell } }
 
     // ── Splash overlay ────────────────────────────────────────────────────────
-    Rectangle {
+    // Same artwork psplash and the Weston background show during boot
+    // (SplashArt.qml), so boot reads as one EcoFleet loading screen. The bar picks
+    // up where the boot splash left off and fills; the splash then fades to Home
+    // once the first telemetry snapshot has been read (so Home never flashes
+    // empty readings) — at least minMs on screen, never longer than maxMs.
+    SplashArt {
         id: splash
         anchors.fill: parent
-        color: "#0D1117"
         z: 10
-
-        Column {
-            anchors.centerIn: parent
-            spacing: 16
-
-            Image {
-                anchors.horizontalCenter: parent.horizontalCenter
-                source: "/usr/share/gobi-ui/ecofleet_logo.png"
-                height: 72
-                fillMode: Image.PreserveAspectFit
-            }
-
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "FLEET APU MONITOR"
-                color: "#6E7681"
-                font.pixelSize: 12
-                font.letterSpacing: 3
-            }
-
-            Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: 120; height: 3; radius: 2; color: "#21262D"
-                Rectangle {
-                    width: parent.width * 0.7; height: parent.height; radius: parent.radius
-                    color: "#00C49A"
-                }
-            }
-        }
-
-        SequentialAnimation on opacity {
-            running: true
-            PauseAnimation   { duration: 2500 }
-            NumberAnimation  { to: 0; duration: 300; easing.type: Easing.InQuad }
-            ScriptAction     { script: splash.visible = false }
+        property int minMs: 1000
+        property int maxMs: 5000
+        property bool minElapsed: false
+        readonly property bool haveData: telemetry.tsMs > 0
+        progress: 0.6
+        NumberAnimation on progress { id: fillAnim; to: 0.95; duration: splash.maxMs; easing.type: Easing.OutCubic }
+        Timer { interval: splash.minMs; running: true; onTriggered: splash.minElapsed = true }
+        Timer { interval: splash.maxMs; running: true; onTriggered: splash.finish() }
+        onMinElapsedChanged: if (minElapsed && haveData) finish()
+        onHaveDataChanged: if (minElapsed && haveData) finish()
+        function finish() { if (!done.running && splash.visible) { fillAnim.stop(); done.start() } }
+        SequentialAnimation {
+            id: done
+            NumberAnimation { target: splash; property: "progress"; to: 1; duration: 200 }
+            NumberAnimation { target: splash; property: "opacity"; to: 0; duration: 250; easing.type: Easing.InQuad }
+            ScriptAction { script: splash.visible = false }
         }
     }
 }

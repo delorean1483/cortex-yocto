@@ -3,39 +3,42 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import ".."
 import "../atoms"
+// Technician hub: one row per tool, each opening its own screen.
 Item {
     id: page
+    Component { id: comptestC;  ComponentTestScreen {} }
+    Component { id: diagC;      DiagnosticsScreen {} }
+    Component { id: usermaintC; UserMaintScreen {} }
+    function open(c) { if (page.StackView.view) page.StackView.view.push(c) }
+
     ColumnLayout {
-        anchors.fill: parent; anchors.margins: 14; spacing: 12
-        ScreenHeader { title: "Maintenance"; onBack: if (page.StackView.view) page.StackView.view.pop() }
+        anchors.fill: parent; anchors.margins: 14; spacing: 10
+        ScreenHeader { title: "Maintenance"; subtitle: "Technician tools"
+            onBack: if (page.StackView.view) page.StackView.view.pop() }
 
-        Rectangle {
-            Layout.fillWidth: true; Layout.preferredHeight: 96
-            radius: 12; color: Qt.rgba(Theme.warn.r, Theme.warn.g, Theme.warn.b, 0.10)
-            border.color: Theme.warn; border.width: 1
-            RowLayout {
-                anchors.fill: parent; anchors.margins: 16; spacing: 14
-                Icon { name: "cpu"; size: 34; color: Theme.warn; Layout.alignment: Qt.AlignVCenter }
-                ColumnLayout { Layout.fillWidth: true; spacing: 2
-                    Text { text: "Technician tools"; color: Theme.warn; font.pixelSize: 18; font.weight: Font.Bold }
-                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.textDim; font.pixelSize: 13
-                        text: "Component test, calibration, and fault codes need a firmware update and a maintenance passcode." }
+        Repeater {
+            model: [
+                { icon: "mode",   title: "Component Test",   desc: "Actuate relays one at a time — maintenance passcode required", c: comptestC, locked: true },
+                { icon: "diag",   title: "Live Diagnostics", desc: "Live sensor, engine and service readings", c: diagC, locked: false },
+                { icon: "wrench", title: "User Maintenance", desc: "Service hours and oil-timer reset", c: usermaintC, locked: false }
+            ]
+            Rectangle {
+                Layout.fillWidth: true; Layout.preferredHeight: 76
+                radius: Theme.radius; color: rma.pressed ? Theme.surface2 : Theme.surface
+                RowLayout {
+                    anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 14; spacing: 16
+                    Icon { name: modelData.icon; size: 30; color: Theme.accent }
+                    ColumnLayout { Layout.fillWidth: true; spacing: 2
+                        RowLayout { spacing: 8
+                            Text { text: modelData.title; color: Theme.text; font.pixelSize: Theme.fsBody + 1; font.weight: Font.DemiBold }
+                            Icon { visible: modelData.locked; name: "lock"; size: 15; color: Theme.warn } }
+                        Text { Layout.fillWidth: true; text: modelData.desc; color: Theme.textMute
+                            font.pixelSize: Theme.fsLabel; elide: Text.ElideRight } }
+                    Icon { name: "chevron-right"; size: 22; color: Theme.textMute }
                 }
+                MouseArea { id: rma; anchors.fill: parent; onClicked: page.open(modelData.c) }
             }
         }
-
-        Rectangle {
-            Layout.fillWidth: true; Layout.fillHeight: true
-            radius: 12; color: Theme.surface
-            ColumnLayout {
-                anchors.fill: parent; anchors.margins: 16; spacing: 10
-                Text { text: "Available now"; color: Theme.textLabel; font.pixelSize: 12; font.weight: Font.Medium }
-                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.textDim; font.pixelSize: 14
-                    text: "• Live sensor readings and the fan test are in Live Diagnostics.\n• Oil-timer reset is in User Maintenance." }
-                Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.textMute; font.pixelSize: 12
-                    text: "Individual relay/actuator tests will arrive with an APU firmware update that adds a guarded component-test mode." }
-                Item { Layout.fillHeight: true }
-            }
-        }
+        Item { Layout.fillHeight: true }
     }
 }

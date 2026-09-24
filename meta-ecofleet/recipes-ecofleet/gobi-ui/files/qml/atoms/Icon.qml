@@ -26,7 +26,15 @@ Item {
         "lock":    "M4 11h16v11H4z M7 11V7a5 5 0 0 1 10 0v4",
         "cpu":     "M6 4h12v16H6z M9 9h6v6H9z M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3",
         "support": "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M14.83 9.17l4.24-4.24M4.93 19.07l4.24-4.24",
-        "backspace":"M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M18 9l-6 6 M12 9l6 6"
+        "backspace":"M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M18 9l-6 6 M12 9l6 6",
+        "chevron-left":  "M15 18l-6-6 6-6",
+        "chevron-right": "M9 18l6-6-6-6",
+        "chevron-up":    "M18 15l-6-6-6 6",
+        "chevron-down":  "M6 9l6 6 6-6",
+        "plus":    "M12 5v14 M5 12h14",
+        "minus":   "M5 12h14",
+        "check-circle": "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M8 12l3 3 5-6",
+        "alert":   "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
     })
 
     // 24x24 art scaled up to `size`, top-left anchored.

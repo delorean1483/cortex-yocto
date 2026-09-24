@@ -7,7 +7,7 @@ Item {
     property var railModel: []
     property var railScreens: []     // Component[] aligned with railModel
     property int railIndex: 0
-    function pushScreen(comp) { stack.push(comp) }
+    function pushScreen(comp) { return stack.push(comp) }
     function popScreen() { if (stack.depth > 1) stack.pop() }
     function selectRail(i) {
         shell.railIndex = i
