@@ -1,5 +1,7 @@
 'use strict';
 
+const { parseVersion, cmpVersion } = require('./releases-view');
+
 // Pure helpers for assigned unit locations (Fleet map). No I/O.
 // Units have no GPS yet, so an admin assigns each unit a location.
 
@@ -46,4 +48,26 @@ function mergeLocations(items, demoUnits) {
   return [...stored, ...demo].sort((a, b) => a.unit.localeCompare(b.unit));
 }
 
-module.exports = { validateLocation, mergeLocations, DEMO_LOCATIONS, LABEL_MAX };
+// Validated location value (or null when cleared) -> shadow desired.location.
+// Always the full object with label as "" rather than omitted: the shadow
+// merges nested objects, so an omitted label would leave the old one behind.
+// A clear is an explicit {assigned:false} because deleting a desired key never
+// sends the device a delta. The unit uses it for its forecast and time zone.
+function locationShadowDesired(value) {
+  if (!value) return { assigned: false };
+  return { assigned: true, lat: value.lat, lon: value.lon, label: value.label || '' };
+}
+
+// First cortex image whose agent reports reported.location back. Sending
+// desired.location to an older unit would leave a standing delta that AWS
+// re-sends on every telemetry publish (and which re-applies transient desired
+// commands), so older / unversioned (branch-build) units are skipped.
+const LOCATION_MIN_FW = '1.2.61';
+function unitSupportsLocation(firmwareVersion) {
+  return parseVersion(firmwareVersion) !== null && cmpVersion(firmwareVersion, LOCATION_MIN_FW) >= 0;
+}
+
+module.exports = {
+  validateLocation, mergeLocations, locationShadowDesired, unitSupportsLocation,
+  LOCATION_MIN_FW, DEMO_LOCATIONS, LABEL_MAX,
+};

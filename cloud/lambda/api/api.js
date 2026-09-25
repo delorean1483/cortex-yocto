@@ -19,7 +19,8 @@ const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./
 const { buildReports, faultCountFlux }                             = require('./reports-view');
 const { parseReleases }                                            = require('./releases-view');
 const { latestFlux, telemetryFlux, unitsFlux, faultsFlux, clampLimit, RELATIVE_RANGE } = require('./flux');
-const { validateLocation, mergeLocations }                         = require('./locations-view');
+const { validateLocation, mergeLocations, locationShadowDesired,
+        unitSupportsLocation, LOCATION_MIN_FW }                      = require('./locations-view');
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const REGION            = process.env.AWS_REGION || 'us-east-1';
@@ -632,6 +633,31 @@ function locationWriteGuard(event, claims) {
   return { unit };
 }
 
+// Mirror an assigned location (or a clear) into the unit's shadow as
+// desired.location, so the unit uses it for its forecast and time zone.
+// Best-effort: the location is already saved. Only units on an image that
+// reports reported.location back get it (see unitSupportsLocation); a unit that
+// has never connected (no shadow yet), an older unit, or an IoT error means the
+// unit isn't updated — the caller reports unit_synced:false.
+async function syncLocationShadow(unit, value) {
+  const thingName = `gobi-apu-${unit}`;
+  try {
+    const cur = await iotdata.send(new GetThingShadowCommand({ thingName }));
+    const doc = JSON.parse(Buffer.from(cur.payload).toString('utf8'));
+    const fw  = doc?.state?.reported?.firmware_version;
+    if (!unitSupportsLocation(fw)) {
+      console.warn(`location not sent to ${unit}: firmware ${fw || 'unknown'} < ${LOCATION_MIN_FW}`);
+      return false;
+    }
+    const payload = JSON.stringify({ state: { desired: { location: locationShadowDesired(value) } } });
+    await iotdata.send(new UpdateThingShadowCommand({ thingName, payload: Buffer.from(payload, 'utf8') }));
+    return true;
+  } catch (e) {
+    console.warn(`location shadow sync failed for ${unit}: ${e.name || e.message}`);
+    return false;
+  }
+}
+
 // PATCH /fleet/units/{unit}/location — set or move a unit's assigned location
 async function handleSetLocation(event, claims) {
   const g = locationWriteGuard(event, claims);
@@ -650,7 +676,8 @@ async function handleSetLocation(event, claims) {
   };
   if (v.value.label) item.label = v.value.label;
   await ddb.send(new PutCommand({ TableName: LOCATIONS_TABLE, Item: item }));
-  return resp(200, { location: { ...item, label: item.label || null, source: 'assigned' } });
+  const unit_synced = await syncLocationShadow(g.unit, v.value);
+  return resp(200, { location: { ...item, label: item.label || null, source: 'assigned' }, unit_synced });
 }
 
 // DELETE /fleet/units/{unit}/location — remove a unit's assigned location
@@ -663,7 +690,8 @@ async function handleClearLocation(event, claims) {
     ReturnValues: 'ALL_OLD',
   }));
   if (!res.Attributes) return err(404, 'no location set for this unit');
-  return resp(200, { unit: g.unit, cleared: true });
+  const unit_synced = await syncLocationShadow(g.unit, null);
+  return resp(200, { unit: g.unit, cleared: true, unit_synced });
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────

@@ -16,6 +16,7 @@
  * greys it out once it ages past its staleness window).
  */
 #include "weather.h"
+#include "location.h"
 
 #include <curl/curl.h>
 
@@ -154,13 +155,29 @@ static char *http_get(const char *url, const char *what)
     return buf.data;
 }
 
-/* Resolve the forecast location. Primary source is IP-based geolocation (so the
- * dashboard follows the device's network); the configured lat/lon is the
- * fallback when the lookup fails or is offline. On return, lat, lon and label
- * hold the location to use; returns 1 if a location was resolved, else 0. */
+/* Resolve the forecast location, in priority order:
+ *   1. the location an admin assigned on the dashboard's Fleet map (mirrored
+ *      to LOCATION_JSON_PATH by gobi-agent from shadow desired.location) —
+ *      reliable even on cellular, where IP geolocation can land on the
+ *      carrier's hub in another state or time zone;
+ *   2. IP-based geolocation (follows the device's network);
+ *   3. the configured lat/lon in gobi-agent.conf.
+ * The time zone follows the same location (Open-Meteo timezone=auto). On
+ * return, lat, lon and label hold the location to use; returns 1 if a
+ * location was resolved, else 0. */
 static int resolve_location(const weather_cfg_t *cfg,
                             double *lat, double *lon, char *label, size_t label_sz)
 {
+    unit_location_t assigned;
+    if (location_load(LOCATION_JSON_PATH, &assigned)) {
+        *lat = assigned.lat;
+        *lon = assigned.lon;
+        snprintf(label, label_sz, "%s", assigned.label[0] ? assigned.label : cfg->label);
+        syslog(LOG_INFO, "weather: assigned location %.4f,%.4f (%s)",
+               assigned.lat, assigned.lon, label[0] ? label : "unnamed");
+        return 1;
+    }
+
     int have = cfg->have_loc;
     if (have) {                       /* seed with configured fallback */
         *lat = cfg->lat;

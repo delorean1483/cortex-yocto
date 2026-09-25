@@ -90,6 +90,34 @@ describe('FleetMapPage', () => {
     expect(state.setMutate.mock.calls[0][0]).toEqual({ unit: 'TRUCK-001', lat: 32.9, lon: -97.04, label: 'Yard' })
   })
 
+  it('explains the location drives the unit\'s weather and time zone', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Set location for TRUCK-001' }))
+    expect(screen.getByText(/weather forecast and local time zone/)).toBeTruthy()
+  })
+
+  it('warns when the location was saved but could not be sent to the unit', () => {
+    state.setMutate = vi.fn((_vars, opts) => opts.onSuccess({ unit_synced: false }))
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Set location for TRUCK-001' }))
+    fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '32.9' } })
+    fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '-97.04' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save location' }))
+    expect(screen.getByRole('status').textContent).toMatch(/couldn't be sent to the unit/)
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('no warning when the unit was updated', () => {
+    state.setMutate = vi.fn((_vars, opts) => opts.onSuccess({ unit_synced: true }))
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Set location for TRUCK-001' }))
+    fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '32.9' } })
+    fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '-97.04' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save location' }))
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
   it('clicking the map fills the coordinates', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Set location for TRUCK-001' }))

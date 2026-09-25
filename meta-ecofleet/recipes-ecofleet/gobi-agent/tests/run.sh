@@ -74,7 +74,25 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g \
 # desired.firmware_target must be nulled once the OTA converges).
 cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -fsanitize=address,undefined \
+   -DLOCATION_JSON_PATH='"/tmp/test_shadow_fw_target_location.json"' \
    -I"$here/mqstub" -I"$files" -I"$cjson/include" \
-   "$here/test_shadow_fw_target.c" \
+   "$here/test_shadow_fw_target.c" "$files/location.c" \
    -L"$cjson/lib" -lcjson -lpthread \
    -o "$here/test_shadow_fw_target" && "$here/test_shadow_fw_target"
+
+# Assigned-location helpers (location.c): desired.location parse, file form,
+# change-only store.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" -I"$cjson/include" \
+   "$here/test_location.c" "$files/location.c" \
+   -L"$cjson/lib" -lcjson \
+   -o "$here/test_location" && "$here/test_location"
+
+# desired.location through the REAL shadow.c: partial-delta merge, clear, and
+# reported.location echo (no standing delta).
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -DLOCATION_JSON_PATH='"/tmp/test_shadow_location.json"' \
+   -I"$here/mqstub" -I"$files" -I"$cjson/include" \
+   "$here/test_shadow_location.c" "$files/location.c" \
+   -L"$cjson/lib" -lcjson -lpthread \
+   -o "$here/test_shadow_location" && "$here/test_shadow_location"

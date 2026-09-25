@@ -57,6 +57,7 @@ export default function FleetMapPage() {
   const [selected, setSelected] = useState(null)
   const [editing, setEditing] = useState(null) // { unit, lat, lon, label, errors, apiError }
   const [removing, setRemoving] = useState(null)
+  const [syncWarn, setSyncWarn] = useState('') // location saved but not delivered to the unit
 
   const locByUnit = Object.fromEntries((locations || []).map((l) => [l.unit, l]))
   const rows = list.map((u) => ({
@@ -90,7 +91,12 @@ export default function FleetMapPage() {
     const v = validateLatLon(editing.lat, editing.lon, editing.label)
     if (!v.ok) { setEditing({ ...editing, errors: v.errors }); return }
     setLoc.mutate({ unit: editing.unit, ...v.value }, {
-      onSuccess: () => { setSelected(editing.unit); setEditing(null) },
+      onSuccess: (res) => {
+        setSyncWarn(res?.unit_synced === false
+          ? `${editing.unit}'s location is saved, but it couldn't be sent to the unit yet — it needs to be online and on firmware 1.2.61 or newer. Save it again after that.`
+          : '')
+        setSelected(editing.unit); setEditing(null)
+      },
       onError: (e) => setEditing((cur) => cur && { ...cur, apiError: e.message }),
     })
   }
@@ -110,6 +116,13 @@ export default function FleetMapPage() {
         Assigned locations — units don't report GPS yet.
       </p>
 
+      {syncWarn && (
+        <div className="notice" role="status" style={{ color: 'var(--warn)' }}>
+          {syncWarn}
+          <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setSyncWarn('')}>Dismiss</button>
+        </div>
+      )}
+
       {locError && (
         <div className="notice" style={{ color: 'var(--err)' }}>
           Couldn't load locations: {locError.message}
@@ -128,6 +141,9 @@ export default function FleetMapPage() {
           {editing && (
             <section className="group" aria-labelledby="loc-edit-h">
               <h2 id="loc-edit-h" className="group-hd" style={{ margin: 0 }}>Place {editing.unit}</h2>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                The unit uses this location for its weather forecast and local time zone.
+              </p>
               <div className="field">
                 <label htmlFor="loc-lat">Latitude</label>
                 <input id="loc-lat" className="control" inputMode="decimal" value={editing.lat}
