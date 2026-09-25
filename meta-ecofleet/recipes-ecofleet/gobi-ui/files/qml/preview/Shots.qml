@@ -54,6 +54,12 @@ Item {
         ["10-errorlog",      function() { telemetry.hasError = false; telemetry.error = "none"; root.poke(); root.sub(logC) }],
         ["11-settings",      function() { root.sub(settingsC) }],
         ["12-cloud",         function() { root.sub(cloudC) }],
+        ["12b-cloud-offline", function() { telemetry.cloudConnected = false
+                                           telemetry.cloudLastAckMs = Date.now() - 7 * 60000
+                                           root.poke(); root.sub(cloudC) }],
+        ["12c-cloud-back",   function() { telemetry.cloudConnected = true
+                                           telemetry.cloudLastAckMs = Date.now() - 12000
+                                           root.poke(); root.sub(cloudC) }],
         ["13-screenlock",    function() { root.sub(lockC) }],
         ["14-maintenance",   function() { root.sub(maintC) }],
         ["15-comptest-lock", function() { root.sub(comptestC) }],

@@ -35,6 +35,8 @@ class TelemetryModel : public QObject
     Q_PROPERTY(bool    diagActive    READ diagActive    NOTIFY dataChanged)
     Q_PROPERTY(int     diagOutputs   READ diagOutputs   NOTIFY dataChanged)
     Q_PROPERTY(int     apuFwVersion  READ apuFwVersion  NOTIFY dataChanged)
+    Q_PROPERTY(bool    cloudConnected READ cloudConnected NOTIFY dataChanged)
+    Q_PROPERTY(qint64  cloudLastAckMs READ cloudLastAckMs NOTIFY dataChanged)
     Q_PROPERTY(bool    heaterPresent      READ heaterPresent      NOTIFY dataChanged)
     Q_PROPERTY(QString heaterState        READ heaterState        NOTIFY dataChanged)
     Q_PROPERTY(int     heaterTargetLevel  READ heaterTargetLevel  NOTIFY dataChanged)
@@ -92,6 +94,8 @@ public:
     bool    diagActive()    const { return m_diagActive; }
     int     diagOutputs()   const { return m_diagOutputs; }
     int     apuFwVersion()  const { return m_apuFwVersion; }
+    bool    cloudConnected() const { return m_cloudConnected; }   // MQTT link to AWS IoT up
+    qint64  cloudLastAckMs() const { return m_cloudLastAckMs; }   // epoch ms of last AWS ack, 0 = none
     bool    heaterPresent()      const { return m_heaterPresent; }
     QString heaterState()        const { return m_heaterState; }
     int     heaterTargetLevel()  const { return m_heaterTargetLevel; }
@@ -131,6 +135,8 @@ private:
     bool    m_diagActive    = false;
     int     m_diagOutputs   = 0;
     int     m_apuFwVersion  = 0;
+    bool    m_cloudConnected = false;
+    qint64  m_cloudLastAckMs = 0;
 
     bool    m_heaterPresent      = false;
     QString m_heaterState        = QStringLiteral("off");
