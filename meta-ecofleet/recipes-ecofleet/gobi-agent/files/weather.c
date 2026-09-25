@@ -158,3 +158,42 @@ char *weather_build_json(const char *open_meteo_json,
     cJSON_Delete(in);
     return result;
 }
+
+/* A zone name is segments of [A-Za-z0-9_+-] joined by single '/'. Rejects "",
+ * leading/trailing/double '/', and any '.' (so no "..") or other character. */
+static int tz_name_ok(const char *n)
+{
+    size_t seg = 0;
+    if (!n || !*n) return 0;
+    for (const char *p = n; *p; p++) {
+        char c = *p;
+        if (c == '/') {
+            if (seg == 0) return 0;          /* leading or double slash */
+            seg = 0;
+        } else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                   (c >= '0' && c <= '9') || c == '_' || c == '+' || c == '-') {
+            seg++;
+        } else {
+            return 0;
+        }
+    }
+    return seg > 0;                          /* no trailing slash */
+}
+
+int weather_parse_timezone(const char *open_meteo_json, char *tz, size_t tz_sz)
+{
+    if (!open_meteo_json || !tz || tz_sz == 0) return 0;
+    cJSON *root = cJSON_Parse(open_meteo_json);
+    if (!root) return 0;
+    int ok = 0;
+    cJSON *jtz = cJSON_GetObjectItemCaseSensitive(root, "timezone");
+    if (cJSON_IsString(jtz) && jtz->valuestring) {
+        const char *v = jtz->valuestring;
+        if (strlen(v) < tz_sz && tz_name_ok(v)) {
+            memcpy(tz, v, strlen(v) + 1);
+            ok = 1;
+        }
+    }
+    cJSON_Delete(root);
+    return ok;
+}

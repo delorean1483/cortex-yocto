@@ -53,6 +53,7 @@ IMAGE_INSTALL:append = " \
     ecofleet-bootscript \
     ecofleet-boot-confirm \
     swupdate-keys \
+    tzdata \
 "
 
 # STM32 (g0b1/APU) firmware delivery — GO-LIVE 2026-09-18.

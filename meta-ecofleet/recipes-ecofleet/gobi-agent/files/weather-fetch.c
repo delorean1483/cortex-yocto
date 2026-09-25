@@ -28,6 +28,10 @@
 
 #define AGENT_CONFIG_FILE  "/etc/ecofleet/gobi-agent.conf"
 #define WEATHER_JSON_PATH  "/var/lib/ecofleet/weather.json"
+/* IANA zone for the forecast location, from Open-Meteo's timezone=auto. The
+ * unprivileged fetcher only drops the name here; gobi-tz-apply.path starts a
+ * root worker that validates it and sets the system time zone. */
+#define TIMEZONE_PATH      "/var/lib/ecofleet/timezone"
 #define FORECAST_DAYS      4
 #define HTTP_TIMEOUT_S     15L
 #define API_HOST           "https://api.open-meteo.com/v1/forecast"
@@ -232,6 +236,26 @@ int main(void)
     curl_global_cleanup();
 
     if (!body) { closelog(); return 1; }   /* keep last good file */
+
+    /* Time zone for the same location: rewrite the request file only when the
+       zone changes, so the root worker (and its gobi-ui restart) fires once. */
+    char tz[64];
+    if (weather_parse_timezone(body, tz, sizeof(tz))) {
+        char cur[64] = { 0 };
+        FILE *tf = fopen(TIMEZONE_PATH, "r");
+        if (tf) {
+            if (fgets(cur, sizeof(cur), tf)) cur[strcspn(cur, "\n")] = '\0';
+            fclose(tf);
+        }
+        if (strcmp(cur, tz) != 0) {
+            char line[80];
+            snprintf(line, sizeof(line), "%s\n", tz);
+            if (write_atomic(TIMEZONE_PATH, line) == 0)
+                syslog(LOG_INFO, "weather: time zone %s -> %s", cur[0] ? cur : "(none)", tz);
+            else
+                syslog(LOG_WARNING, "weather: could not write %s", TIMEZONE_PATH);
+        }
+    }
 
     long long now_ms = (long long)time(NULL) * 1000LL;
     char *json = weather_build_json(body, label, now_ms, FORECAST_DAYS);

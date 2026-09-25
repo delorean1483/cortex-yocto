@@ -184,6 +184,38 @@ static void test_geo_parse(void)
     CHECK(geo_parse(NULL, &lat, &lon, city, sizeof city) == 0, "null -> 0");
 }
 
+static void test_parse_timezone(void)
+{
+    char tz[64];
+    printf("weather_parse_timezone\n");
+    CHECK_EQ_INT(weather_parse_timezone(
+        "{\"latitude\":37.7,\"timezone\":\"America/Chicago\",\"daily\":{}}", tz, sizeof tz),
+        1, "Open-Meteo timezone accepted");
+    CHECK_EQ_STR(tz, "America/Chicago", "IANA name copied");
+    CHECK_EQ_INT(weather_parse_timezone("{\"timezone\":\"UTC\"}", tz, sizeof tz), 1, "UTC ok");
+    CHECK_EQ_INT(weather_parse_timezone("{\"timezone\":\"Etc/GMT+5\"}", tz, sizeof tz), 1, "Etc/GMT+5 ok");
+    CHECK_EQ_INT(weather_parse_timezone("{\"timezone\":\"America/Argentina/Buenos_Aires\"}", tz, sizeof tz),
+        1, "3-part name ok");
+
+    /* Anything that is not a plain zone name is rejected: the value is handed
+       to a root helper that builds a path under /usr/share/zoneinfo from it. */
+    tz[0] = 'x'; tz[1] = 0;
+    CHECK_EQ_INT(weather_parse_timezone("{\"timezone\":\"../../etc/passwd\"}", tz, sizeof tz), 0, "reject ..");
+    CHECK_EQ_STR(tz, "x", "out untouched on reject");
+    CHECK_EQ_INT(weather_parse_timezone("{\"timezone\":\"/etc/localtime\"}", tz, sizeof tz), 0, "reject absolute");
+    CHECK_EQ_INT(weather_parse_timezone("{\"timezone\":\"America/New York\"}", tz, sizeof tz), 0, "reject space");
+    CHECK_EQ_INT(weather_parse_timezone("{\"timezone\":\"America/X;rm -rf\"}", tz, sizeof tz), 0, "reject shell chars");
+    CHECK_EQ_INT(weather_parse_timezone("{\"timezone\":\"America/\"}", tz, sizeof tz), 0, "reject trailing slash");
+    CHECK_EQ_INT(weather_parse_timezone("{\"timezone\":\"\"}", tz, sizeof tz), 0, "reject empty");
+    CHECK_EQ_INT(weather_parse_timezone("{\"timezone\":5}", tz, sizeof tz), 0, "reject non-string");
+    CHECK_EQ_INT(weather_parse_timezone("{\"daily\":{}}", tz, sizeof tz), 0, "reject missing");
+    CHECK_EQ_INT(weather_parse_timezone("not json", tz, sizeof tz), 0, "reject bad json");
+    CHECK_EQ_INT(weather_parse_timezone(NULL, tz, sizeof tz), 0, "reject NULL");
+    char small[8];
+    CHECK_EQ_INT(weather_parse_timezone("{\"timezone\":\"America/Chicago\"}", small, sizeof small),
+        0, "reject name longer than buffer");
+}
+
 int main(void)
 {
     test_wmo_to_category();
@@ -191,6 +223,7 @@ int main(void)
     test_build_json();
     test_build_json_bad_input();
     test_geo_parse();
+    test_parse_timezone();
 
     printf("\n%d checks, %d failures\n", g_checks, g_fail);
     if (g_fail == 0) printf("ALL GREEN\n");
