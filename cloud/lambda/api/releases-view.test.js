@@ -1,7 +1,7 @@
 'use strict';
 // Run: node cloud/lambda/api/releases-view.test.js
 const assert = require('node:assert');
-const { parseReleases, cmpVersion } = require('./releases-view');
+const { parseReleases, cmpVersion, supportsRemoteReboot, REBOOT_MIN_FW } = require('./releases-view');
 
 let failed = 0;
 const check = (name, fn) => {
@@ -40,5 +40,16 @@ check('excludes prerelease-suffixed builds from the operator dropdown', () => {
   assert.strictEqual(r.latest, '1.2.56');
 });
 
-console.log(`\n${5 - failed}/5 checks passed`);
+check('remote reboot only for units whose agent has the reboot-loop guard', () => {
+  // Older agents reboot again on every start (desired.reboot is only cleared
+  // in a report that never goes out before the cold reset).
+  assert.strictEqual(REBOOT_MIN_FW, '1.2.62');
+  assert.strictEqual(supportsRemoteReboot('1.2.62'), true);
+  assert.strictEqual(supportsRemoteReboot('1.3.0'), true);
+  assert.strictEqual(supportsRemoteReboot('1.2.61'), false);
+  assert.strictEqual(supportsRemoteReboot('feat-reboot-guard'), false, 'branch builds');
+  assert.strictEqual(supportsRemoteReboot(undefined), false);
+});
+
+console.log(`\n${6 - failed}/6 checks passed`);
 process.exit(failed === 0 ? 0 : 1);

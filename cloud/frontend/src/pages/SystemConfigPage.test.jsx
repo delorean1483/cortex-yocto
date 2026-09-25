@@ -55,12 +55,24 @@ describe('SystemConfigPage', () => {
     expect(screen.getByText('Not reported yet')).toBeTruthy()
   })
 
-  it('offers no reboot control: the agent can re-read a stale reboot request after restarting', () => {
-    // gobi-agent clears desired.reboot only in its next report, after the root
-    // worker has already cold-reset the board, so a reboot sent from here can
-    // loop. Reboot stays out of the UI until the agent clears it first.
+  it('reboot asks first, then sends reboot (unit has the reboot-loop guard)', () => {
+    state.shadow = { reported: { poll_interval_s: 10, firmware_version: '1.2.62' } }
     render(<SystemConfigPage />)
-    expect(screen.queryByRole('button', { name: /reboot/i })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Reboot unit' }))
+    expect(screen.getByText(/cold power cycle and will be offline for about 1–2 minutes/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Reboot' }))
+    expect(state.mutate.mock.calls[0][0]).toEqual({ unit: 'TRUCK-001', config: { reboot: true } })
+  })
+
+  it('reboot is disabled on older system images, which would reboot again on every start', () => {
+    // Before 1.2.62 the agent cleared desired.reboot only in a report that never
+    // went out before the cold reset, so a remote reboot could loop. The API
+    // refuses it too (409); the page explains instead of offering it.
+    state.shadow = { reported: { poll_interval_s: 10, firmware_version: '1.2.57' } }
+    render(<SystemConfigPage />)
+    expect(screen.getByRole('button', { name: 'Reboot unit' }).disabled).toBe(true)
+    expect(screen.getByText(/needs system image 1\.2\.62 or newer/)).toBeTruthy()
+    expect(state.mutate).not.toHaveBeenCalled()
   })
 
   it('maint can change the interval but not reboot; eu can do neither', () => {

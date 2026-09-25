@@ -27,4 +27,14 @@ function parseReleases(commonPrefixes) {
   return { releases: versions, latest: versions[0] || null };
 }
 
-module.exports = { parseReleases, parseVersion, cmpVersion };
+// First cortex image whose agent carries out each remote reboot only once
+// (reboot-loop guard). Older agents reboot again on every start because
+// desired.reboot is only cleared in a report that never goes out before the
+// cold reset, so a remote reboot is refused for them (and for unversioned
+// branch builds).
+const REBOOT_MIN_FW = '1.2.62';
+function supportsRemoteReboot(firmwareVersion) {
+  return parseVersion(firmwareVersion) !== null && cmpVersion(firmwareVersion, REBOOT_MIN_FW) >= 0;
+}
+
+module.exports = { parseReleases, parseVersion, cmpVersion, supportsRemoteReboot, REBOOT_MIN_FW };

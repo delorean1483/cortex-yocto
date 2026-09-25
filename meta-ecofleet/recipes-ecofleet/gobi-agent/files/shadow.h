@@ -29,6 +29,10 @@ typedef struct {
     char     report_mode[16];    /* "normal" | "eco" | "debug"                  */
     char     firmware_target[32];/* semver, e.g. "1.2.0" — signals OTA desired  */
     bool     reboot_requested;   /* set true to trigger controlled reboot        */
+    long long reboot_request_ts; /* AWS metadata timestamp (epoch s) of the
+                                  * desired.reboot request, 0 if unknown — lets
+                                  * the reboot guard skip a request it already
+                                  * carried out before the restart */
     char     apu_command[8];     /* one-shot APU op-state: "climate" | "battery"
                                   * | "stop" | "" (legacy "start" == "climate")
                                   * — applied by the telemetry loop, then cleared

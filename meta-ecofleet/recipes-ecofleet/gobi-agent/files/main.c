@@ -11,6 +11,7 @@
 
 #include "config.h"
 #include "shadow.h"
+#include "reboot_guard.h"
 #include "stm32_flash_task.h"
 #include "heater_fields.h"
 #include "apu_command.h"
@@ -395,11 +396,29 @@ static void on_shadow_config(const shadow_config_t *cfg, void *userdata)
            cfg->firmware_target, cfg->reboot_requested, cfg->apu_command);
 
     if (cfg->reboot_requested) {
-        /* `systemctl reboot` (Linux->PSCI->TF-A->WDOG_B) HANGS this board before
-         * U-Boot SPL — route the reboot through the root worker, which uses the
-         * BD71847 PMIC I2C cold reset (gobi-cold-reboot) instead. */
-        syslog(LOG_WARNING, "shadow: reboot requested — via PMIC cold reset (root worker)");
-        write_ota_request("reboot");
+        /* The root worker cold-resets the board at once, before our next shadow
+         * report can null desired.reboot, so after the restart the shadow still
+         * says reboot:true. Carry out each request (identified by its AWS
+         * metadata timestamp) only once: a request we already honored is left
+         * for the next report to clear. The timestamp is saved durably BEFORE
+         * rebooting; if that fails, don't reboot — rebooting without the record
+         * is exactly what used to loop. */
+        long long honored = reboot_guard_load(REBOOT_HONORED_PATH);
+        if (!reboot_guard_should_honor(cfg->reboot_request_ts, honored)) {
+            syslog(LOG_WARNING, "shadow: reboot request %lld already carried out — clearing it, not rebooting again",
+                   cfg->reboot_request_ts);
+        } else if (cfg->reboot_request_ts > 0 &&
+                   reboot_guard_save(REBOOT_HONORED_PATH, cfg->reboot_request_ts) != 0) {
+            syslog(LOG_ERR, "shadow: cannot record reboot request %lld in %s — NOT rebooting (would loop)",
+                   cfg->reboot_request_ts, REBOOT_HONORED_PATH);
+        } else {
+            /* `systemctl reboot` (Linux->PSCI->TF-A->WDOG_B) HANGS this board before
+             * U-Boot SPL — route the reboot through the root worker, which uses the
+             * BD71847 PMIC I2C cold reset (gobi-cold-reboot) instead. */
+            syslog(LOG_WARNING, "shadow: reboot request %lld — via PMIC cold reset (root worker)",
+                   cfg->reboot_request_ts);
+            write_ota_request("reboot");
+        }
     }
     if (cfg->firmware_target[0] != '\0') {
         syslog(LOG_INFO, "shadow: OTA requested, target=%s — spawning download",

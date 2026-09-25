@@ -94,6 +94,11 @@ static struct {
      * clear_fw_target_desired). Protected by mutex. */
     cJSON *desired_location;
 
+    /* Metadata timestamp of desired.reboot in the message being applied, set
+     * by the get/accepted or delta handler just before apply_desired() runs
+     * (both on the MQTT thread). */
+    long long pending_reboot_ts;
+
     bool initialised;
 } s = {0};
 
@@ -205,8 +210,10 @@ static bool apply_desired(const cJSON *desired)
                 sizeof(s.config.firmware_target)-1);
 
     v = cJSON_GetObjectItemCaseSensitive(desired, "reboot");
-    if (cJSON_IsTrue(v))
-        s.config.reboot_requested = true;
+    if (cJSON_IsTrue(v)) {
+        s.config.reboot_requested  = true;
+        s.config.reboot_request_ts = s.pending_reboot_ts;
+    }
 
     v = cJSON_GetObjectItemCaseSensitive(desired, "apu_command");
     if (cJSON_IsString(v) && v->valuestring) {
@@ -298,6 +305,15 @@ static bool apply_desired(const cJSON *desired)
 
 /* ── Message handlers ────────────────────────────────────────────────────── */
 
+/* metadata.<key>.timestamp (epoch seconds) from a shadow metadata object, or
+ * 0 when absent. */
+static long long field_timestamp(const cJSON *meta, const char *key)
+{
+    const cJSON *m  = cJSON_GetObjectItemCaseSensitive(meta, key);
+    const cJSON *ts = cJSON_GetObjectItemCaseSensitive(m, "timestamp");
+    return cJSON_IsNumber(ts) && ts->valuedouble > 0 ? (long long)ts->valuedouble : 0;
+}
+
 static void handle_get_accepted(const void *payload, int len)
 {
     char *buf = strndup((const char *)payload, len);
@@ -309,7 +325,11 @@ static void handle_get_accepted(const void *payload, int len)
 
     const cJSON *state   = cJSON_GetObjectItemCaseSensitive(root, "state");
     const cJSON *desired = cJSON_GetObjectItemCaseSensitive(state, "desired");
+    /* get/accepted metadata mirrors state: metadata.desired.<key>.timestamp */
+    const cJSON *meta    = cJSON_GetObjectItemCaseSensitive(root, "metadata");
+    s.pending_reboot_ts  = field_timestamp(cJSON_GetObjectItemCaseSensitive(meta, "desired"), "reboot");
     apply_desired(desired);
+    s.pending_reboot_ts  = 0;
 
     cJSON_Delete(root);
 }
@@ -323,9 +343,12 @@ static void handle_delta(const void *payload, int len)
     free(buf);
     if (!root) { fprintf(stderr, "[shadow] delta: bad JSON\n"); return; }
 
-    /* Delta payload: { "version": N, "state": { <desired fields> } } */
+    /* Delta payload: { "version": N, "state": { <desired fields> },
+     *                  "metadata": { <key>: { "timestamp": T } } } */
     const cJSON *state = cJSON_GetObjectItemCaseSensitive(root, "state");
+    s.pending_reboot_ts = field_timestamp(cJSON_GetObjectItemCaseSensitive(root, "metadata"), "reboot");
     apply_desired(state);
+    s.pending_reboot_ts = 0;
 
     cJSON_Delete(root);
 }
@@ -507,7 +530,8 @@ int shadow_publish_reported(struct mosquitto *mosq,
     bool clear_fw_target = s.clear_fw_target_desired;
     if (clear_reboot) {
         cJSON_AddBoolToObject(rep, "reboot", false);
-        s.config.reboot_requested = false;
+        s.config.reboot_requested  = false;
+        s.config.reboot_request_ts = 0;
     }
     if (clear_apu_cmd)
         s.clear_apu_cmd_desired = false;
