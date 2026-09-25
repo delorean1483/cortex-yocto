@@ -132,6 +132,9 @@ typedef struct {
 /* ── Global state ────────────────────────────────────────────────────────── */
 static volatile sig_atomic_t g_running = 1;
 static volatile bool g_mqtt_connected = false;
+/* Epoch ms of the last QoS-1 PUBACK from AWS IoT (0 = none since start): the
+ * honest "last contact with EcoFleet cloud" shown on the panel's Cloud screen. */
+static volatile long long g_cloud_last_ack_ms = 0;
 static char     g_unit_serial[64] = {0};
 static char     g_modbus_device[64] = MODBUS_DEVICE_DEFAULT;
 static modbus_t *g_modbus = NULL;
@@ -447,6 +450,15 @@ static void on_connect(struct mosquitto *mosq, void *obj, int rc)
     db_flush("faults",    g_topic_faults);
 }
 
+/* QoS-1 PUBACK: AWS IoT has the message — record it as the last cloud contact. */
+static void on_publish(struct mosquitto *mosq, void *obj, int mid)
+{
+    (void)mosq; (void)obj; (void)mid;
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    g_cloud_last_ack_ms = (long long)ts.tv_sec * 1000LL + ts.tv_nsec / 1000000;
+}
+
 static void on_disconnect(struct mosquitto *mosq, void *obj, int rc)
 {
     (void)mosq; (void)obj;
@@ -589,7 +601,7 @@ static const char *apu_flash_state_str(stu_status_t s)
     }
 }
 
-static char *build_telemetry_json(const telemetry_t *t)
+static cJSON *telemetry_object(const telemetry_t *t)
 {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "unit",             g_unit_serial);
@@ -657,6 +669,26 @@ static char *build_telemetry_json(const telemetry_t *t)
     cJSON_AddNumberToObject(root, "heater_checksum_failures", t->heater_csum_fail);
     cJSON_AddNumberToObject(root, "heater_transport_errors",  t->heater_xport_err);
 
+    return root;
+}
+
+/* Telemetry published to AWS. */
+static char *build_telemetry_json(const telemetry_t *t)
+{
+    cJSON *root = telemetry_object(t);
+    char *json = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return json;
+}
+
+/* latest.json for gobi-ui: the telemetry plus the cloud link state, which only
+ * means something locally (a message that reached AWS was connected by
+ * definition), so it is not part of the published telemetry. */
+static char *build_latest_json(const telemetry_t *t)
+{
+    cJSON *root = telemetry_object(t);
+    cJSON_AddBoolToObject  (root, "cloud_connected",   g_mqtt_connected);
+    cJSON_AddNumberToObject(root, "cloud_last_ack_ms", (double)g_cloud_last_ack_ms);
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     return json;
@@ -929,6 +961,7 @@ int main(void)
 
     mosquitto_connect_callback_set(g_mosq,    on_connect);
     mosquitto_disconnect_callback_set(g_mosq, on_disconnect);
+    mosquitto_publish_callback_set(g_mosq,    on_publish);
     mosquitto_message_callback_set(g_mosq,    on_message);
     mosquitto_log_callback_set(g_mosq,        on_log);
 
@@ -1016,9 +1049,13 @@ int main(void)
             /* ── Telemetry publish ───────────────────────────────────────── */
             char *telem_json = build_telemetry_json(&t);
             if (telem_json) {
-                write_latest_snapshot(telem_json);   /* live source for gobi-ui */
                 publish_or_buffer(g_topic_telemetry, "telemetry", t.ts_ms, telem_json);
                 free(telem_json);
+            }
+            char *latest_json = build_latest_json(&t);   /* live source for gobi-ui */
+            if (latest_json) {
+                write_latest_snapshot(latest_json);
+                free(latest_json);
             }
 
             /* ── Fault publish (on every change, including clear) ────────── */

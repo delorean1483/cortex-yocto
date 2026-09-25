@@ -6,15 +6,28 @@
 # Open-Meteo (timezone=auto) and writes the name to $REQ when it changes.
 # gobi-tz-apply.path starts this worker, which re-validates the name, applies it,
 # and restarts gobi-ui so the panel clock follows (glibc only re-reads
-# /etc/localtime on process start). It also runs once at boot as a no-op check.
+# /etc/localtime on process start).
+#
+# The zone is also kept in the u-boot environment (ecofleet_tz), which both A/B
+# slots share: this worker saves it there whenever it applies a zone, and at
+# boot — ordered before gobi-ui — a freshly updated slot that has no $REQ yet
+# takes the zone from there. So an update never shows UTC or restarts gobi-ui.
+# (post-install.sh also seeds ecofleet_tz from the running zone.)
 set -u
 
 REQ=/var/lib/ecofleet/timezone
 ZONEINFO=/usr/share/zoneinfo
+ENV_KEY=ecofleet_tz
 log() { logger -t gobi-tz-apply "$*"; }
 
-[ -r "$REQ" ] || exit 0
-tz=$(head -n 1 "$REQ" | tr -d '\r\n')
+env_tz=$(fw_printenv -n "$ENV_KEY" 2>/dev/null || echo "")
+if [ -r "$REQ" ]; then
+    tz=$(head -n 1 "$REQ" | tr -d '\r\n')
+elif [ -n "$env_tz" ]; then
+    tz=$env_tz                       # fresh slot after an update: carry it over
+else
+    exit 0
+fi
 
 # Same rule as weather_parse_timezone(): plain zone names only — no absolute
 # paths, no "..", nothing outside [A-Za-z0-9_+-/].
@@ -25,6 +38,11 @@ esac
 if [ ! -f "$ZONEINFO/$tz" ]; then
     log "zone '$tz' is not installed under $ZONEINFO — leaving time zone unchanged"
     exit 0
+fi
+
+# Keep the slot-shared copy current so the next update carries this zone.
+if [ "$env_tz" != "$tz" ]; then
+    fw_setenv "$ENV_KEY" "$tz" 2>/dev/null || log "could not save $tz to u-boot env"
 fi
 
 cur=$(timedatectl show -p Timezone --value 2>/dev/null || echo "")

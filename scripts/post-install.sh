@@ -24,3 +24,15 @@ fw_setenv slot_active "$NEXT_SLOT"
 fw_setenv upgrade_available 1
 fw_setenv bootcount 0
 echo "post-install: slot_active set to '${NEXT_SLOT}', boot trial armed (upgrade_available=1)"
+
+# Carry the unit's time zone into the new slot: gobi-tz-apply on the new slot
+# applies ecofleet_tz at boot, before gobi-ui, so the panel never starts in UTC.
+# Best-effort — a failure here must not fail the update. Plain zone names only.
+TZ_NOW=$(timedatectl show -p Timezone --value 2>/dev/null || true)
+case "$TZ_NOW" in
+    ""|UTC|Universal|Etc/UTC|/*|*/|*//*|*.*|*[!A-Za-z0-9_+/-]*) ;;
+    *)
+        if fw_setenv ecofleet_tz "$TZ_NOW" 2>/dev/null; then
+            echo "post-install: carrying time zone '${TZ_NOW}' to the new slot"
+        fi ;;
+esac

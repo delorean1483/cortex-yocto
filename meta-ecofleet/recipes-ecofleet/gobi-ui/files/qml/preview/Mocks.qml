@@ -21,6 +21,8 @@ QtObject {
         property real   tsMs: 1
         property bool   diagActive: false; property int   diagOutputs: 0
         property int    apuFwVersion: 10104
+        property bool   cloudConnected: true
+        property real   cloudLastAckMs: Date.now() - 12000
         // heater (VEVOR XMZ-F-D5) read-API mock, mirrors TelemetryModel's heater* Q_PROPERTYs
         property bool   heaterPresent: true;   property string heaterState: "off"
         property int    heaterTargetLevel: 3;  property int    heaterActiveLevel: 0

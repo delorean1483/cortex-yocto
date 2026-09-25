@@ -80,6 +80,8 @@ void TelemetryModel::poll()
     m_diagActive    = o[u"diag_active"].toBool();
     m_diagOutputs   = static_cast<int>(o[u"diag_outputs"].toDouble());
     m_apuFwVersion  = static_cast<int>(o[u"apu_fw_version"].toDouble());
+    m_cloudConnected = o[u"cloud_connected"].toBool();
+    m_cloudLastAckMs = static_cast<qint64>(o[u"cloud_last_ack_ms"].toDouble());
 
     m_heaterPresent      = o[u"heater_present"].toBool();
     m_heaterState        = o[u"heater_state"].toString(QStringLiteral("off"));
