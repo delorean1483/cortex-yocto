@@ -104,7 +104,7 @@ resource "aws_lambda_function" "ingest" {
   function_name    = "${var.project}-${var.env}-ingest"
   role             = aws_iam_role.lambda.arn
   handler          = "index.handler"
-  runtime          = "nodejs20.x"
+  runtime          = "nodejs22.x"
   filename         = data.archive_file.ingest_placeholder.output_path
   source_code_hash = data.archive_file.ingest_placeholder.output_base64sha256
   timeout          = 30
@@ -139,7 +139,7 @@ resource "aws_lambda_function" "fault_handler" {
   function_name    = "${var.project}-${var.env}-fault-handler"
   role             = aws_iam_role.lambda.arn
   handler          = "faults.handler"
-  runtime          = "nodejs20.x"
+  runtime          = "nodejs22.x"
   filename         = data.archive_file.fault_placeholder.output_path
   source_code_hash = data.archive_file.fault_placeholder.output_base64sha256
   timeout          = 30
@@ -172,7 +172,7 @@ resource "aws_lambda_function" "api" {
   function_name    = "${var.project}-${var.env}-api"
   role             = aws_iam_role.lambda.arn
   handler          = "api.handler"
-  runtime          = "nodejs20.x"
+  runtime          = "nodejs22.x"
   filename         = data.archive_file.api_placeholder.output_path
   source_code_hash = data.archive_file.api_placeholder.output_base64sha256
   timeout          = 30
