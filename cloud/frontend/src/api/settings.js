@@ -10,3 +10,17 @@ export function intervalStatus({ reported, requested, sentAt, now }) {
   if (sentAt != null && now - sentAt > PENDING_TIMEOUT_MS) return 'unconfirmed'
   return 'pending'
 }
+
+// Remote reboot needs the agent's reboot-loop guard (system image 1.2.62+):
+// older agents rebooted again on every start. Mirrors the API's 409 gate.
+export const REBOOT_MIN_FW = '1.2.62'
+const semver = (v) => {
+  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(v ?? '').trim())
+  return m ? m.slice(1).map(Number) : null
+}
+export function supportsRemoteReboot(firmwareVersion) {
+  const a = semver(firmwareVersion), b = semver(REBOOT_MIN_FW)
+  if (!a) return false
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i]
+  return true
+}

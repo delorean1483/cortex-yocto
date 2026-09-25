@@ -17,7 +17,7 @@ const { mapTelemetryRow }                                          = require('./
 const { validateCommand, authorizeCommand, authorizeConfig, canWrite } = require('./permissions');
 const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./demo');
 const { buildReports, faultCountFlux }                             = require('./reports-view');
-const { parseReleases }                                            = require('./releases-view');
+const { parseReleases, supportsRemoteReboot, REBOOT_MIN_FW }       = require('./releases-view');
 const { latestFlux, telemetryFlux, unitsFlux, faultsFlux, clampLimit, RELATIVE_RANGE } = require('./flux');
 const { validateLocation, mergeLocations, locationShadowDesired,
         unitSupportsLocation, LOCATION_MIN_FW }                      = require('./locations-view');
@@ -348,6 +348,22 @@ async function handleSetConfig(event, claims) {
     return err(400, 'reboot must be a boolean');
 
   const thingName = `gobi-apu-${unit}`;
+
+  // Remote reboot only for units with the reboot-loop guard: an older agent
+  // would reboot again on every start.
+  if (config.reboot === true) {
+    let fw;
+    try {
+      const cur = await iotdata.send(new GetThingShadowCommand({ thingName }));
+      fw = JSON.parse(Buffer.from(cur.payload).toString('utf8'))?.state?.reported?.firmware_version;
+    } catch (e) {
+      if (e.name === 'ResourceNotFoundException')
+        return err(404, `Shadow not found for ${unit} — has the device connected yet?`);
+      throw e;
+    }
+    if (!supportsRemoteReboot(fw))
+      return err(409, `Remote reboot needs unit firmware ${REBOOT_MIN_FW} or newer (${unit} reports ${fw || 'unknown'}) — update the unit first.`);
+  }
   const payload   = JSON.stringify({ state: { desired: config } });
 
   try {

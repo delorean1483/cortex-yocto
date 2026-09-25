@@ -96,3 +96,16 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    "$here/test_shadow_location.c" "$files/location.c" \
    -L"$cjson/lib" -lcjson -lpthread \
    -o "$here/test_shadow_location" && "$here/test_shadow_location"
+
+# Remote-reboot loop guard: honor each desired.reboot (by AWS metadata
+# timestamp) only once across the cold reset it triggers.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" "$here/test_reboot_guard.c" "$files/reboot_guard.c" \
+   -o "$here/test_reboot_guard" && "$here/test_reboot_guard"
+
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -DLOCATION_JSON_PATH='"/tmp/test_shadow_reboot_location.json"' \
+   -I"$here/mqstub" -I"$files" -I"$cjson/include" \
+   "$here/test_shadow_reboot.c" "$files/location.c" \
+   -L"$cjson/lib" -lcjson -lpthread \
+   -o "$here/test_shadow_reboot" && "$here/test_shadow_reboot"
