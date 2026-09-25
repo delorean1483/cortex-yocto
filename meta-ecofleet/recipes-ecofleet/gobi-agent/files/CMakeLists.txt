@@ -37,6 +37,7 @@ add_executable(gobi-agent)
 target_sources(gobi-agent PRIVATE
     main.c
     shadow.c
+    location.c
     bl_crc32.c
     bl_frame.c
     bl_session.c
@@ -91,6 +92,7 @@ add_executable(weather-fetch)
 target_sources(weather-fetch PRIVATE
     weather-fetch.c
     weather.c
+    location.c
 )
 target_include_directories(weather-fetch PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

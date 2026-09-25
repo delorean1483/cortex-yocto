@@ -6,6 +6,7 @@
  */
 
 #include "shadow.h"
+#include "location.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,6 +86,14 @@ static struct {
      * never exposed via shadow_config_t. */
     unsigned heater_desired_seq;
 
+    /* Full desired.location as last seen: get/accepted delivers the whole
+     * object, but a delta carries only the nested fields that changed, so
+     * deltas are merged into this copy before it is parsed. It is echoed back
+     * as reported.location so desired == reported and AWS stops re-sending the
+     * delta (a never-reported desired key is a standing delta storm — see
+     * clear_fw_target_desired). Protected by mutex. */
+    cJSON *desired_location;
+
     bool initialised;
 } s = {0};
 
@@ -132,6 +141,40 @@ static void build_topics(const char *unit)
 static bool apply_desired(const cJSON *desired)
 {
     if (!cJSON_IsObject(desired)) return false;
+
+    /* Dashboard-assigned location (Fleet map). Not part of shadow_config_t:
+     * it is persisted to LOCATION_JSON_PATH for weather-fetch (forecast +
+     * time zone). Merged under the lock, then parsed/stored outside it since
+     * that does file I/O. Idempotent — location_store() only rewrites the file
+     * when the value actually changes. */
+    const cJSON *loc = cJSON_GetObjectItemCaseSensitive(desired, "location");
+    if (cJSON_IsObject(loc)) {
+        pthread_mutex_lock(&s.config_mutex);
+        if (!s.desired_location) s.desired_location = cJSON_CreateObject();
+        for (const cJSON *c = loc->child; c && s.desired_location; c = c->next) {
+            cJSON_DeleteItemFromObjectCaseSensitive(s.desired_location, c->string);
+            if (!cJSON_IsNull(c))
+                cJSON_AddItemToObject(s.desired_location, c->string, cJSON_Duplicate(c, 1));
+        }
+        cJSON *merged = s.desired_location ? cJSON_Duplicate(s.desired_location, 1) : NULL;
+        pthread_mutex_unlock(&s.config_mutex);
+
+        unit_location_t l;
+        int r = location_from_desired(merged, &l);
+        if (r < 0) {
+            fprintf(stderr, "[shadow] invalid desired.location — ignored\n");
+        } else {
+            int c = location_store(LOCATION_JSON_PATH, r == 1 ? &l : NULL);
+            if (c < 0)
+                fprintf(stderr, "[shadow] could not store assigned location\n");
+            else if (c == 1 && r == 1)
+                fprintf(stderr, "[shadow] assigned location %.4f,%.4f (%s)\n",
+                        l.lat, l.lon, l.label[0] ? l.label : "unnamed");
+            else if (c == 1)
+                fprintf(stderr, "[shadow] assigned location cleared\n");
+        }
+        cJSON_Delete(merged);
+    }
 
     pthread_mutex_lock(&s.config_mutex);
     shadow_config_t prev = s.config;
@@ -444,6 +487,13 @@ int shadow_publish_reported(struct mosquitto *mosq,
         cJSON_AddBoolToObject  (heater, "comms_ok", reported->heater_comms_ok);
     }
 
+    /* Echo the assigned location back so desired == reported (no standing
+     * delta). */
+    pthread_mutex_lock(&s.config_mutex);
+    if (s.desired_location)
+        cJSON_AddItemToObject(rep, "location", cJSON_Duplicate(s.desired_location, 1));
+    pthread_mutex_unlock(&s.config_mutex);
+
     /* Clear one-shot flags: include desired nulls so the cloud shadow is also
      * cleared. The APU command and heater command are nulled only once they
      * have actually been applied to the hardware (shadow_ack_apu_command /
@@ -617,6 +667,8 @@ void shadow_ack_heater_cmd(unsigned seq)
 void shadow_cleanup(void)
 {
     if (!s.initialised) return;
+    cJSON_Delete(s.desired_location);
+    s.desired_location = NULL;
     pthread_mutex_destroy(&s.config_mutex);
     s.initialised = false;
 }

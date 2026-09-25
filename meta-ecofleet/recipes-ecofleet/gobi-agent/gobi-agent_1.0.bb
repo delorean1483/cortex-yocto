@@ -17,6 +17,8 @@ SRC_URI = " \
     file://ota_status.c \
     file://weather.h \
     file://weather.c \
+    file://location.h \
+    file://location.c \
     file://weather-fetch.c \
     file://bl_crc32.c \
     file://bl_crc32.h \
