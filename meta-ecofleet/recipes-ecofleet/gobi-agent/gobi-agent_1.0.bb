@@ -35,6 +35,9 @@ SRC_URI = " \
     file://gobi-ota-apply \
     file://gobi-ota-apply.service \
     file://gobi-ota-apply.path \
+    file://gobi-tz-apply \
+    file://gobi-tz-apply.service \
+    file://gobi-tz-apply.path \
     file://gobi-cold-reboot \
     file://gobi-agent.service \
     file://weather-fetch.service \
@@ -129,18 +132,22 @@ do_install:append() {
     # the sandboxed agent drops a request (see gobi-ota-apply).
     install -m 0644 ${WORKDIR}/gobi-ota-apply.service  ${D}${systemd_system_unitdir}/
     install -m 0644 ${WORKDIR}/gobi-ota-apply.path     ${D}${systemd_system_unitdir}/
+    # Time zone: weather-fetch drops the zone name, this root worker applies it.
+    install -m 0644 ${WORKDIR}/gobi-tz-apply.service   ${D}${systemd_system_unitdir}/
+    install -m 0644 ${WORKDIR}/gobi-tz-apply.path      ${D}${systemd_system_unitdir}/
 
     # OTA/reboot worker (root) + the PMIC cold-reset helper it uses. The agent
     # stays fully sandboxed and only writes a request file — no sudo, no sudoers.
     install -d ${D}${sbindir}
     install -m 0755 ${WORKDIR}/gobi-ota-apply          ${D}${sbindir}/gobi-ota-apply
     install -m 0755 ${WORKDIR}/gobi-cold-reboot        ${D}${sbindir}/gobi-cold-reboot
+    install -m 0755 ${WORKDIR}/gobi-tz-apply           ${D}${sbindir}/gobi-tz-apply
 }
 
 # ── systemd integration ───────────────────────────────────────────────────────
 # Enable the agent and the weather timer; weather-fetch.service is oneshot and
 # started by the timer, so it is installed but not enabled on its own.
-SYSTEMD_SERVICE:${PN} = "gobi-agent.service weather-fetch.timer gobi-ota-apply.path"
+SYSTEMD_SERVICE:${PN} = "gobi-agent.service weather-fetch.timer gobi-ota-apply.path gobi-tz-apply.path gobi-tz-apply.service"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 # ── File permissions QA ───────────────────────────────────────────────────────
@@ -151,10 +158,13 @@ FILES:${PN} += " \
     ${sysconfdir}/ecofleet/ \
     /var/lib/ecofleet/ \
     ${sbindir}/gobi-ota-apply \
+    ${sbindir}/gobi-tz-apply \
     ${sbindir}/gobi-cold-reboot \
     ${systemd_system_unitdir}/gobi-agent.service \
     ${systemd_system_unitdir}/gobi-ota-apply.service \
     ${systemd_system_unitdir}/gobi-ota-apply.path \
+    ${systemd_system_unitdir}/gobi-tz-apply.service \
+    ${systemd_system_unitdir}/gobi-tz-apply.path \
     ${systemd_system_unitdir}/weather-fetch.service \
     ${systemd_system_unitdir}/weather-fetch.timer \
 "

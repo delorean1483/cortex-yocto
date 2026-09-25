@@ -1,0 +1,41 @@
+#!/bin/sh
+# gobi-tz-apply — root worker that sets the system time zone for gobi-agent.
+#
+# weather-fetch (unprivileged, sandboxed) resolves the unit's location (IP
+# geolocation, configured lat/lon as fallback), gets the IANA zone for it from
+# Open-Meteo (timezone=auto) and writes the name to $REQ when it changes.
+# gobi-tz-apply.path starts this worker, which re-validates the name, applies it,
+# and restarts gobi-ui so the panel clock follows (glibc only re-reads
+# /etc/localtime on process start). It also runs once at boot as a no-op check.
+set -u
+
+REQ=/var/lib/ecofleet/timezone
+ZONEINFO=/usr/share/zoneinfo
+log() { logger -t gobi-tz-apply "$*"; }
+
+[ -r "$REQ" ] || exit 0
+tz=$(head -n 1 "$REQ" | tr -d '\r\n')
+
+# Same rule as weather_parse_timezone(): plain zone names only — no absolute
+# paths, no "..", nothing outside [A-Za-z0-9_+-/].
+case "$tz" in
+    ""|/*|*/|*//*|*.*|*[!A-Za-z0-9_+/-]*)
+        log "ignoring invalid zone name '$tz'"; exit 0 ;;
+esac
+if [ ! -f "$ZONEINFO/$tz" ]; then
+    log "zone '$tz' is not installed under $ZONEINFO — leaving time zone unchanged"
+    exit 0
+fi
+
+cur=$(timedatectl show -p Timezone --value 2>/dev/null || echo "")
+[ "$cur" = "$tz" ] && exit 0
+
+if ! timedatectl set-timezone "$tz" 2>/dev/null; then
+    ln -sf "$ZONEINFO/$tz" /etc/localtime || { log "failed to set $tz"; exit 1; }
+fi
+log "time zone ${cur:-unset} -> $tz"
+
+# The panel clock only picks up a new zone on restart. Only reached on a real
+# change (first boot, or a unit moving into another zone).
+systemctl try-restart gobi-ui.service
+exit 0

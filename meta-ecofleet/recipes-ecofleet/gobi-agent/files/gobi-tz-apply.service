@@ -1,0 +1,13 @@
+[Unit]
+Description=EcoFleet time zone worker (privileged)
+# Started by gobi-tz-apply.path when weather-fetch records a new zone, and once
+# at boot (a no-op when the zone is already applied). Runs as root: setting the
+# system time zone is outside the sandboxed agent/fetcher's reach.
+After=systemd-timedated.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/gobi-tz-apply
+
+[Install]
+WantedBy=multi-user.target

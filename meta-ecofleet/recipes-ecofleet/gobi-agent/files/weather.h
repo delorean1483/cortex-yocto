@@ -44,6 +44,16 @@ const char *weekday_abbrev(const char *iso_date);
 int geo_parse(const char *ip_api_json, double *lat, double *lon,
               char *city, size_t city_sz);
 
+/* Extract the IANA time zone name ("America/Chicago") that Open-Meteo returns
+ * for the requested coordinates when called with timezone=auto. Copies it into
+ * tz (NUL-terminated) and returns 1 only if it is a plain zone name: 1..tz_sz-1
+ * chars of [A-Za-z0-9_+-] segments separated by single '/', no leading or
+ * trailing '/', no "." segments. Anything else returns 0 and leaves tz
+ * untouched — the name is later turned into a path under /usr/share/zoneinfo
+ * by a root helper, so traversal and shell metacharacters must never pass.
+ * Pure/no I/O. */
+int weather_parse_timezone(const char *open_meteo_json, char *tz, size_t tz_sz);
+
 /* Transform an Open-Meteo /v1/forecast *daily* JSON response into the compact
  * weather.json the UI consumes. Returns a malloc'd, NUL-terminated string the
  * caller must free(), or NULL on parse failure / missing required arrays.
