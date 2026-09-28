@@ -20,7 +20,7 @@ const { buildReports, faultCountFlux }                             = require('./
 const { parseReleases, supportsRemoteReboot, REBOOT_MIN_FW }       = require('./releases-view');
 const { latestFlux, telemetryFlux, unitsFlux, faultsFlux, clampLimit, RELATIVE_RANGE } = require('./flux');
 const { validateLocation, mergeLocations, locationShadowDesired,
-        unitSupportsLocation, LOCATION_MIN_FW }                      = require('./locations-view');
+        unitSupportsLocation, LOCATION_MIN_FW, scanAllPages }        = require('./locations-view');
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const REGION            = process.env.AWS_REGION || 'us-east-1';
@@ -635,8 +635,9 @@ async function handleGetReleases() {
 // ── Unit locations (Fleet map) ────────────────────────────────────────────────
 // GET /fleet/locations — assigned locations for every unit (+ fixed demo spots)
 async function handleListLocations() {
-  const res = await ddb.send(new ScanCommand({ TableName: LOCATIONS_TABLE }));
-  return resp(200, { locations: mergeLocations(res.Items || [], listDemoUnits()) });
+  const items = await scanAllPages((startKey) =>
+    ddb.send(new ScanCommand({ TableName: LOCATIONS_TABLE, ExclusiveStartKey: startKey })));
+  return resp(200, { locations: mergeLocations(items, listDemoUnits()) });
 }
 
 // Shared guard for location writes: path param, role, demo units.

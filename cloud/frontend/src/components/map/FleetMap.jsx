@@ -20,8 +20,10 @@ function pinIcon(tone, extra = '') {
   })
 }
 
-// Fit all pins once, then pan to whichever unit gets selected.
-function Viewport({ pins, selected }) {
+// Fit all pins once, then pan on every focus request. `focus` is
+// { unit, n } with n bumped per request, so asking to show the unit that is
+// already selected still pans (a plain `selected` value wouldn't change).
+function Viewport({ pins, focus }) {
   const map = useMap()
   const fitted = useRef(false)
   useEffect(() => {
@@ -31,9 +33,9 @@ function Viewport({ pins, selected }) {
     else map.fitBounds(pins.map((p) => [p.lat, p.lon]), { padding: [40, 40] })
   }, [pins, map])
   useEffect(() => {
-    const p = pins.find((x) => x.unit === selected)
+    const p = focus && pins.find((x) => x.unit === focus.unit)
     if (p) map.setView([p.lat, p.lon], Math.max(map.getZoom(), 9))
-  }, [selected]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [focus]) // eslint-disable-line react-hooks/exhaustive-deps
   return null
 }
 
@@ -56,7 +58,7 @@ function ClickToPlace({ active, onPick }) {
   return null
 }
 
-export default function FleetMap({ pins, selected, placing, onPick, onOpen }) {
+export default function FleetMap({ pins, selected, focus, placing, onPick, onOpen }) {
   const placingReady = placing && placing.lat != null && placing.lon != null
   return (
     <MapContainer center={US_CENTER} zoom={US_ZOOM} className={`fleet-map${placing ? ' is-placing' : ''}`} scrollWheelZoom>
@@ -65,7 +67,7 @@ export default function FleetMap({ pins, selected, placing, onPick, onOpen }) {
         attribution="&copy; OpenStreetMap contributors"
       />
       <ResizeWatcher />
-      <Viewport pins={pins} selected={selected} />
+      <Viewport pins={pins} focus={focus} />
       <ClickToPlace active={!!placing} onPick={onPick} />
       {pins.filter((p) => !(placing && p.unit === placing.unit)).map((p) => (
         <Marker key={p.unit} position={[p.lat, p.lon]} icon={pinIcon(p.tone)} title={`${p.unit}: ${p.status}`}>

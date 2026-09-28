@@ -67,7 +67,21 @@ function unitSupportsLocation(firmwareVersion) {
   return parseVersion(firmwareVersion) !== null && cmpVersion(firmwareVersion, LOCATION_MIN_FW) >= 0;
 }
 
+// Run a paginated DynamoDB Scan to completion. scanPage(startKey) performs one
+// Scan (ExclusiveStartKey = startKey) and returns its response; pages are
+// followed via LastEvaluatedKey, since one Scan returns at most 1 MB.
+async function scanAllPages(scanPage) {
+  const items = [];
+  let startKey;
+  do {
+    const res = await scanPage(startKey);
+    items.push(...((res && res.Items) || []));
+    startKey = res && res.LastEvaluatedKey;
+  } while (startKey);
+  return items;
+}
+
 module.exports = {
-  validateLocation, mergeLocations, locationShadowDesired, unitSupportsLocation,
+  validateLocation, mergeLocations, locationShadowDesired, unitSupportsLocation, scanAllPages,
   LOCATION_MIN_FW, DEMO_LOCATIONS, LABEL_MAX,
 };

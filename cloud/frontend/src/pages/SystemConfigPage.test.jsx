@@ -41,6 +41,17 @@ describe('SystemConfigPage', () => {
     expect(screen.getByText(/Pending — waiting for the unit to confirm/)).toBeTruthy()
   })
 
+  it('does not re-send the same interval while it is still pending', () => {
+    render(<SystemConfigPage />)
+    fireEvent.click(screen.getByRole('radio', { name: '15 s' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Change interval' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Change interval' }).at(-1))
+    expect(state.mutate).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Change interval' }).disabled).toBe(true)   // 15 s already pending
+    fireEvent.click(screen.getByRole('radio', { name: '20 s' }))
+    expect(screen.getByRole('button', { name: 'Change interval' }).disabled).toBe(false)  // a different value is fine
+  })
+
   it('shows an out-of-range reported interval as-is', () => {
     state.shadow = { reported: { poll_interval_s: 30, firmware_version: '1.2.57' } }
     render(<SystemConfigPage />)

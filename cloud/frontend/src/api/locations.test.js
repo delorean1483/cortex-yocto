@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCoord, validateLatLon, orderMapRows } from './locations.js'
+import { parseCoord, validateLatLon, orderMapRows, orphanLocations } from './locations.js'
 
 describe('parseCoord', () => {
   it('parses decimal strings', () => {
@@ -48,5 +48,21 @@ describe('orderMapRows', () => {
     ])
     expect(placed.map((r) => r.u.unit)).toEqual(['C', 'A'])
     expect(unplaced.map((r) => r.u.unit)).toEqual(['D', 'B'])
+  })
+})
+
+describe('orphanLocations', () => {
+  it('returns assigned locations whose unit is not in the unit list, sorted by unit', () => {
+    const locs = [
+      { unit: 'TRUCK-001', source: 'assigned' },
+      { unit: 'ZED-2', source: 'assigned' },
+      { unit: 'APU-DEMO-01', source: 'demo' },
+      { unit: 'ABC-1', source: 'assigned' },
+    ]
+    expect(orphanLocations(locs, ['TRUCK-001', 'APU-DEMO-01']).map((l) => l.unit)).toEqual(['ABC-1', 'ZED-2'])
+  })
+  it('ignores demo locations and handles empty input', () => {
+    expect(orphanLocations([{ unit: 'APU-DEMO-09', source: 'demo' }], [])).toEqual([])
+    expect(orphanLocations(undefined, ['X'])).toEqual([])
   })
 })

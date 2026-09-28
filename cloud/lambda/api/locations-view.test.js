@@ -1,7 +1,7 @@
 'use strict';
 // Run: node cloud/lambda/api/locations-view.test.js
 const assert = require('node:assert');
-const { validateLocation, mergeLocations, locationShadowDesired, unitSupportsLocation, LOCATION_MIN_FW, DEMO_LOCATIONS, LABEL_MAX } = require('./locations-view');
+const { validateLocation, mergeLocations, locationShadowDesired, unitSupportsLocation, LOCATION_MIN_FW, scanAllPages, DEMO_LOCATIONS, LABEL_MAX } = require('./locations-view');
 
 // ── validateLocation ──────────────────────────────────────────────────────
 {
@@ -74,4 +74,24 @@ const { validateLocation, mergeLocations, locationShadowDesired, unitSupportsLoc
   assert.strictEqual(unitSupportsLocation(null), false);
 }
 
-console.log('locations-view.test.js: all assertions passed');
+// ── scanAllPages ──────────────────────────────────────────────────────────
+// DynamoDB Scan returns at most 1 MB per call; follow LastEvaluatedKey so a
+// large locations table isn't silently truncated.
+(async () => {
+  const pages = [
+    { Items: [{ unit: 'A' }, { unit: 'B' }], LastEvaluatedKey: { unit: 'B' } },
+    { Items: [{ unit: 'C' }], LastEvaluatedKey: { unit: 'C' } },
+    { Items: [{ unit: 'D' }] },
+  ];
+  const seen = [];
+  const items = await scanAllPages(async (startKey) => { seen.push(startKey); return pages[seen.length - 1]; });
+  assert.deepStrictEqual(items.map((i) => i.unit), ['A', 'B', 'C', 'D'], 'all pages combined');
+  assert.deepStrictEqual(seen, [undefined, { unit: 'B' }, { unit: 'C' }], 'each call resumes from the last key');
+
+  const one = await scanAllPages(async () => ({ Items: [{ unit: 'X' }] }));
+  assert.deepStrictEqual(one, [{ unit: 'X' }], 'single page');
+  const none = await scanAllPages(async () => ({}));
+  assert.deepStrictEqual(none, [], 'no Items key');
+  console.log('locations-view.test.js: all assertions passed');
+})().catch((e) => { console.error(e); process.exit(1); });
+

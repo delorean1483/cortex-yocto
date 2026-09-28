@@ -5,7 +5,7 @@ import {
   useUnits, useLocations, useSetLocation, useClearLocation, useFleetLatest,
 } from '../data/hooks.js'
 import { unitView } from '../api/contract.js'
-import { validateLatLon, orderMapRows, LABEL_MAX } from '../api/locations.js'
+import { validateLatLon, orderMapRows, orphanLocations, LABEL_MAX } from '../api/locations.js'
 import { useCan } from '../components/RoleGate.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import FleetMap from '../components/map/FleetMap.jsx'
@@ -55,6 +55,8 @@ export default function FleetMapPage() {
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(t) }, [])
 
   const [selected, setSelected] = useState(null)
+  const [focus, setFocus] = useState(null) // { unit, n }: each request pans the map, even to the selected unit
+  const focusUnit = (unit) => { setSelected(unit); setFocus((f) => ({ unit, n: (f?.n || 0) + 1 })) }
   const [editing, setEditing] = useState(null) // { unit, lat, lon, label, errors, apiError }
   const [removing, setRemoving] = useState(null)
   const [syncWarn, setSyncWarn] = useState('') // location saved but not delivered to the unit
@@ -67,6 +69,7 @@ export default function FleetMapPage() {
     location: locByUnit[u.unit],
   }))
   const { placed, unplaced } = orderMapRows(rows)
+  const orphans = orphanLocations(locations, list.map((u) => u.unit))
   const pins = placed.map((r) => ({
     unit: r.u.unit,
     lat: r.location.lat,
@@ -95,7 +98,7 @@ export default function FleetMapPage() {
         setSyncWarn(res?.unit_synced === false
           ? `${editing.unit}'s location is saved, but it couldn't be sent to the unit yet — it needs to be online and on firmware 1.2.61 or newer. Save it again after that.`
           : '')
-        setSelected(editing.unit); setEditing(null)
+        focusUnit(editing.unit); setEditing(null)
       },
       onError: (e) => setEditing((cur) => cur && { ...cur, apiError: e.message }),
     })
@@ -133,7 +136,7 @@ export default function FleetMapPage() {
       <div className="map-layout">
         <div className="map-wrap">
           {editing && <div className="map-hint">Click the map to place {editing.unit}, or enter coordinates.</div>}
-          <FleetMap pins={pins} selected={selected} placing={placing} onPick={onPick}
+          <FleetMap pins={pins} selected={selected} focus={focus} placing={placing} onPick={onPick}
             onOpen={(unit) => navigate('/units/' + encodeURIComponent(unit))} />
         </div>
 
@@ -175,7 +178,7 @@ export default function FleetMapPage() {
             <section className="panel" aria-label="On the map">
               <h2 className="map-side-h">On the map</h2>
               {placed.map((r) => (
-                <UnitRow key={r.u.unit} r={r} canEdit={canEdit} onShow={setSelected} onEdit={startEdit} onRemove={setRemoving} />
+                <UnitRow key={r.u.unit} r={r} canEdit={canEdit} onShow={focusUnit} onEdit={startEdit} onRemove={setRemoving} />
               ))}
             </section>
           )}
@@ -184,7 +187,29 @@ export default function FleetMapPage() {
             <section className="panel" aria-label="Not placed yet">
               <h2 className="map-side-h"><IconMapPinOff size={16} aria-hidden="true" /> Not placed yet</h2>
               {unplaced.map((r) => (
-                <UnitRow key={r.u.unit} r={r} canEdit={canEdit} onShow={setSelected} onEdit={startEdit} onRemove={setRemoving} />
+                <UnitRow key={r.u.unit} r={r} canEdit={canEdit} onShow={focusUnit} onEdit={startEdit} onRemove={setRemoving} />
+              ))}
+            </section>
+          )}
+
+          {orphans.length > 0 && (
+            <section className="panel" aria-label="Not in the unit list">
+              <h2 className="map-side-h">Not in the unit list</h2>
+              <p className="map-row-sub" style={{ margin: 0, padding: '0 16px 10px' }}>
+                Saved locations for units that aren't in the fleet (removed, renamed or not registered yet).
+              </p>
+              {orphans.map((l) => (
+                <div key={l.unit} className="map-row">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span className="map-row-unit">{l.unit}</span>
+                    {l.label && <div className="map-row-sub">{l.label}</div>}
+                  </div>
+                  {canEdit && (
+                    <button className="btn btn-sm btn-red" aria-label={`Remove location for ${l.unit}`} onClick={() => setRemoving(l.unit)}>
+                      Remove
+                    </button>
+                  )}
+                </div>
               ))}
             </section>
           )}
@@ -196,7 +221,9 @@ export default function FleetMapPage() {
       <ConfirmDialog
         open={!!removing}
         title={`Remove location for ${removing}?`}
-        body="The unit will move to Not placed yet. You can set a new location any time."
+        body={list.some((u) => u.unit === removing)
+          ? 'The unit will move to Not placed yet. You can set a new location any time.'
+          : 'The saved location for this unit will be deleted.'}
         confirmLabel="Remove"
         danger
         pending={clearLoc.isPending}

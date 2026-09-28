@@ -30,3 +30,13 @@ export function orderMapRows(rows) {
   const unplaced = rows.filter((r) => !r.location).sort(byAttention)
   return { placed, unplaced }
 }
+
+// Assigned locations whose unit isn't in the unit list (a unit that was removed
+// or renamed, or isn't registered yet). They'd otherwise be stored but never
+// shown, with no way to delete them. Demo spots are never stored, so skipped.
+export function orphanLocations(locations, unitIds) {
+  const known = new Set(unitIds || [])
+  return (locations || [])
+    .filter((l) => l.source === 'assigned' && !known.has(l.unit))
+    .sort((a, b) => a.unit.localeCompare(b.unit))
+}
