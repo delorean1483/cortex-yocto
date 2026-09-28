@@ -1,0 +1,14 @@
+[Unit]
+Description=EcoFleet shared data partition (/data)
+# The 64 MB "data" partition from ecofleet-emmc.wks, shared by both A/B root
+# slots, so what lives here (the APU fault history) survives updates. Not
+# fatal if missing: users of /data fall back to per-slot storage.
+
+[Mount]
+What=/dev/disk/by-label/data
+Where=/data
+Type=ext4
+Options=defaults,noatime,nodev,nosuid,noexec
+
+[Install]
+WantedBy=local-fs.target

@@ -52,6 +52,7 @@ Item {
         ["08-alerts",        function() { root.sub(alertsC) }],
         ["09-alerts-fault",  function() { telemetry.hasError = true; telemetry.error = "low_oil"; root.poke(); root.sub(alertsC) }],
         ["10-errorlog",      function() { telemetry.hasError = false; telemetry.error = "none"; root.poke(); root.sub(logC) }],
+        ["10b-errorlog-events", function() { eventlog.sample(); root.sub(logC) }],
         ["11-settings",      function() { root.sub(settingsC) }],
         ["12-cloud",         function() { root.sub(cloudC) }],
         ["12b-cloud-offline", function() { telemetry.cloudConnected = false

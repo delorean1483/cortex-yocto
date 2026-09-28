@@ -109,3 +109,8 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    "$here/test_shadow_reboot.c" "$files/location.c" \
    -L"$cjson/lib" -lcjson -lpthread \
    -o "$here/test_shadow_reboot" && "$here/test_shadow_reboot"
+
+# On-device APU fault history (panel Error Log).
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" -I"$cjson/include" "$here/test_event_log.c" "$files/event_log.c" \
+   -L"$cjson/lib" -lcjson -o "$here/test_event_log" && "$here/test_event_log"

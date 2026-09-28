@@ -11,6 +11,8 @@ SRC_URI = " \
     file://DeviceInfoModel.cpp \
     file://WeatherModel.h \
     file://WeatherModel.cpp \
+    file://EventLogModel.h \
+    file://EventLogModel.cpp \
     file://qml/main.qml \
     file://qml/Theme.qml \
     file://qml/qmldir \
