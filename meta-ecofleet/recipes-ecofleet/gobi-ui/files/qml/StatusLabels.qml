@@ -25,6 +25,14 @@ QtObject {
         if (s < 86400) return Math.floor(s / 3600) + " h ago"
         var d = Math.floor(s / 86400); return d + (d === 1 ? " day ago" : " days ago")
     }
+    // How long a fault lasted: "under a minute" / "12 min" / "2 h 5 min" / "3 days".
+    function duration(ms) {
+        var m = Math.floor(Math.max(0, ms) / 60000)
+        if (m < 1)    return "under a minute"
+        if (m < 60)   return m + " min"
+        if (m < 1440) return Math.floor(m / 60) + " h" + (m % 60 ? " " + (m % 60) + " min" : "")
+        var d = Math.floor(m / 1440); return d + (d === 1 ? " day" : " days")
+    }
     // Cloud link state for the Cloud screen. `stale` = the agent itself isn't
     // updating latest.json, so its cloud fields can't be trusted. An ack is
     // "fresh" within 2 minutes (the default telemetry cadence is 20 s).

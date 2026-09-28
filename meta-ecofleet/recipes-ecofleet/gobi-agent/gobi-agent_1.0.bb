@@ -21,6 +21,8 @@ SRC_URI = " \
     file://location.c \
     file://reboot_guard.h \
     file://reboot_guard.c \
+    file://event_log.h \
+    file://event_log.c \
     file://weather-fetch.c \
     file://bl_crc32.c \
     file://bl_crc32.h \
@@ -40,6 +42,7 @@ SRC_URI = " \
     file://gobi-ota-apply.service \
     file://gobi-ota-apply.path \
     file://gobi-tz-apply \
+    file://gobi-agent-tmpfiles.conf \
     file://gobi-tz-apply.service \
     file://gobi-tz-apply.path \
     file://gobi-cold-reboot \
@@ -146,6 +149,7 @@ do_install:append() {
     install -m 0755 ${WORKDIR}/gobi-ota-apply          ${D}${sbindir}/gobi-ota-apply
     install -m 0755 ${WORKDIR}/gobi-cold-reboot        ${D}${sbindir}/gobi-cold-reboot
     install -m 0755 ${WORKDIR}/gobi-tz-apply           ${D}${sbindir}/gobi-tz-apply
+    install -D -m 0644 ${WORKDIR}/gobi-agent-tmpfiles.conf ${D}${nonarch_libdir}/tmpfiles.d/gobi-agent.conf
 }
 
 # ── systemd integration ───────────────────────────────────────────────────────
@@ -163,6 +167,7 @@ FILES:${PN} += " \
     /var/lib/ecofleet/ \
     ${sbindir}/gobi-ota-apply \
     ${sbindir}/gobi-tz-apply \
+    ${nonarch_libdir}/tmpfiles.d/gobi-agent.conf \
     ${sbindir}/gobi-cold-reboot \
     ${systemd_system_unitdir}/gobi-agent.service \
     ${systemd_system_unitdir}/gobi-ota-apply.service \

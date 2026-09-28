@@ -1,0 +1,5 @@
+# Keep udev's automounter (/etc/udev/scripts/mount.sh) off the shared "data"
+# partition: data.mount mounts it at /data instead (a second mount under
+# /run/media would clash). Matches the device node prefix; on the imx8mm-var-
+# dart eMMC layout (ecofleet-emmc.wks) the data partition is mmcblk2p3.
+/dev/mmcblk2p3

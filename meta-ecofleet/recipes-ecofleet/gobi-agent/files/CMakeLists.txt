@@ -39,6 +39,7 @@ target_sources(gobi-agent PRIVATE
     shadow.c
     location.c
     reboot_guard.c
+    event_log.c
     bl_crc32.c
     bl_frame.c
     bl_session.c

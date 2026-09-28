@@ -12,6 +12,7 @@
 #include "config.h"
 #include "shadow.h"
 #include "reboot_guard.h"
+#include "event_log.h"
 #include "stm32_flash_task.h"
 #include "heater_fields.h"
 #include "apu_command.h"
@@ -135,6 +136,12 @@ static volatile bool g_mqtt_connected = false;
 /* Epoch ms of the last QoS-1 PUBACK from AWS IoT (0 = none since start): the
  * honest "last contact with EcoFleet cloud" shown on the panel's Cloud screen. */
 static volatile long long g_cloud_last_ack_ms = 0;
+
+/* On-device APU fault history (panel Error Log). Lives on the slot-shared
+ * /data partition so it survives A/B updates; falls back to /var/lib/ecofleet
+ * if /data isn't available. Only touched by the telemetry thread. */
+static event_log_t g_events;
+static const char *g_events_path = EVENT_LOG_PATH;
 static char     g_unit_serial[64] = {0};
 static char     g_modbus_device[64] = MODBUS_DEVICE_DEFAULT;
 static modbus_t *g_modbus = NULL;
@@ -983,6 +990,11 @@ int main(void)
     mosquitto_loop_start(g_mosq);   /* background thread handles reconnects */
 
     /* ── 6. Telemetry loop ───────────────────────────────────────────────── */
+    /* Fault history store: prefer the slot-shared /data partition. */
+    if (access("/data/ecofleet", W_OK) != 0) g_events_path = EVENT_LOG_FALLBACK_PATH;
+    event_log_load(g_events_path, &g_events);
+    syslog(LOG_INFO, "event log: %s (%d events)", g_events_path, g_events.count);
+
     uint8_t prev_error = 0;   /* control_error_t; 0 = ERR_NONE */
 
     while (g_running) {
@@ -1062,6 +1074,26 @@ int main(void)
             /* Publishing the transition back to "none" lets the cloud resolve
              * open faults and stop alerting; without it a cleared fault looks
              * stuck until the next change. See cloud/lambda/fault/faults.js. */
+            /* Fault history: called on every reading — it compares against
+             * the log's own active event, so an agent restart mid-fault adds
+             * no duplicate and a fault that cleared while we were down is
+             * closed on the first reading. */
+            {
+                event_snapshot_t es;
+                memset(&es, 0, sizeof(es));
+                snprintf(es.error,          sizeof(es.error),          "%s", error_name(t.error));
+                snprintf(es.mode,           sizeof(es.mode),           "%s", mode_name(t.mode));
+                snprintf(es.control_status, sizeof(es.control_status), "%s", status_name(t.control_status));
+                snprintf(es.engine_status,  sizeof(es.engine_status),  "%s", status_name(t.engine_status));
+                es.rpm            = t.rpm;
+                es.batt_v         = t.batt_v;
+                es.cabin_temp_f   = t.cabin_temp_f;
+                es.coolant_temp_f = t.ext_temp_f;
+                if (event_log_on_error(&g_events, 0, t.error, (long long)t.ts_ms, &es) &&
+                    event_log_save(g_events_path, &g_events) != 0)
+                    syslog(LOG_WARNING, "event log: could not save %s", g_events_path);
+            }
+
             if (t.error != prev_error) {
                 char *fault_json = build_fault_json(&t);
                 if (fault_json) {

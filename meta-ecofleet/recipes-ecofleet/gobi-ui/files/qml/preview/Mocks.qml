@@ -44,6 +44,24 @@ QtObject {
         function setHeaterOn(v) {}
         function setHeaterLevel(v) {}
     }
+    // eventlog mock — mirrors EventLogModel (newest first; endMs 0 = active)
+    property QtObject eventlog: QtObject {
+        property var events: []
+        property int activeCount: 0
+        function sample() {
+            var t = Date.now()
+            events = [
+                { code: 1, error: "low_oil", startMs: t - 4 * 60000, endMs: 0, mode: "climate", controlStatus: "cooling",
+                  engineStatus: "running", rpm: 2440, battV: 13.9, cabinF: 81, coolantF: 188 },
+                { code: 2, error: "high_engine_temp", startMs: t - 26 * 3600000, endMs: t - 26 * 3600000 + 7 * 60000,
+                  mode: "climate", controlStatus: "cooling", engineStatus: "running", rpm: 2470, battV: 14.1,
+                  cabinF: 84, coolantF: 231 },
+                { code: 3, error: "low_battery", startMs: t - 3 * 86400000, endMs: t - 3 * 86400000 + 40000,
+                  mode: "battery", controlStatus: "charging", engineStatus: "off", rpm: 0, battV: 11.6,
+                  cabinF: 70, coolantF: 72 } ]
+            activeCount = 1
+        }
+    }
     property QtObject devinfo: QtObject {
         property string serial: "TRUCK-001";     property string hostname: "imx8mm-var-dart"
         property string fwVersion: "v1.2.57";    property bool   ethLinked: true
