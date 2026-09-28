@@ -106,7 +106,8 @@ export default function SystemConfigPage() {
                     ))}
                   </div>
                   <button className="btn btn-primary" onClick={() => setConfirmInterval(true)}
-                    disabled={choice == null || choice === Number(reported) || setConfig.isPending}>
+                    disabled={choice == null || choice === Number(reported) || setConfig.isPending
+                      || (status === 'pending' && choice === request?.value)}>
                     Change interval
                   </button>
                 </div>

@@ -118,6 +118,37 @@ describe('FleetMapPage', () => {
     expect(screen.queryByRole('status')).toBeNull()
   })
 
+  it('Show re-centres the map on every press, even for the unit already selected', () => {
+    state.locations = [DEMO_LOC, { unit: 'TRUCK-001', lat: 37.72, lon: -88.87, label: 'Shop', source: 'assigned' }]
+    renderPage()
+    const onMap = screen.getByRole('region', { name: 'On the map' })
+    const show = within(onMap).getAllByRole('button', { name: 'Show' })[0]
+    fireEvent.click(show)
+    const first = state.mapProps.focus
+    fireEvent.click(show)
+    const second = state.mapProps.focus
+    expect(first.unit).toBe(second.unit)
+    expect(second.n).toBe(first.n + 1)   // a new request, so the map pans again
+  })
+
+  it('lists saved locations for units that are not in the unit list, and lets admins remove them', () => {
+    state.locations = [DEMO_LOC, { unit: 'OLD-UNIT-9', lat: 30, lon: -90, label: 'Old yard', source: 'assigned' }]
+    renderPage()
+    const sec = screen.getByRole('region', { name: 'Not in the unit list' })
+    expect(within(sec).getByText('OLD-UNIT-9')).toBeTruthy()
+    fireEvent.click(within(sec).getByRole('button', { name: 'Remove location for OLD-UNIT-9' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    expect(state.clearMutate.mock.calls[0][0]).toBe('OLD-UNIT-9')
+  })
+
+  it('read-only roles see unlisted locations but cannot remove them', () => {
+    state.role = 'eu'
+    state.locations = [{ unit: 'OLD-UNIT-9', lat: 30, lon: -90, label: null, source: 'assigned' }]
+    renderPage()
+    const sec = screen.getByRole('region', { name: 'Not in the unit list' })
+    expect(within(sec).queryByRole('button', { name: /Remove location/ })).toBeNull()
+  })
+
   it('clicking the map fills the coordinates', () => {
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Set location for TRUCK-001' }))
