@@ -19,6 +19,8 @@ qt_add_executable(gobi-ui
     WeatherModel.cpp
     EventLogModel.h
     EventLogModel.cpp
+    DisplayModel.h
+    DisplayModel.cpp
 )
 
 target_link_libraries(gobi-ui PRIVATE

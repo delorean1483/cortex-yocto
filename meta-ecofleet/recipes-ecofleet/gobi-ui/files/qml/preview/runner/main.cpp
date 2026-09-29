@@ -33,6 +33,7 @@ int main(int argc, char **argv) {
         engine.rootContext()->setContextProperty("telemetry", mocks->property("telemetry").value<QObject*>());
         engine.rootContext()->setContextProperty("devinfo",   mocks->property("devinfo").value<QObject*>());
         engine.rootContext()->setContextProperty("eventlog",  mocks->property("eventlog").value<QObject*>());
+    engine.rootContext()->setContextProperty("display",   mocks->property("display").value<QObject*>());
         engine.load(QUrl::fromLocalFile(qmlDir + "/" + harness));
         if (engine.rootObjects().isEmpty()) return 1;
         auto *win = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
@@ -50,6 +51,7 @@ int main(int argc, char **argv) {
     view.rootContext()->setContextProperty("telemetry", mocks->property("telemetry").value<QObject*>());
     view.rootContext()->setContextProperty("devinfo",   mocks->property("devinfo").value<QObject*>());
     view.rootContext()->setContextProperty("eventlog",  mocks->property("eventlog").value<QObject*>());
+    view.rootContext()->setContextProperty("display",   mocks->property("display").value<QObject*>());
     view.rootContext()->setContextProperty("shotDir",   outDir);
     QObject::connect(view.engine(), &QQmlEngine::quit, &app, &QGuiApplication::quit);
     view.setSource(QUrl::fromLocalFile(qmlDir + "/" + harness));

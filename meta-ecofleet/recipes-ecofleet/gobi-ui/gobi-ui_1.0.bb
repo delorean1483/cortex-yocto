@@ -1,6 +1,6 @@
 SUMMARY = "EcoFleet Gobi APU touchscreen dashboard"
 LICENSE = "CLOSED"
-PR = "r11"
+PR = "r12"
 
 SRC_URI = " \
     file://CMakeLists.txt \
@@ -13,6 +13,8 @@ SRC_URI = " \
     file://WeatherModel.cpp \
     file://EventLogModel.h \
     file://EventLogModel.cpp \
+    file://DisplayModel.h \
+    file://DisplayModel.cpp \
     file://qml/main.qml \
     file://qml/Theme.qml \
     file://qml/qmldir \
