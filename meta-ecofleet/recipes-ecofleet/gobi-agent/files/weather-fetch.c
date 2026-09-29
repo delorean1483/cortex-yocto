@@ -17,6 +17,7 @@
  */
 #include "weather.h"
 #include "location.h"
+#include "state_path.h"
 
 #include <curl/curl.h>
 
@@ -32,7 +33,6 @@
 /* IANA zone for the forecast location, from Open-Meteo's timezone=auto. The
  * unprivileged fetcher only drops the name here; gobi-tz-apply.path starts a
  * root worker that validates it and sets the system time zone. */
-#define TIMEZONE_PATH      "/var/lib/ecofleet/timezone"
 #define FORECAST_DAYS      4
 #define HTTP_TIMEOUT_S     15L
 #define API_HOST           "https://api.open-meteo.com/v1/forecast"
@@ -157,7 +157,7 @@ static char *http_get(const char *url, const char *what)
 
 /* Resolve the forecast location, in priority order:
  *   1. the location an admin assigned on the dashboard's Fleet map (mirrored
- *      to LOCATION_JSON_PATH by gobi-agent from shadow desired.location) —
+ *      to /data by gobi-agent from shadow desired.location; state_path.h) —
  *      reliable even on cellular, where IP geolocation can land on the
  *      carrier's hub in another state or time zone;
  *   2. IP-based geolocation (follows the device's network);
@@ -169,7 +169,7 @@ static int resolve_location(const weather_cfg_t *cfg,
                             double *lat, double *lon, char *label, size_t label_sz)
 {
     unit_location_t assigned;
-    if (location_load(LOCATION_JSON_PATH, &assigned)) {
+    if (location_load(state_read_path(LOCATION_JSON_SHARED, LOCATION_JSON_LEGACY), &assigned)) {
         *lat = assigned.lat;
         *lon = assigned.lon;
         snprintf(label, label_sz, "%s", assigned.label[0] ? assigned.label : cfg->label);
@@ -258,19 +258,26 @@ int main(void)
        zone changes, so the root worker (and its gobi-ui restart) fires once. */
     char tz[64];
     if (weather_parse_timezone(body, tz, sizeof(tz))) {
+        /* Kept on /data (slot-shared) so an A/B update keeps the zone; the
+           per-slot copy is read only right after an update from an older
+           release, and removed once the shared copy is written. */
+        const char *tz_path = state_write_path(TIMEZONE_SHARED, TIMEZONE_LEGACY);
         char cur[64] = { 0 };
-        FILE *tf = fopen(TIMEZONE_PATH, "r");
+        FILE *tf = fopen(state_read_path(TIMEZONE_SHARED, TIMEZONE_LEGACY), "r");
         if (tf) {
             if (fgets(cur, sizeof(cur), tf)) cur[strcspn(cur, "\n")] = '\0';
             fclose(tf);
         }
-        if (strcmp(cur, tz) != 0) {
+        if (strcmp(cur, tz) != 0 || access(tz_path, F_OK) != 0) {
             char line[80];
             snprintf(line, sizeof(line), "%s\n", tz);
-            if (write_atomic(TIMEZONE_PATH, line) == 0)
-                syslog(LOG_INFO, "weather: time zone %s -> %s", cur[0] ? cur : "(none)", tz);
-            else
-                syslog(LOG_WARNING, "weather: could not write %s", TIMEZONE_PATH);
+            if (write_atomic(tz_path, line) == 0) {
+                state_retire_legacy(tz_path, TIMEZONE_LEGACY);
+                if (strcmp(cur, tz) != 0)
+                    syslog(LOG_INFO, "weather: time zone %s -> %s", cur[0] ? cur : "(none)", tz);
+            } else {
+                syslog(LOG_WARNING, "weather: could not write %s", tz_path);
+            }
         }
     }
 

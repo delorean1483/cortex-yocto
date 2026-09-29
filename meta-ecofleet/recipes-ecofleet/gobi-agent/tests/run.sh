@@ -76,7 +76,7 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -fsanitize=address,undefined \
    -DLOCATION_JSON_PATH='"/tmp/test_shadow_fw_target_location.json"' \
    -I"$here/mqstub" -I"$files" -I"$cjson/include" \
-   "$here/test_shadow_fw_target.c" "$files/location.c" \
+   "$here/test_shadow_fw_target.c" "$files/location.c" "$files/state_path.c" \
    -L"$cjson/lib" -lcjson -lpthread \
    -o "$here/test_shadow_fw_target" && "$here/test_shadow_fw_target"
 
@@ -91,11 +91,17 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
 # desired.location through the REAL shadow.c: partial-delta merge, clear, and
 # reported.location echo (no standing delta).
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
-   -DLOCATION_JSON_PATH='"/tmp/test_shadow_location.json"' \
+   -DLOCATION_JSON_SHARED='"/tmp/test_shadow_location.json"' \
+   -DLOCATION_JSON_LEGACY='"/tmp/test_shadow_location.legacy.json"' \
    -I"$here/mqstub" -I"$files" -I"$cjson/include" \
-   "$here/test_shadow_location.c" "$files/location.c" \
+   "$here/test_shadow_location.c" "$files/location.c" "$files/state_path.c" \
    -L"$cjson/lib" -lcjson -lpthread \
    -o "$here/test_shadow_location" && "$here/test_shadow_location"
+
+# Slot-shared (/data) vs per-slot state file selection + legacy retirement.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" "$here/test_state_path.c" "$files/state_path.c" \
+   -o "$here/test_state_path" && "$here/test_state_path"
 
 # Remote-reboot loop guard: honor each desired.reboot (by AWS metadata
 # timestamp) only once across the cold reset it triggers.
@@ -104,9 +110,10 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -o "$here/test_reboot_guard" && "$here/test_reboot_guard"
 
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
-   -DLOCATION_JSON_PATH='"/tmp/test_shadow_reboot_location.json"' \
+   -DLOCATION_JSON_SHARED='"/tmp/test_shadow_reboot_location.json"' \
+   -DLOCATION_JSON_LEGACY='"/tmp/test_shadow_reboot_location.legacy.json"' \
    -I"$here/mqstub" -I"$files" -I"$cjson/include" \
-   "$here/test_shadow_reboot.c" "$files/location.c" \
+   "$here/test_shadow_reboot.c" "$files/location.c" "$files/state_path.c" \
    -L"$cjson/lib" -lcjson -lpthread \
    -o "$here/test_shadow_reboot" && "$here/test_shadow_reboot"
 

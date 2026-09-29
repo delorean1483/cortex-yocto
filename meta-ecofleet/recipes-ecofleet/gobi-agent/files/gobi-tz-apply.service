@@ -1,10 +1,14 @@
 [Unit]
 Description=EcoFleet time zone worker (privileged)
 # Started by gobi-tz-apply.path when weather-fetch records a new zone, and once
-# at boot (a no-op when the zone is already applied; on a freshly updated slot it
-# applies the zone carried over in the u-boot env). Runs as root: setting the
+# at boot (a no-op when the zone is already applied; a freshly updated slot
+# finds the zone on /data, so it never starts in UTC). Runs as root: setting the
 # system time zone is outside the sandboxed agent/fetcher's reach.
 After=systemd-timedated.service
+# The zone is kept on the slot-shared /data partition.
+After=data.mount
+# The u-boot env (ecofleet_tz) is only a fallback now — for the first boot after
+# an update from a release that kept the zone per-slot, or a unit without /data.
 # On a fresh slot's first boot, Variscite's autofix corrects /etc/fw_env.config
 # to the right eMMC device; before it runs, fw_printenv reads the wrong place and
 # finds no ecofleet_tz (seen on the bench: we ran 0.25 s too early and silently
