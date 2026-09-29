@@ -1,14 +1,17 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { IconArrowLeft } from '@tabler/icons-react'
 import { useUnitLatest } from '../data/hooks.js'
 import OverviewTab from '../components/unit/OverviewTab.jsx'
 import HeaterTab from '../components/unit/HeaterTab.jsx'
 import ComponentTestTab from '../components/unit/ComponentTestTab.jsx'
-import TelemetryTab from '../components/unit/TelemetryTab.jsx'
 import HistoryTab from '../components/unit/HistoryTab.jsx'
 import RemoteControlTab from '../components/unit/RemoteControlTab.jsx'
 import FirmwareTab from '../components/unit/FirmwareTab.jsx'
+import { lazyPage } from '../components/lazyPage.js'
+
+// recharts is the heaviest dependency; only fetch it when the Telemetry tab opens.
+const TelemetryTab = lazyPage(() => import('../components/unit/TelemetryTab.jsx'))
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
@@ -50,7 +53,7 @@ export default function UnitDetailPage() {
 
       {/* Panel */}
       {tab === 'overview' && <OverviewTab tele={tele} unit={id} isDemo={isDemo} onOpenTab={setTab} />}
-      {tab === 'telemetry' && <TelemetryTab unit={id} />}
+      {tab === 'telemetry' && <Suspense fallback={null}><TelemetryTab unit={id} /></Suspense>}
       {tab === 'heater' && <HeaterTab tele={tele} unit={id} isDemo={isDemo} />}
       {tab === 'diag' && <ComponentTestTab tele={tele} />}
       {tab === 'remote' && <RemoteControlTab tele={tele} unit={id} isDemo={isDemo} />}

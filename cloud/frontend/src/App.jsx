@@ -1,16 +1,21 @@
+import { Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'
 import Layout from './components/Layout.jsx'
 import LoginPage from './pages/LoginPage.jsx'
-import DashboardPage from './pages/DashboardPage.jsx'
-import AlertsPage from './pages/AlertsPage.jsx'
-import APUHistoryPage from './pages/APUHistoryPage.jsx'
-import MaintenancePage from './pages/MaintenancePage.jsx'
-import UsersPage from './pages/UsersPage.jsx'
-import ReportsPage from './pages/ReportsPage.jsx'
-import UnitDetailPage from './pages/UnitDetailPage.jsx'
-import SystemConfigPage from './pages/SystemConfigPage.jsx'
-import FleetMapPage from './pages/FleetMapPage.jsx'
+import { lazyPage } from './components/lazyPage.js'
+
+// Each page is its own chunk, so the first load only fetches the shell and the
+// page you land on; recharts (Telemetry) and leaflet (Map) load when opened.
+const DashboardPage    = lazyPage(() => import('./pages/DashboardPage.jsx'))
+const AlertsPage       = lazyPage(() => import('./pages/AlertsPage.jsx'))
+const APUHistoryPage   = lazyPage(() => import('./pages/APUHistoryPage.jsx'))
+const MaintenancePage  = lazyPage(() => import('./pages/MaintenancePage.jsx'))
+const UsersPage        = lazyPage(() => import('./pages/UsersPage.jsx'))
+const ReportsPage      = lazyPage(() => import('./pages/ReportsPage.jsx'))
+const UnitDetailPage   = lazyPage(() => import('./pages/UnitDetailPage.jsx'))
+const SystemConfigPage = lazyPage(() => import('./pages/SystemConfigPage.jsx'))
+const FleetMapPage     = lazyPage(() => import('./pages/FleetMapPage.jsx'))
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
@@ -28,6 +33,8 @@ export default function App() {
           <Route path="/*" element={
             <Protected>
               <Layout>
+                {/* inside Layout so the nav stays put while a page chunk loads */}
+                <Suspense fallback={null}>
                 <Routes>
                   <Route path="/"            element={<DashboardPage />} />
                   <Route path="/units/:id"   element={<UnitDetailPage />} />
@@ -40,6 +47,7 @@ export default function App() {
                   <Route path="/reports"     element={<ReportsPage />} />
                   <Route path="*"            element={<Navigate to="/" replace />} />
                 </Routes>
+                </Suspense>
               </Layout>
             </Protected>
           } />
