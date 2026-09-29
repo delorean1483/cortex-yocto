@@ -3,30 +3,32 @@
 #
 # weather-fetch (unprivileged, sandboxed) resolves the unit's location (IP
 # geolocation, configured lat/lon as fallback), gets the IANA zone for it from
-# Open-Meteo (timezone=auto) and writes the name to $REQ when it changes.
+# Open-Meteo (timezone=auto) and writes the name to $SHARED when it changes.
 # gobi-tz-apply.path starts this worker, which re-validates the name, applies it,
 # and restarts gobi-ui so the panel clock follows (glibc only re-reads
 # /etc/localtime on process start).
 #
-# The zone is also kept in the u-boot environment (ecofleet_tz), which both A/B
-# slots share: this worker saves it there whenever it applies a zone, and at
-# boot — ordered before gobi-ui — a freshly updated slot that has no $REQ yet
-# takes the zone from there. So an update never shows UTC or restarts gobi-ui.
-# (post-install.sh also seeds ecofleet_tz from the running zone.)
+# The zone file lives on the slot-shared /data partition, so a freshly updated
+# slot already has it at boot (this worker runs before gobi-ui) and the panel
+# never shows UTC. Fallbacks, in order: the per-slot copy (units without a
+# working /data), then the u-boot environment (ecofleet_tz) — which
+# post-install.sh seeds at every update, and is what carries the zone on the
+# first boot after updating from a release that kept it per-slot.
 set -u
 
-REQ=/var/lib/ecofleet/timezone
+SHARED=/data/ecofleet/timezone
+LEGACY=/var/lib/ecofleet/timezone
 ZONEINFO=/usr/share/zoneinfo
 ENV_KEY=ecofleet_tz
 log() { logger -t gobi-tz-apply "$*"; }
 
-env_tz=$(fw_printenv -n "$ENV_KEY" 2>/dev/null || echo "")
-if [ -r "$REQ" ]; then
-    tz=$(head -n 1 "$REQ" | tr -d '\r\n')
-elif [ -n "$env_tz" ]; then
-    tz=$env_tz                       # fresh slot after an update: carry it over
+if [ -r "$SHARED" ]; then
+    tz=$(head -n 1 "$SHARED" | tr -d '\r\n')
+elif [ -r "$LEGACY" ]; then
+    tz=$(head -n 1 "$LEGACY" | tr -d '\r\n')
 else
-    exit 0
+    tz=$(fw_printenv -n "$ENV_KEY" 2>/dev/null || echo "")
+    [ -n "$tz" ] || exit 0           # nothing known yet: stay put until weather-fetch
 fi
 
 # Same rule as weather_parse_timezone(): plain zone names only — no absolute
@@ -38,11 +40,6 @@ esac
 if [ ! -f "$ZONEINFO/$tz" ]; then
     log "zone '$tz' is not installed under $ZONEINFO — leaving time zone unchanged"
     exit 0
-fi
-
-# Keep the slot-shared copy current so the next update carries this zone.
-if [ "$env_tz" != "$tz" ]; then
-    fw_setenv "$ENV_KEY" "$tz" 2>/dev/null || log "could not save $tz to u-boot env"
 fi
 
 cur=$(timedatectl show -p Timezone --value 2>/dev/null || echo "")

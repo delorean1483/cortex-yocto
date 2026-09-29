@@ -3,17 +3,14 @@
  * The API mirrors an assigned location into shadow desired.location as
  * {"assigned":true,"lat":..,"lon":..,"label":".."} and a cleared one as
  * {"assigned":false} (deleting a desired key never produces a delta, so a
- * clear must be an explicit value). gobi-agent stores it at
- * LOCATION_JSON_PATH; weather-fetch prefers it over IP geolocation, so the
- * forecast and the unit's time zone follow the location an admin assigned.
+ * clear must be an explicit value). gobi-agent stores it on the slot-shared
+ * /data partition (state_path.h: LOCATION_JSON_SHARED, so it survives A/B
+ * updates); weather-fetch prefers it over IP geolocation, so the forecast and
+ * the unit's time zone follow the location an admin assigned.
  */
 #pragma once
 
 #include <cjson/cJSON.h>
-
-#ifndef LOCATION_JSON_PATH
-#define LOCATION_JSON_PATH "/var/lib/ecofleet/location.json"
-#endif
 
 typedef struct {
     double lat;          /* -90..90   */

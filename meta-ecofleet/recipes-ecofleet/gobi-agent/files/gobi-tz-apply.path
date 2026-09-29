@@ -2,7 +2,10 @@
 Description=Watch for EcoFleet time zone changes
 
 [Path]
-# weather-fetch rewrites this (atomically) only when the zone changes.
+# weather-fetch rewrites this (atomically) only when the zone changes. It lives
+# on the slot-shared /data partition; the per-slot copy is used only on units
+# without a working /data.
+PathChanged=/data/ecofleet/timezone
 PathChanged=/var/lib/ecofleet/timezone
 Unit=gobi-tz-apply.service
 

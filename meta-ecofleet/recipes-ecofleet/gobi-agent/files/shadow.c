@@ -7,6 +7,7 @@
 
 #include "shadow.h"
 #include "location.h"
+#include "state_path.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -148,7 +149,7 @@ static bool apply_desired(const cJSON *desired)
     if (!cJSON_IsObject(desired)) return false;
 
     /* Dashboard-assigned location (Fleet map). Not part of shadow_config_t:
-     * it is persisted to LOCATION_JSON_PATH for weather-fetch (forecast +
+     * it is persisted (state_path.h, /data when available) for weather-fetch (forecast +
      * time zone). Merged under the lock, then parsed/stored outside it since
      * that does file I/O. Idempotent — location_store() only rewrites the file
      * when the value actually changes. */
@@ -169,7 +170,9 @@ static bool apply_desired(const cJSON *desired)
         if (r < 0) {
             fprintf(stderr, "[shadow] invalid desired.location — ignored\n");
         } else {
-            int c = location_store(LOCATION_JSON_PATH, r == 1 ? &l : NULL);
+            const char *path = state_write_path(LOCATION_JSON_SHARED, LOCATION_JSON_LEGACY);
+            int c = location_store(path, r == 1 ? &l : NULL);
+            if (c >= 0) state_retire_legacy(path, LOCATION_JSON_LEGACY);
             if (c < 0)
                 fprintf(stderr, "[shadow] could not store assigned location\n");
             else if (c == 1 && r == 1)

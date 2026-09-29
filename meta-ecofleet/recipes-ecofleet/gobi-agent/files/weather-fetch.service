@@ -1,7 +1,7 @@
 [Unit]
 Description=EcoFleet weather forecast fetch (Open-Meteo)
 Documentation=https://github.com/your-org/ecofleet-firmware
-After=network-online.target
+After=network-online.target data.mount
 Wants=network-online.target
 
 [Service]
@@ -18,6 +18,9 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 ReadWritePaths=/var/lib/ecofleet
+# Time zone + assigned location live on the slot-shared /data partition (see
+# state_path.h). "-": a unit without a working /data still runs, per-slot.
+ReadWritePaths=-/data/ecofleet
 PrivateTmp=yes
 
 # No [Install]: this unit is started by weather-fetch.timer, not on its own.

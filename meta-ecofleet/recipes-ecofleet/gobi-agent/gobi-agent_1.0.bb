@@ -19,6 +19,8 @@ SRC_URI = " \
     file://weather.c \
     file://location.h \
     file://location.c \
+    file://state_path.h \
+    file://state_path.c \
     file://reboot_guard.h \
     file://reboot_guard.c \
     file://event_log.h \

@@ -38,6 +38,7 @@ target_sources(gobi-agent PRIVATE
     main.c
     shadow.c
     location.c
+    state_path.c
     reboot_guard.c
     event_log.c
     bl_crc32.c
@@ -95,6 +96,7 @@ target_sources(weather-fetch PRIVATE
     weather-fetch.c
     weather.c
     location.c
+    state_path.c
 )
 target_include_directories(weather-fetch PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
