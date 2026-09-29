@@ -62,6 +62,11 @@ QtObject {
             activeCount = 1
         }
     }
+    // display mock — mirrors DisplayModel (brightness 10-100, sleepMinutes 0 = never)
+    property QtObject display: QtObject {
+        property int    brightness: 80;   property int  sleepMinutes: 10
+        property bool   keepAwake: false; property string state: "on"
+    }
     property QtObject devinfo: QtObject {
         property string serial: "TRUCK-001";     property string hostname: "imx8mm-var-dart"
         property string fwVersion: "v1.2.57";    property bool   ethLinked: true

@@ -25,6 +25,10 @@ ApplicationWindow {
         }
         LockOverlay { anchors.fill: parent }   // covers the rail too when locked
     }
+    // Screen sleep never hides an active fault or a running Component Test; a new
+    // fault wakes the panel (DisplayModel.setKeepAwake).
+    Binding { target: display; property: "keepAwake"; value: telemetry.hasError || telemetry.diagActive }
+
     Component { id: homeC; HomeScreen {} }
     Component { id: modeC; ModeScreen {} }
     Component { id: battC; BatteryScreen {} }
