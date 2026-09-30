@@ -74,8 +74,9 @@ Item {
         ["17-support",       function() { telemetry.diagActive = false; root.poke(); root.sub(supportC) }],
         ["18-lockoverlay",   function() { shell.selectRail(0); LockController.setPin("1234"); LockController.lock() }],
         ["19-update-download", function() { root.notice("busy", "Updating software to 1.2.67", "Downloading…", "") }],
-        ["19b-update-apu",   function() { root.notice("busy", "Updating APU controller", "42% complete", "") }],
-        ["19c-update-failed", function() { LockController.tryUnlock("1234"); shell.selectRail(0)
+        ["19b-update-apu",   function() { telemetry.updateProgress = 42
+                                          root.notice("busy", "Updating APU controller", "42% complete", "") }],
+        ["19c-update-failed", function() { telemetry.updateProgress = -1; LockController.tryUnlock("1234"); shell.selectRail(0)
                                            root.notice("failed", "Software update to 1.2.67 failed",
                                                        "The unit is still running its current software.",
                                                        "failed: install 1.2.67 (rc 1)") }]

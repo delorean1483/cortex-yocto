@@ -34,6 +34,7 @@ QtObject {
         // firmware update notice (TelemetryModel.update*: kind none|busy|failed)
         property string updateKind: "none";   property string updateTitle: ""
         property string updateDetail: "";     property string updateKey: ""
+        property int    updateProgress: -1
         function load() { clmtSetpointF = 67; tsMs += 1; dataChanged() }
         function setMode(m) { mode = m; dataChanged() }
         function setSetpoint(f) { clmtSetpointF = f; dataChanged() }

@@ -1,6 +1,7 @@
 #include "UpdateNotice.h"
 
 #include <QStringList>
+#include <QtGlobal>
 
 static UpdateNotice make(UpdateNotice::Kind kind, const QString &title,
                          const QString &detail, const QString &key = QString())
@@ -36,9 +37,13 @@ static UpdateNotice fromOta(const QString &status)
 /* APU controller (STM32) flash from the agent's own flash task. */
 static UpdateNotice fromApu(const QString &state, int pct)
 {
-    if (state == QLatin1String("flashing"))
-        return make(UpdateNotice::Busy, QStringLiteral("Updating APU controller"),
-                    QStringLiteral("%1% complete").arg(pct));
+    if (state == QLatin1String("flashing")) {
+        pct = qBound(0, pct, 100);
+        UpdateNotice n = make(UpdateNotice::Busy, QStringLiteral("Updating APU controller"),
+                              QStringLiteral("%1% complete").arg(pct));
+        n.progress = pct;
+        return n;
+    }
     if (state == QLatin1String("failed"))
         return make(UpdateNotice::Failed, QStringLiteral("APU controller update failed"),
                     QStringLiteral("The APU is still running its previous firmware."),

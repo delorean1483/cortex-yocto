@@ -11,6 +11,9 @@
  *   Failed → dismissible banner; `key` identifies the failure so a dismissal
  *            sticks until a different failure appears
  *
+ * `progress` is 0-100 when the source reports a real percentage (APU flash),
+ * else -1 (system update reports phases only → indeterminate bar).
+ *
  * Unrecognised status lines map to None: never block the screen on a guess. */
 struct UpdateNotice
 {
@@ -19,6 +22,7 @@ struct UpdateNotice
     QString title;
     QString detail;
     QString key;
+    int     progress = -1;
 };
 
 UpdateNotice describeUpdate(const QString &otaStatus, const QString &apuFlashState, int apuFlashPct);
