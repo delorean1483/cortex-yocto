@@ -16,3 +16,8 @@ target_link_libraries(tst_displaymodel PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
 target_compile_options(tst_displaymodel PRIVATE -Wall -Wextra)
 add_test(NAME tst_displaymodel COMMAND tst_displaymodel)
 set_tests_properties(tst_displaymodel PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+add_executable(tst_updatenotice tst_updatenotice.cpp ../UpdateNotice.h ../UpdateNotice.cpp)
+target_link_libraries(tst_updatenotice PRIVATE Qt6::Core Qt6::Test)
+target_compile_options(tst_updatenotice PRIVATE -Wall -Wextra)
+add_test(NAME tst_updatenotice COMMAND tst_updatenotice)

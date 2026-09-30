@@ -4,6 +4,8 @@
 #include <QString>
 #include <QTimer>
 
+#include "UpdateNotice.h"
+
 /* Reads the live telemetry snapshot the gobi-agent writes to
  * /var/lib/ecofleet/latest.json every poll cycle (climate-APU schema).
  * File-based (not SQLite): the agent's SQLite buffer only holds rows while
@@ -50,6 +52,12 @@ class TelemetryModel : public QObject
     Q_PROPERTY(bool    heaterSafeOff      READ heaterSafeOff      NOTIFY dataChanged)
     Q_PROPERTY(bool    heaterCommsOk      READ heaterCommsOk      NOTIFY dataChanged)
     Q_PROPERTY(int     heaterFlags        READ heaterFlags        NOTIFY dataChanged)
+    /* Firmware update notice (see UpdateNotice.h): updateKind "none" | "busy" |
+     * "failed"; updateKey identifies a failure so a dismissal can stick. */
+    Q_PROPERTY(QString updateKind   READ updateKind   NOTIFY dataChanged)
+    Q_PROPERTY(QString updateTitle  READ updateTitle  NOTIFY dataChanged)
+    Q_PROPERTY(QString updateDetail READ updateDetail NOTIFY dataChanged)
+    Q_PROPERTY(QString updateKey    READ updateKey    NOTIFY dataChanged)
 
 public:
     explicit TelemetryModel(QObject *parent = nullptr);
@@ -109,6 +117,10 @@ public:
     bool    heaterSafeOff()      const { return m_heaterSafeOff; }
     bool    heaterCommsOk()      const { return m_heaterCommsOk; }
     int     heaterFlags()        const { return m_heaterFlags; }
+    QString updateKind()   const;
+    QString updateTitle()  const { return m_update.title; }
+    QString updateDetail() const { return m_update.detail; }
+    QString updateKey()    const { return m_update.key; }
 
 signals:
     void dataChanged();
@@ -151,4 +163,6 @@ private:
     bool    m_heaterSafeOff      = false;
     bool    m_heaterCommsOk      = false;
     int     m_heaterFlags        = 0;
+
+    UpdateNotice m_update;
 };
