@@ -58,6 +58,7 @@ class TelemetryModel : public QObject
     Q_PROPERTY(QString updateTitle  READ updateTitle  NOTIFY dataChanged)
     Q_PROPERTY(QString updateDetail READ updateDetail NOTIFY dataChanged)
     Q_PROPERTY(QString updateKey    READ updateKey    NOTIFY dataChanged)
+    Q_PROPERTY(int     updateProgress READ updateProgress NOTIFY dataChanged)   // 0-100, -1 = indeterminate
 
 public:
     explicit TelemetryModel(QObject *parent = nullptr);
@@ -121,6 +122,7 @@ public:
     QString updateTitle()  const { return m_update.title; }
     QString updateDetail() const { return m_update.detail; }
     QString updateKey()    const { return m_update.key; }
+    int     updateProgress() const { return m_update.progress; }
 
 signals:
     void dataChanged();

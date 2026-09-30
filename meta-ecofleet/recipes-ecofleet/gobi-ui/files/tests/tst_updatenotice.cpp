@@ -21,6 +21,7 @@ private slots:
         QCOMPARE(n.kind, UpdateNotice::Busy);
         QCOMPARE(n.title, QStringLiteral("Updating software to 1.2.67"));
         QCOMPARE(n.detail, QStringLiteral("Downloading…"));
+        QCOMPARE(n.progress, -1);   // phases only: indeterminate bar
     }
 
     void installing()
@@ -65,6 +66,13 @@ private slots:
         QCOMPARE(n.kind, UpdateNotice::Busy);
         QCOMPARE(n.title, QStringLiteral("Updating APU controller"));
         QCOMPARE(n.detail, QStringLiteral("42% complete"));
+        QCOMPARE(n.progress, 42);
+    }
+
+    void apuProgressClamped()
+    {
+        QCOMPARE(describeUpdate("idle", "flashing", 140).progress, 100);
+        QCOMPARE(describeUpdate("idle", "flashing", -5).progress, 0);
     }
 
     void apuFailed()

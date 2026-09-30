@@ -27,13 +27,24 @@ Item {
                 text: telemetry.updateTitle; color: Theme.text; font.pixelSize: 24; font.weight: Font.DemiBold }
             Text { width: parent.width; horizontalAlignment: Text.AlignHCenter
                 text: telemetry.updateDetail; color: Theme.textMute; font.pixelSize: Theme.fsBody }
-            // Indeterminate sweep: the worker only reports phases, not progress.
+            // A real fill when the source reports a percentage (APU flash);
+            // otherwise an indeterminate sweep (system update reports phases only).
             Rectangle {
+                id: track
+                readonly property bool determinate: telemetry.updateProgress >= 0
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: 320; height: 6; radius: 3; color: Theme.surface; clip: true
                 Rectangle {
-                    id: sweep; width: 96; height: parent.height; radius: 3; color: Theme.accent
-                    NumberAnimation on x { from: -96; to: 320; duration: 1400; loops: Animation.Infinite; running: root.busy }
+                    visible: track.determinate
+                    width: track.width * Math.max(0, telemetry.updateProgress) / 100
+                    height: parent.height; radius: 3; color: Theme.accent
+                    Behavior on width { NumberAnimation { duration: 300 } }
+                }
+                Rectangle {
+                    visible: !track.determinate
+                    width: 96; height: parent.height; radius: 3; color: Theme.accent
+                    NumberAnimation on x { from: -96; to: 320; duration: 1400; loops: Animation.Infinite
+                                           running: root.busy && !track.determinate }
                 }
             }
             Text { width: parent.width; horizontalAlignment: Text.AlignHCenter
