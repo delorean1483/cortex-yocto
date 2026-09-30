@@ -16,6 +16,7 @@ Item {
         railScreens: [ homeC, battC, menuC ]
     }
     LockOverlay { anchors.fill: parent }
+    UpdateOverlay { anchors.fill: parent }
 
     Component { id: homeC; HomeScreen {} }
     Component { id: battC; BatteryScreen {} }
@@ -33,6 +34,10 @@ Item {
     Component { id: supportC;   SupportScreen {} }
 
     function sub(c) { shell.selectRail(2); return shell.pushScreen(c) }
+    function notice(kind, title, detail, key) {
+        telemetry.updateKind = kind; telemetry.updateTitle = title
+        telemetry.updateDetail = detail; telemetry.updateKey = key; root.poke()
+    }
     function poke() { telemetry.tsMs += 1; telemetry.dataChanged() }
 
     property var steps: [
@@ -67,7 +72,13 @@ Item {
         ["16-comptest",      function() { var p = root.sub(comptestC); p.tryUnlock(MaintController.defaultPin)
                                           telemetry.diagActive = true; root.poke() }],
         ["17-support",       function() { telemetry.diagActive = false; root.poke(); root.sub(supportC) }],
-        ["18-lockoverlay",   function() { shell.selectRail(0); LockController.setPin("1234"); LockController.lock() }]
+        ["18-lockoverlay",   function() { shell.selectRail(0); LockController.setPin("1234"); LockController.lock() }],
+        ["19-update-download", function() { root.notice("busy", "Updating software to 1.2.67", "Downloading…", "") }],
+        ["19b-update-apu",   function() { root.notice("busy", "Updating APU controller", "42% complete", "") }],
+        ["19c-update-failed", function() { LockController.tryUnlock("1234"); shell.selectRail(0)
+                                           root.notice("failed", "Software update to 1.2.67 failed",
+                                                       "The unit is still running its current software.",
+                                                       "failed: install 1.2.67 (rc 1)") }]
     ]
     property int idx: 0
     Timer { id: act; interval: 300; onTriggered: { root.steps[root.idx][1](); grab.restart() } }

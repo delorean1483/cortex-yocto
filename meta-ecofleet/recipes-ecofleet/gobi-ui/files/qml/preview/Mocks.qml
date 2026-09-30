@@ -31,6 +31,9 @@ QtObject {
         property int    heaterStateSeconds: 0; property int    heaterAgeMs: 0
         property bool   heaterSafeOff: false;  property bool   heaterCommsOk: false
         property int    heaterFlags: 16
+        // firmware update notice (TelemetryModel.update*: kind none|busy|failed)
+        property string updateKind: "none";   property string updateTitle: ""
+        property string updateDetail: "";     property string updateKey: ""
         function load() { clmtSetpointF = 67; tsMs += 1; dataChanged() }
         function setMode(m) { mode = m; dataChanged() }
         function setSetpoint(f) { clmtSetpointF = f; dataChanged() }

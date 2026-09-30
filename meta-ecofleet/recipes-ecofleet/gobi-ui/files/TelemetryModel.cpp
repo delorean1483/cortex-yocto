@@ -97,9 +97,22 @@ void TelemetryModel::poll()
     m_heaterSafeOff      = o[u"heater_safe_off"].toBool();
     m_heaterCommsOk      = o[u"heater_comms_ok"].toBool();
 
+    m_update = describeUpdate(o[u"ota_status"].toString(),
+                              o[u"apu_flash_state"].toString(),
+                              static_cast<int>(o[u"stm32_update_pct"].toDouble()));
+
     m_stale         = (QDateTime::currentMSecsSinceEpoch() - m_tsMs) > STALE_MS;
 
     emit dataChanged();
+}
+
+QString TelemetryModel::updateKind() const
+{
+    switch (m_update.kind) {
+    case UpdateNotice::Busy:   return QStringLiteral("busy");
+    case UpdateNotice::Failed: return QStringLiteral("failed");
+    default:                   return QStringLiteral("none");
+    }
 }
 
 void TelemetryModel::setMode(const QString &mode)   { writeCommand(QStringLiteral("mode"), mode); }

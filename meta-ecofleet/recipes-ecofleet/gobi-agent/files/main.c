@@ -696,6 +696,11 @@ static char *build_latest_json(const telemetry_t *t)
     cJSON *root = telemetry_object(t);
     cJSON_AddBoolToObject  (root, "cloud_connected",   g_mqtt_connected);
     cJSON_AddNumberToObject(root, "cloud_last_ack_ms", (double)g_cloud_last_ack_ms);
+    /* System-update progress so the screen can show an "updating, don't power
+     * off" notice (the dashboard gets the same line via reported.ota_status). */
+    char ota[64];
+    read_ota_status(ota, sizeof(ota));
+    cJSON_AddStringToObject(root, "ota_status", ota[0] ? ota : "idle");
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     return json;

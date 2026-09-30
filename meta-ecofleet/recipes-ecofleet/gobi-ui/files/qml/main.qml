@@ -24,10 +24,12 @@ ApplicationWindow {
             railScreens: [ homeC, battC, menuC ]
         }
         LockOverlay { anchors.fill: parent }   // covers the rail too when locked
+        UpdateOverlay { anchors.fill: parent } // firmware update in progress / failed
     }
-    // Screen sleep never hides an active fault or a running Component Test; a new
-    // fault wakes the panel (DisplayModel.setKeepAwake).
-    Binding { target: display; property: "keepAwake"; value: telemetry.hasError || telemetry.diagActive }
+    // Screen sleep never hides an active fault, a running Component Test or a
+    // firmware update; a new fault wakes the panel (DisplayModel.setKeepAwake).
+    Binding { target: display; property: "keepAwake"
+              value: telemetry.hasError || telemetry.diagActive || telemetry.updateKind === "busy" }
 
     Component { id: homeC; HomeScreen {} }
     Component { id: modeC; ModeScreen {} }

@@ -21,6 +21,8 @@ qt_add_executable(gobi-ui
     EventLogModel.cpp
     DisplayModel.h
     DisplayModel.cpp
+    UpdateNotice.h
+    UpdateNotice.cpp
 )
 
 target_link_libraries(gobi-ui PRIVATE
