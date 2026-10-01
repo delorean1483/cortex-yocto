@@ -49,6 +49,9 @@ Item {
         return null
     }
     function menuPage2() { var sv = findSwipe(shell); if (sv) sv.setCurrentIndex(1) }
+    property var netsAll: []
+    // Mock list with nothing in use (for steps where the unit is not connected).
+    function netsIdle() { return netsAll.map(function(n) { var c = Object.assign({}, n); c.inUse = false; return c }) }
     function poke() { telemetry.tsMs += 1; telemetry.dataChanged() }
 
     property var steps: [
@@ -91,14 +94,16 @@ Item {
                                            root.notice("failed", "Software update to 1.2.67 failed",
                                                        "The unit is still running its current software.",
                                                        "failed: install 1.2.67 (rc 1)") }],
-        ["21-wifi",            function() { root.notice("none", "", "", ""); root.sub(wifiC) }],
+        ["21-wifi",            function() { root.netsAll = wifi.networks; root.notice("none", "", "", ""); root.sub(wifiC) }],
         ["21b-wifi-portal",    function() { wifi.internet = "portal"; root.sub(wifiC) }],
-        ["21c-wifi-connecting",function() { wifi.internet = "online"; wifi.state = "connecting"; wifi.pendingSsid = "Shop-Guest"; root.sub(wifiC) }],
-        ["21d-wifi-wrongpw",   function() { wifi.state = "idle"; wifi.pendingSsid = ""; wifi.lastError = "Wrong password."; root.sub(wifiC) }],
+        ["21c-wifi-connecting",function() { wifi.internet = "online"; wifi.state = "connecting"; wifi.pendingSsid = "Shop-Guest"; wifi.networks = root.netsIdle(); root.sub(wifiC) }],
+        ["21d-wifi-wrongpw",   function() { wifi.state = "idle"; wifi.pendingSsid = ""; wifi.lastError = "Wrong password."; wifi.networks = root.netsIdle(); root.sub(wifiC) }],
         ["21e-wifi-unavail",   function() { wifi.lastError = ""; wifi.state = "unavailable"; wifi.networks = []; root.sub(wifiC) }],
-        ["21f-wifi-join",      function() { wifi.state = "connected"; root.sub(wifiJoinC) }],
+        ["21f-wifi-join",      function() { wifi.state = "connected"; wifi.networks = root.netsAll; root.sub(wifiJoinC) }],
         ["21f2-wifi-join-symbols", function() { var p = root.sub(wifiJoinC); p.kbSymbols = true; p.error = "Wrong password." }],
         ["21g-wifi-hidden",    function() { root.sub(wifiHidC) }],
+        ["21g2-wifi-hidden-symbols", function() { var p = root.sub(wifiHidC); p.kbSymbols = true }],
+        ["21g3-wifi-hidden-error", function() { var p = root.sub(wifiHidC); p.error = "Couldn't connect to that network." }],
         ["21h-wifi-saved",     function() { root.sub(wifiSavedC) }],
         ["21i-menu-p2",        function() { shell.selectRail(2); root.menuPage2() }]
     ]

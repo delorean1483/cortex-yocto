@@ -13,14 +13,14 @@ Rectangle {
     property bool symbols: false
     signal done()
     color: Theme.bg
-    // Symbols page has up to 12 keys in a row; narrower keys keep it inside the 660 px content width.
-    readonly property real keyW: symbols ? 46 : 58
-    // 5 rows on the symbols page: shorter keys so it still fits under the password row + hint.
-    readonly property real keyH: symbols ? 46 : 52
-    implicitHeight: (symbols ? 5 : 4) * keyH + (symbols ? 4 : 3) * 6 + 12
+    // Same height on every page: 4 rows of 58x52 keys.
+    implicitHeight: 4 * 52 + 3 * 6 + 12
 
+    property bool more: false     // second symbols page ("#+=")
     readonly property var letters: [ "qwertyuiop", "asdfghjkl", "zxcvbnm" ]
-    readonly property var syms:    [ "1234567890", "-/:;()$&@\"", ".,?!'#%*+=" , "_\\|~<>[]{}^`" ]
+    readonly property var syms1: [ "1234567890", "-/:;()$&@\"", ".,?!'" ]
+    readonly property var syms2: [ "[]{}#%^*+=", "_\\|~<>`", ".,?!'" ]
+    readonly property var symRows: more ? syms2 : syms1
 
     function insert(s) {
         if (!target) return
@@ -42,7 +42,7 @@ Rectangle {
         property real units: 1
         property bool accent: false
         signal tapped()
-        Layout.preferredWidth: kb.keyW * units + 6 * (units - 1); Layout.preferredHeight: kb.keyH
+        Layout.preferredWidth: 58 * units + 6 * (units - 1); Layout.preferredHeight: 52
         radius: Theme.radiusSm
         color: ka.pressed ? Theme.surface2 : (accent ? Theme.accent : Theme.surface)
         border.color: Theme.border; border.width: accent ? 0 : 1
@@ -56,22 +56,22 @@ Rectangle {
     ColumnLayout {
         anchors.centerIn: parent; spacing: 6
         Repeater {
-            model: kb.symbols ? kb.syms.slice(0, 3) : kb.letters
+            model: kb.symbols ? kb.symRows : kb.letters
             RowLayout { Layout.alignment: Qt.AlignHCenter; spacing: 6
-                Key { visible: !kb.symbols && index === 2; glyph: ""; label: kb.caps ? "⇪" : "⇧"; units: 1.5
+                Key { visible: !kb.symbols && index === 2; label: kb.caps ? "⇪" : "⇧"; units: 1.5
                       accent: kb.shift
                       onTapped: { if (kb.shift && !kb.caps) kb.caps = true; else { kb.caps = false; kb.shift = !kb.shift } } }
+                Key { visible: kb.symbols && index === 2; label: kb.more ? "123" : "#+="; units: 1.5
+                      onTapped: kb.more = !kb.more }
                 Repeater { model: modelData.split("")
                     Key { label: (kb.shift && !kb.symbols) ? modelData.toUpperCase() : modelData
                           onTapped: kb.insert(label) } }
                 Key { visible: index === 2; glyph: "backspace"; units: 1.5; onTapped: kb.backspace() }
             }
         }
-        RowLayout { visible: kb.symbols; Layout.alignment: Qt.AlignHCenter; spacing: 6
-            Repeater { model: kb.syms[3].split("")
-                Key { label: modelData; onTapped: kb.insert(modelData) } } }
         RowLayout { Layout.alignment: Qt.AlignHCenter; spacing: 6
-            Key { label: kb.symbols ? "ABC" : "123"; units: 1.5; onTapped: kb.symbols = !kb.symbols }
+            Key { label: kb.symbols ? "ABC" : "123"; units: 1.5
+                  onTapped: { kb.symbols = !kb.symbols; kb.more = false } }
             Key { label: "space"; units: 5; onTapped: kb.insert(" ") }
             Key { label: "Done"; units: 2; accent: true; onTapped: kb.done() }
         }

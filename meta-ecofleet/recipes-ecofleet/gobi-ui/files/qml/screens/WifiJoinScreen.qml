@@ -11,6 +11,7 @@ Item {
     property string ssid: ""
     property bool hidden: false
     property bool secured: true
+    onSecuredChanged: if (!secured && hidden) kb.target = nameField   // password field is gone
     property string error: ""
     property alias kbSymbols: kb.symbols   // preview hook
     readonly property bool busy: wifi.state === "connecting" && wifi.pendingSsid === (hidden ? nameField.text : ssid)
@@ -33,7 +34,11 @@ Item {
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 14; spacing: 8
         ScreenHeader { title: page.hidden ? "Add hidden network" : page.ssid
-            subtitle: page.hidden ? "" : "Enter the WiFi password"
+            // Error/hint live in the subtitle slot so they cost no layout height (keyboard stays on screen).
+            subtitle: page.error !== "" ? page.error
+                    : (page.secured && pwField.text.length > 0 && pwField.text.length < 8) ? "Password must be at least 8 characters."
+                    : (page.hidden ? "" : "Enter the WiFi password")
+            subtitleColor: page.error !== "" ? Theme.fault : Theme.textMute
             onBack: if (page.StackView.view) page.StackView.view.pop() }
 
         RowLayout { Layout.fillWidth: true; spacing: 10; visible: page.hidden
@@ -74,10 +79,6 @@ Item {
                     color: page.valid && !page.busy ? Theme.textOnAccent : Theme.textMute
                     font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
                 MouseArea { anchors.fill: parent; onClicked: page.submit() } } }
-
-        Text { Layout.fillWidth: true; visible: page.error !== "" || (page.secured && pwField.text.length > 0 && pwField.text.length < 8)
-            text: page.error !== "" ? page.error : "Password must be at least 8 characters."
-            color: page.error !== "" ? Theme.fault : Theme.textMute; font.pixelSize: Theme.fsLabel }
 
         Item { Layout.fillHeight: true }
         TextKeyboard { id: kb; Layout.fillWidth: true; target: page.hidden ? nameField : pwField

@@ -39,11 +39,12 @@ Item {
 
         // ── status card ──
         Rectangle {
-            Layout.fillWidth: true; Layout.preferredHeight: 84; radius: Theme.radius
+            id: card; Layout.fillWidth: true; Layout.preferredHeight: Math.max(84, cardRow.implicitHeight + 24); radius: Theme.radius
             readonly property bool on: wifi.state === "connected"
             color: on ? Theme.tint(Theme.accent, 0.10) : Theme.surface
             border.color: on ? Theme.accent : "transparent"; border.width: 1
             RowLayout {
+                id: cardRow
                 anchors.fill: parent; anchors.leftMargin: Theme.pad; anchors.rightMargin: Theme.pad; spacing: 14
                 Icon { name: wifi.state === "connected" ? "check-circle" : "wifi"; size: 30
                     color: wifi.state === "connected" ? Theme.accent : Theme.textMute }
@@ -53,7 +54,7 @@ Item {
                             : wifi.state === "connecting" ? "Connecting to " + wifi.pendingSsid + "…"
                             : wifi.state === "unavailable" ? "WiFi unavailable" : "Not connected"
                         color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
-                    Text { Layout.fillWidth: true; elide: Text.ElideRight
+                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2
                         visible: wifi.lastError !== "" || wifi.state === "connected"
                         text: wifi.lastError !== "" ? wifi.lastError
                             : (wifi.internet === "portal" ? "This network needs a web sign-in, which isn't supported. Try another network or a phone hotspot."
