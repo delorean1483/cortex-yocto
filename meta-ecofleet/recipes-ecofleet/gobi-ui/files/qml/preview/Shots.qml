@@ -69,7 +69,8 @@ Item {
         ["05-diagnostics",   function() { root.sub(diagC) }],
         ["06-usermaint",     function() { root.sub(usermaintC) }],
         ["07-unitinfo",      function() { root.sub(unitC) }],
-        ["08-alerts",        function() { root.sub(alertsC) }],
+        ["07b-unitinfo-nowifi", function() { wifi.state = "idle"; wifi.ssid = ""; wifi.ip = ""; root.sub(unitC) }],
+        ["08-alerts",        function() { wifi.state = "connected"; wifi.ssid = "EcoFleet-Staff"; wifi.ip = "192.168.0.206"; root.sub(alertsC) }],
         ["09-alerts-fault",  function() { telemetry.hasError = true; telemetry.error = "low_oil"; root.poke(); root.sub(alertsC) }],
         ["10-errorlog",      function() { telemetry.hasError = false; telemetry.error = "none"; root.poke(); root.sub(logC) }],
         ["10b-errorlog-events", function() { eventlog.sample(); root.sub(logC) }],
@@ -81,7 +82,8 @@ Item {
         ["12c-cloud-back",   function() { telemetry.cloudConnected = true
                                            telemetry.cloudLastAckMs = Date.now() - 12000
                                            root.poke(); root.sub(cloudC) }],
-        ["13-screenlock",    function() { root.sub(lockC) }],
+        ["12d-cloud-nowifi", function() { wifi.state = "idle"; wifi.ssid = ""; wifi.ip = ""; root.sub(cloudC) }],
+        ["13-screenlock",    function() { wifi.state = "connected"; wifi.ssid = "EcoFleet-Staff"; wifi.ip = "192.168.0.206"; root.sub(lockC) }],
         ["14-maintenance",   function() { root.sub(maintC) }],
         ["15-comptest-lock", function() { root.sub(comptestC) }],
         ["16-comptest",      function() { var p = root.sub(comptestC); p.tryUnlock(MaintController.defaultPin)
