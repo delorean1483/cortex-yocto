@@ -6,11 +6,12 @@
 #include "FakeWpa.h"
 #include "../WifiModel.h"
 
-static const QByteArray kScan =
-    "bssid / frequency / signal level / flags / ssid\n"
-    "0c:ea:14:23:2d:43\t5240\t-47\t[WPA2-PSK-CCMP][ESS]\tYard\n"
-    "11:22:33:44:55:66\t2412\t-70\t[WPA2-PSK-CCMP][ESS]\tShop\n"
-    "22:22:33:44:55:66\t2412\t-60\t[ESS]\tFree\n";
+struct Bss { QByteArray bssid; int freq; int level; QByteArray flags; QByteArray ssid; };
+static const QList<Bss> kScan = {
+    { "0c:ea:14:23:2d:43", 5240, -47, "[WPA2-PSK-CCMP][ESS]", "Yard" },
+    { "11:22:33:44:55:66", 2412, -70, "[WPA2-PSK-CCMP][ESS]", "Shop" },
+    { "22:22:33:44:55:66", 2412, -60, "[ESS]", "Free" },
+};
 
 /* A small scriptable wpa_supplicant: tracks networks so ADD/REMOVE/LIST agree. */
 struct Script {
@@ -19,6 +20,14 @@ struct Script {
     QMap<int, QString> nets;     // id -> ssid
     int nextId = 0;
     int current = -1;
+    QList<Bss> bss = kScan;      // the BSS table; id = index
+    QByteArray bssReply(int i) const
+    {
+        if (i < 0 || i >= bss.size()) return QByteArray();   // past the end: empty reply
+        const Bss &b = bss[i];
+        return "id=" + QByteArray::number(i) + "\nbssid=" + b.bssid + "\nfreq=" + QByteArray::number(b.freq)
+             + "\nlevel=" + QByteArray::number(b.level) + "\nflags=" + b.flags + "\nssid=" + b.ssid + "\n";
+    }
     QByteArray operator()(const QByteArray &c)
     {
         if (c == "STATUS") {
@@ -33,7 +42,9 @@ struct Script {
                    + (it.key() == current ? "[CURRENT]" : "") + "\n";
             return r;
         }
-        if (c == "SCAN_RESULTS") return kScan;
+        if (c == "BSS FIRST MASK=0x1887") return bssReply(0);
+        if (c.startsWith("BSS NEXT-") && c.endsWith(" MASK=0x1887")) return bssReply(c.mid(9).split(' ')[0].toInt() + 1);
+        if (c.startsWith("BSS") || c.startsWith("SCAN_RESULTS")) return "FAIL\n";
         if (c == "SIGNAL_POLL") return "RSSI=-47\nLINKSPEED=600\n";
         if (c == "ADD_NETWORK") { nets.insert(nextId, QString()); return QByteArray::number(nextId++) + "\n"; }
         if (c.startsWith("SET_NETWORK ")) {
@@ -334,6 +345,56 @@ private slots:
         QCOMPARE(ok.count(), 0);
         QCOMPARE(m.state(), QStringLiteral("connecting"));
         QCOMPARE(count(f, "SAVE_CONFIG"), 0);
+    }
+
+    void bssPagingListsEveryNetwork()
+    {
+        // 80 BSSs (+1 duplicate SSID) would overflow SCAN_RESULTS' ~4 KB reply.
+        FakeWpa f(path()); Script s; s.bss.clear();
+        for (int i = 0; i < 80; ++i)
+            s.bss << Bss{ "02:00:00:00:00:" + QByteArray::number(i, 16).rightJustified(2, '0'), 2412,
+                          -40 - i / 2, "[WPA2-PSK-CCMP][ESS]", "Site-" + QByteArray::number(i) };
+        s.bss << Bss{ "02:00:00:00:01:00", 5180, -30, "[WPA2-PSK-CCMP][ESS]", "Site-79" };
+        f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QTRY_COMPARE(m.networks().size(), 80);
+        QCOMPARE(count(f, "SCAN_RESULTS"), 0);
+        QVERIFY(f.commands.contains("BSS NEXT-80 MASK=0x1887"));     // paged to the end
+        for (const QVariant &v : m.networks())
+            if (v.toMap()["ssid"].toString() == QLatin1String("Site-79"))
+                QCOMPARE(v.toMap()["signal"].toInt(), -30);          // strongest kept
+    }
+
+    void bssPagingIsCapped()
+    {
+        FakeWpa f(path()); Script s;
+        f.handler = [&s](const QByteArray &c) {                      // a table that never ends
+            return c.startsWith("BSS ") ? s.bssReply(0) : s(c); };
+        WifiModel m(path()); fast(m); m.start();
+        QTRY_COMPARE(m.networks().size(), 1);
+        QTest::qWait(200);
+        QVERIFY(count(f, "BSS ") <= 2 * 512);                        // initial read + scan-event read at most
+        QVERIFY(count(f, "BSS ") >= 512);
+    }
+
+    void bssPagingsDoNotInterleave()
+    {
+        FakeWpa f(path()); Script s; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QTRY_VERIFY(f.attached());
+        f.sendEvent("CTRL-EVENT-SCAN-RESULTS ");
+        f.sendEvent("CTRL-EVENT-SCAN-RESULTS ");
+        QTRY_VERIFY(!m.scanning());
+        QTest::qWait(100);
+        QList<QByteArray> bss;
+        for (const auto &c : f.commands) if (c.startsWith("BSS ")) bss << c;
+        QVERIFY(bss.size() >= 8);                                    // at least two full pagings
+        for (int i = 0; i < bss.size(); ++i) {
+            const QByteArray want = (i % 4 == 0) ? QByteArray("BSS FIRST MASK=0x1887")
+                                  : "BSS NEXT-" + QByteArray::number(i % 4 - 1) + " MASK=0x1887";
+            QCOMPARE(bss[i], want);                                  // FIRST, NEXT-0, NEXT-1, NEXT-2, FIRST, ...
+        }
+        QCOMPARE(m.networks().size(), 3);
     }
 };
 

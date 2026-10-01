@@ -17,21 +17,38 @@ private slots:
         QCOMPARE(decodeSsid("tab\\there"), QStringLiteral("tab\there"));
     }
 
-    void scanResults()
+    void bssEntry()
     {
-        const QByteArray r =
-            "bssid / frequency / signal level / flags / ssid\n"
-            "0c:ea:14:23:2d:43\t5240\t-47\t[WPA2-PSK-CCMP][ESS]\tEcoFleet-Staff\n"
-            "11:22:33:44:55:66\t2412\t-80\t[ESS]\tFree WiFi\n"
-            "22:22:33:44:55:66\t2437\t-70\t[WPA2-PSK-CCMP][ESS]\t\n";
-        const auto s = parseScanResults(r);
-        QCOMPARE(s.size(), 3);
-        QCOMPARE(s[0].bssid, QStringLiteral("0c:ea:14:23:2d:43"));
-        QCOMPARE(s[0].freq, 5240);
-        QCOMPARE(s[0].signal, -47);
-        QCOMPARE(s[0].ssid, QStringLiteral("EcoFleet-Staff"));
-        QCOMPARE(s[1].ssid, QStringLiteral("Free WiFi"));
-        QCOMPARE(s[2].ssid, QString());   // hidden network
+        // Real reply from the bench unit (wpa_supplicant 2.10, BSS FIRST MASK=0x1887).
+        const ScanEntry e = parseBss("id=0\nbssid=0c:ea:14:23:2d:43\nfreq=5240\nlevel=-48\n"
+                                     "flags=[WPA2-PSK-CCMP][ESS]\nssid=EcoFleet-Staff\n");
+        QVERIFY(e.ok);
+        QCOMPARE(e.id, 0);
+        QCOMPARE(e.bssid, QStringLiteral("0c:ea:14:23:2d:43"));
+        QCOMPARE(e.freq, 5240);
+        QCOMPARE(e.signal, -48);
+        QCOMPARE(e.flags, QStringLiteral("[WPA2-PSK-CCMP][ESS]"));
+        QCOMPARE(e.ssid, QStringLiteral("EcoFleet-Staff"));
+    }
+
+    void bssEscapedAndHiddenSsid()
+    {
+        const ScanEntry e = parseBss("id=17\nbssid=11:22:33:44:55:66\nfreq=2412\nlevel=-80\n"
+                                     "flags=[ESS]\nssid=Caf\\xc3\\xa9 \\\"Yard\\\" a=b\n");
+        QVERIFY(e.ok);
+        QCOMPARE(e.id, 17);
+        QCOMPARE(e.ssid, QStringLiteral("Café \"Yard\" a=b"));
+        const ScanEntry h = parseBss("id=3\nbssid=22:22:33:44:55:66\nfreq=2437\nlevel=-70\n"
+                                     "flags=[WPA2-PSK-CCMP][ESS]\nssid=\n");
+        QVERIFY(h.ok);
+        QCOMPARE(h.ssid, QString());   // hidden network
+    }
+
+    void bssEndOfTable()
+    {
+        QVERIFY(!parseBss("").ok);            // past the last entry
+        QVERIFY(!parseBss("FAIL\n").ok);
+        QVERIFY(!parseBss("bssid=0c:ea:14:23:2d:43\n").ok);   // no id: can't page on
     }
 
     void listNetworks()

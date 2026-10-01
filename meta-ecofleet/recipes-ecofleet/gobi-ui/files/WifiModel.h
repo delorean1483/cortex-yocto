@@ -70,6 +70,8 @@ private:
     void onEvent(const QByteArray &line);
     void refresh();
     void rebuild();
+    void fetchBss(bool endsScan);
+    void pageBss(const QByteArray &cmd, int gen);
     void runSequence(const QList<QByteArray> &cmds, std::function<void(bool)> done,
                      bool bestEffort = false);
     void runTracked(const QList<QByteArray> &cmds);
@@ -101,6 +103,12 @@ private:
     int m_rssi = 0;
     wpa::Internet m_internet = wpa::Internet::Unknown;
     QList<wpa::ScanEntry> m_scan;
+    // BSS-table paging (BSS FIRST, BSS NEXT-<id>...): one at a time; a request
+    // while one runs is folded into a single rerun when it ends.
+    static constexpr int kMaxBss = 512;      // loop guard
+    QList<wpa::ScanEntry> m_bssAcc;
+    bool m_bssBusy = false, m_bssAgain = false, m_bssEndsScan = false;
+    int m_bssGen = 0;
     QList<wpa::SavedNet> m_saved;
     QVariantList m_networks;
     QString m_lastError;

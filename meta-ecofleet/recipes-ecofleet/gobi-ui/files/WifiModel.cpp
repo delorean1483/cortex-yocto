@@ -104,6 +104,9 @@ void WifiModel::onLost()
     m_connected = false;
     m_scanning = false;
     m_scanTimer.stop();
+    ++m_bssGen;
+    m_bssBusy = m_bssAgain = m_bssEndsScan = false;
+    m_bssAcc.clear();
     m_internet = wpa::Internet::Unknown;
     m_scan.clear();
     m_saved.clear();
@@ -161,10 +164,44 @@ void WifiModel::scan()
     m_ctrl.request("SCAN", [this](bool ok, const QByteArray &r) {
         if (!ok || r.startsWith("FAIL")) { m_scanning = false; m_scanTimer.stop(); emit changed(); return; }
         // Results arrive with CTRL-EVENT-SCAN-RESULTS; also read what's cached now.
-        m_ctrl.request("SCAN_RESULTS", [this](bool ok2, const QByteArray &r) {
-            if (ok2) m_scan = wpa::parseScanResults(r);
-            rebuild();
-        });
+        fetchBss(false);
+    });
+}
+
+/* Reads the whole BSS table, one entry per request (SCAN_RESULTS would be cut
+ * off at wpa_supplicant's ~4 KB reply limit on busy sites). endsScan: this read
+ * follows CTRL-EVENT-SCAN-RESULTS, so `scanning` ends when it is done. */
+void WifiModel::fetchBss(bool endsScan)
+{
+    if (endsScan) m_bssEndsScan = true;
+    if (m_bssBusy) { m_bssAgain = true; return; }
+    m_bssBusy = true;
+    m_bssAgain = false;
+    m_bssAcc.clear();
+    pageBss(QByteArray("BSS FIRST ") + wpa::kBssMask, m_bssGen);
+}
+
+void WifiModel::pageBss(const QByteArray &cmd, int gen)
+{
+    m_ctrl.request(cmd, [this, gen](bool ok, const QByteArray &r) {
+        if (gen != m_bssGen) return;
+        if (!ok) { m_bssBusy = false; m_bssAcc.clear(); return; }   // lost; onLost resets the rest
+        const wpa::ScanEntry e = wpa::parseBss(r);
+        if (e.ok) m_bssAcc << e;
+        if (e.ok && m_bssAcc.size() < kMaxBss) {
+            pageBss("BSS NEXT-" + QByteArray::number(e.id) + ' ' + wpa::kBssMask, gen);
+            return;
+        }
+        m_bssBusy = false;                  // end of table (empty reply / FAIL) or cap
+        m_scan = m_bssAcc;
+        m_bssAcc.clear();
+        if (m_bssEndsScan && !m_bssAgain) {
+            m_bssEndsScan = false;
+            m_scanning = false;
+            m_scanTimer.stop();
+        }
+        rebuild();
+        if (m_bssAgain) fetchBss(false);
     });
 }
 
@@ -173,12 +210,7 @@ void WifiModel::onEvent(const QByteArray &line)
     const wpa::Event e = wpa::parseEvent(line);
     switch (e.type) {
     case wpa::Event::ScanResults:
-        m_ctrl.request("SCAN_RESULTS", [this](bool ok, const QByteArray &r) {
-            if (ok) m_scan = wpa::parseScanResults(r);
-            m_scanning = false;
-            m_scanTimer.stop();
-            rebuild();
-        });
+        fetchBss(true);
         break;
     case wpa::Event::Connected:
         if (m_pending.active && (e.id < 0 || e.id == m_pending.id)) finishJoin(true, QString());

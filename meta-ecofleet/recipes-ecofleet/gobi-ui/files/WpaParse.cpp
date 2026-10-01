@@ -57,22 +57,6 @@ static QList<QByteArrayList> tableRows(const QByteArray &reply)
     return rows;
 }
 
-QList<ScanEntry> parseScanResults(const QByteArray &reply)
-{
-    QList<ScanEntry> out;
-    for (const QByteArrayList &f : tableRows(reply)) {
-        if (f.size() < 4) continue;
-        ScanEntry e;
-        e.bssid  = QString::fromLatin1(f[0]);
-        e.freq   = f[1].toInt();
-        e.signal = f[2].toInt();
-        e.flags  = QString::fromLatin1(f[3]);
-        e.ssid   = f.size() > 4 ? decodeSsid(f[4]) : QString();
-        out << e;
-    }
-    return out;
-}
-
 QList<SavedNet> parseListNetworks(const QByteArray &reply)
 {
     QList<SavedNet> out;
@@ -98,6 +82,20 @@ QMap<QString, QString> parseKeyValues(const QByteArray &reply)
         kv.insert(key, key == QLatin1String("ssid") ? decodeSsid(val) : QString::fromUtf8(val));
     }
     return kv;
+}
+
+ScanEntry parseBss(const QByteArray &reply)
+{
+    ScanEntry e;
+    const auto kv = parseKeyValues(reply);
+    e.id = kv.value(QStringLiteral("id")).toInt(&e.ok);
+    if (!e.ok) { e.id = -1; return e; }
+    e.bssid  = kv.value(QStringLiteral("bssid"));
+    e.freq   = kv.value(QStringLiteral("freq")).toInt();
+    e.signal = kv.value(QStringLiteral("level")).toInt();
+    e.flags  = kv.value(QStringLiteral("flags"));
+    e.ssid   = kv.value(QStringLiteral("ssid"));
+    return e;
 }
 
 static int intField(const QByteArray &line, const char *pattern)
