@@ -30,7 +30,8 @@ do_install() {
     install -D -m 0644 ${WORKDIR}/variscite-wifi-nostop.conf \
         $unitdir/variscite-wifi.service.d/ecofleet.conf
 
-    # Start WiFi at boot (gated on /data/wifi by the drop-in above).
+    # Start WiFi at boot; the drop-in above waits for /data and runs
+    # ecofleet-wifi-init first so a usable config always exists.
     install -d $unitdir/multi-user.target.wants
     ln -sf ${systemd_system_unitdir}/wpa_supplicant@.service \
         $unitdir/multi-user.target.wants/wpa_supplicant@wlan0.service
