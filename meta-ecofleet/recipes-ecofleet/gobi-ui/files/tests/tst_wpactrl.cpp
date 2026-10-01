@@ -43,7 +43,7 @@ private slots:
     {
         FakeWpa f(path());
         WpaCtrl c(path());
-        QSignalSpy spy(&c, &WpaCtrl::event);
+        QSignalSpy spy(&c, &WpaCtrl::wpaEvent);
         QVERIFY(c.open());
         QTRY_VERIFY(f.attached());
         f.sendEvent("CTRL-EVENT-SCAN-RESULTS ");
@@ -75,10 +75,101 @@ private slots:
         QSignalSpy lost(&c, &WpaCtrl::lost);
         QVERIFY(c.open());
         f.stop();
-        bool called = false;
-        c.request("STATUS", [&](bool, const QByteArray &) { called = true; });
+        bool called = false, okv = true;
+        c.request("STATUS", [&](bool ok, const QByteArray &) { called = true; okv = ok; });
         QTRY_VERIFY(called);
+        QVERIFY(!okv);
         QTRY_COMPARE(lost.count(), 1);
+    }
+
+    void callbackEnqueuesNextRequest()
+    {
+        FakeWpa f(path());
+        f.handler = [](const QByteArray &c) { return c == "FIRST" ? QByteArray("A\n") : QByteArray("B\n"); };
+        WpaCtrl c(path());
+        QVERIFY(c.open());
+        QStringList got;
+        c.request("FIRST", [&](bool ok, const QByteArray &r) {
+            QVERIFY(ok);
+            got << QString::fromLatin1(r);
+            c.request("SECOND", [&](bool ok2, const QByteArray &r2) {
+                QVERIFY(ok2);
+                got << QString::fromLatin1(r2);
+            });
+        });
+        QTRY_COMPARE(got.size(), 2);
+        QCOMPARE(got[0], QStringLiteral("A\n"));
+        QCOMPARE(got[1], QStringLiteral("B\n"));
+    }
+
+    void multipleRequestsTimeoutTogether()
+    {
+        FakeWpa f(path());
+        WpaCtrl c(path());
+        c.setTimeoutMs(200);
+        QVERIFY(c.open());
+        QTRY_VERIFY(f.attached());
+        f.mute = true;
+        int okCount = 0;
+        for (int i = 0; i < 3; ++i) {
+            c.request("REQ" + QByteArray::number(i), [&](bool ok, const QByteArray &) {
+                if (!ok) ++okCount;
+            });
+        }
+        QTRY_COMPARE(okCount, 3);
+        QVERIFY(!c.isOpen());
+    }
+
+    void destructorDoesNotCallCallbacks()
+    {
+        bool callbackRan = false;
+        {
+            FakeWpa f(path());
+            auto *c = new WpaCtrl(path());
+            QVERIFY(c->open());
+            c->request("PING", [&](bool, const QByteArray &) { callbackRan = true; });
+            delete c;
+        }
+        QCoreApplication::processEvents();
+        QVERIFY(!callbackRan);
+    }
+
+    void reopenAfterLost()
+    {
+        FakeWpa f(path());
+        WpaCtrl c(path());
+        c.setTimeoutMs(200);
+        QVERIFY(c.open());
+        QTRY_VERIFY(f.attached());
+        f.mute = true;
+        bool timedOut = false;
+        c.request("STATUS", [&](bool ok, const QByteArray &) { if (!ok) timedOut = true; });
+        QTRY_VERIFY(timedOut);
+        QVERIFY(!c.isOpen());
+
+        f.mute = false;
+        QVERIFY(c.open());
+        bool replied = false;
+        c.request("PING", [&](bool ok, const QByteArray &) { if (ok) replied = true; });
+        QTRY_VERIFY(replied);
+        QVERIFY(c.isOpen());
+    }
+
+    void closeBeforeSendFailureDoesNotEmitLost()
+    {
+        FakeWpa f(path());
+        WpaCtrl c(path());
+        QVERIFY(c.open());
+        // Don't connect to server, cause send to fail, but immediately close+reopen
+        // The deferred fail() should not affect the new connection
+        c.close();
+        c.open();
+        QSignalSpy lost(&c, &WpaCtrl::lost);
+        bool replied = false;
+        c.request("PING", [&](bool ok, const QByteArray &) { if (ok) replied = true; });
+        QTRY_VERIFY(replied);
+        QCOMPARE(lost.count(), 0);
+        QVERIFY(c.isOpen());
     }
 };
 

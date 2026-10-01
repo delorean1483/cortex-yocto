@@ -18,7 +18,7 @@ WpaCtrl::WpaCtrl(const QString &serverPath, QObject *parent)
     connect(&m_timer, &QTimer::timeout, this, &WpaCtrl::fail);
 }
 
-WpaCtrl::~WpaCtrl() { close(); }
+WpaCtrl::~WpaCtrl() { closeSockets(); }
 
 int WpaCtrl::openSocket(const QByteArray &local)
 {
@@ -43,6 +43,7 @@ int WpaCtrl::openSocket(const QByteArray &local)
 bool WpaCtrl::open()
 {
     close();
+    ++m_generation;
     const QByteArray base = QDir::tempPath().toLocal8Bit() + "/gobi-wpa-"
                           + QByteArray::number(::getpid()) + "-" + QByteArray::number(s_counter++);
     m_cmdLocal = base + "-c";
@@ -60,14 +61,19 @@ bool WpaCtrl::open()
     return true;
 }
 
-void WpaCtrl::close()
+void WpaCtrl::closeSockets()
 {
     m_timer.stop();
     m_inFlight = false;
-    delete m_cmdN; m_cmdN = nullptr;
-    delete m_monN; m_monN = nullptr;
+    if (m_cmdN) { m_cmdN->setEnabled(false); m_cmdN->deleteLater(); m_cmdN = nullptr; }
+    if (m_monN) { m_monN->setEnabled(false); m_monN->deleteLater(); m_monN = nullptr; }
     if (m_cmdFd >= 0) { ::close(m_cmdFd); m_cmdFd = -1; ::unlink(m_cmdLocal.constData()); }
     if (m_monFd >= 0) { ::close(m_monFd); m_monFd = -1; ::unlink(m_monLocal.constData()); }
+}
+
+void WpaCtrl::close()
+{
+    closeSockets();
     // Fail whatever was queued (callbacks may enqueue more; those fail too).
     QQueue<Pending> pending;
     pending.swap(m_queue);
@@ -88,8 +94,9 @@ void WpaCtrl::sendHead()
 {
     if (m_queue.isEmpty() || !isOpen()) return;
     const QByteArray &cmd = m_queue.head().cmd;
+    const int gen = m_generation;
     if (::send(m_cmdFd, cmd.constData(), size_t(cmd.size()), 0) < 0) {
-        QTimer::singleShot(0, this, &WpaCtrl::fail);
+        QTimer::singleShot(0, this, [this, gen] { if (m_generation == gen) fail(); });
         return;
     }
     m_inFlight = true;
@@ -117,7 +124,7 @@ void WpaCtrl::onMonReadable()
     QByteArray msg(buf, int(n));
     if (!msg.startsWith('<')) return;              // ATTACH's "OK"
     const int end = msg.indexOf('>');
-    emit event(end > 0 ? msg.mid(end + 1) : msg);
+    emit wpaEvent(end > 0 ? msg.mid(end + 1) : msg);
 }
 
 void WpaCtrl::fail()

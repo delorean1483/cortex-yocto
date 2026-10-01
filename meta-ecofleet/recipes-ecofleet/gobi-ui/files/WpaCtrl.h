@@ -30,12 +30,13 @@ public:
     void setTimeoutMs(int ms) { m_timeoutMs = ms; }
 
 signals:
-    void event(const QByteArray &line);
+    void wpaEvent(const QByteArray &line);
     void lost();
 
 private:
     struct Pending { QByteArray cmd; Reply cb; };
     int openSocket(const QByteArray &localPath);
+    void closeSockets();
     void sendHead();
     void onCmdReadable();
     void onMonReadable();
@@ -49,4 +50,5 @@ private:
     bool m_inFlight = false;
     QTimer m_timer;
     int m_timeoutMs = 2000;
+    int m_generation = 0;
 };
