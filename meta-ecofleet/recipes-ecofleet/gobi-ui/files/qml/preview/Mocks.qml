@@ -76,4 +76,26 @@ QtObject {
         property string fwVersion: "v1.2.57";    property bool   ethLinked: true
         property string ipAddress: "192.168.0.86"; property string macAddress: "54:0B:B6:05:89:CD"
     }
+    // wifi mock — mirrors WifiModel (state unavailable|idle|connecting|connected)
+    property QtObject wifi: QtObject {
+        signal joined(string ssid)
+        signal joinFailed(string ssid, string error)
+        property string state: "connected";   property bool scanning: false
+        property string ssid: "EcoFleet-Staff"; property int signalDbm: -47; property int signalBars: 4
+        property string ip: "192.168.0.206";  property string internet: "online"
+        property string lastError: "";        property string pendingSsid: ""
+        property var networks: [
+            { ssid: "EcoFleet-Staff", bars: 4, secured: true,  supported: true,  saved: true,  savedId: 0, inUse: true },
+            { ssid: "Shop-Guest",     bars: 3, secured: true,  supported: true,  saved: true,  savedId: 1, inUse: false },
+            { ssid: "Pilot-Travel-Center", bars: 2, secured: true, supported: true, saved: false, savedId: -1, inUse: false },
+            { ssid: "FreeTruckStopWiFi",   bars: 1, secured: false, supported: true, saved: false, savedId: -1, inUse: false },
+            { ssid: "Corp-Secure",    bars: 2, secured: true,  supported: false, saved: false, savedId: -1, inUse: false } ]
+        property var saved: [ { id: 0, ssid: "EcoFleet-Staff", inUse: true }, { id: 1, ssid: "Shop-Guest", inUse: false } ]
+        function scan() {}
+        function join(s, p) {}
+        function joinSaved(id) {}
+        function forget(id) {}
+        function addHidden(s, sec, p) {}
+        function clearError() { lastError = "" }
+    }
 }

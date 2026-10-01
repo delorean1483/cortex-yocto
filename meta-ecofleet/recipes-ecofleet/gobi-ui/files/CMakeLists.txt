@@ -23,6 +23,12 @@ qt_add_executable(gobi-ui
     DisplayModel.cpp
     UpdateNotice.h
     UpdateNotice.cpp
+    WpaParse.h
+    WpaParse.cpp
+    WpaCtrl.h
+    WpaCtrl.cpp
+    WifiModel.h
+    WifiModel.cpp
 )
 
 target_link_libraries(gobi-ui PRIVATE

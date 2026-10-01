@@ -1,6 +1,6 @@
 SUMMARY = "EcoFleet Gobi APU touchscreen dashboard"
 LICENSE = "CLOSED"
-PR = "r13"
+PR = "r14"
 
 SRC_URI = " \
     file://CMakeLists.txt \
@@ -17,6 +17,12 @@ SRC_URI = " \
     file://DisplayModel.cpp \
     file://UpdateNotice.h \
     file://UpdateNotice.cpp \
+    file://WpaParse.h \
+    file://WpaParse.cpp \
+    file://WpaCtrl.h \
+    file://WpaCtrl.cpp \
+    file://WifiModel.h \
+    file://WifiModel.cpp \
     file://qml/main.qml \
     file://qml/Theme.qml \
     file://qml/qmldir \
@@ -129,4 +135,4 @@ FILES:${PN} += " \
 "
 
 # ── Qt runtime plugins needed at runtime (not link-time deps) ─────────────────
-RDEPENDS:${PN} += "qtwayland qtbase-plugins"
+RDEPENDS:${PN} += "qtwayland qtbase-plugins curl"
