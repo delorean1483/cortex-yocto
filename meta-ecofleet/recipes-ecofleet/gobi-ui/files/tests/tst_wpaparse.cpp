@@ -93,6 +93,9 @@ private slots:
         QVERIFY(!isSupported("[WPA2-SAE-CCMP][ESS]"));          // WPA3-only
         QVERIFY(!isSupported("[WPA2-EAP-CCMP][ESS]"));          // enterprise
         QVERIFY(!isSupported("[WEP][ESS]"));
+        QVERIFY(isSupported("[WPA2-FT/PSK-CCMP][ESS]"));        // FT/PSK supported
+        QVERIFY(isSupported("[WPA2-FT/PSK+FT/SAE-CCMP][ESS]")); // FT/PSK+FT/SAE supported
+        QVERIFY(!isSupported("[WPA2-FT/EAP-CCMP][ESS]"));       // FT/EAP not supported
     }
 
     void ssidHexEncodesUtf8()
@@ -159,6 +162,17 @@ private slots:
         const auto l = buildNetworkList(scan, {}, QString());
         QCOMPARE(l.size(), 1);
         QCOMPARE(l[0].toMap()["bars"].toInt(), 4);
+    }
+
+    void buildListDropsHiddenSsids()
+    {
+        const QList<ScanEntry> scan = {
+            {"a", 2412, -50, "[WPA2-PSK-CCMP][ESS]", decodeSsid("\\x00\\x00\\x00\\x00")},
+            {"b", 5240, -55, "[WPA2-PSK-CCMP][ESS]", "Visible"},
+        };
+        const auto l = buildNetworkList(scan, {}, QString());
+        QCOMPARE(l.size(), 1);
+        QCOMPARE(l[0].toMap()["ssid"].toString(), QStringLiteral("Visible"));
     }
 
     void classify()

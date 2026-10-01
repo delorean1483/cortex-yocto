@@ -142,7 +142,9 @@ bool isSecured(const QString &flags)
 bool isSupported(const QString &flags)
 {
     if (!isSecured(flags)) return true;                       // open
-    return flags.contains(QLatin1String("-PSK"));             // WPA/WPA2-PSK, incl. PSK+SAE
+    // Check for any PSK variant: -PSK (standard), /PSK (FT), +PSK (combined)
+    return flags.contains(QLatin1String("-PSK")) || flags.contains(QLatin1String("/PSK"))
+        || flags.contains(QLatin1String("+PSK"));
 }
 
 QByteArray ssidHex(const QString &ssid) { return ssid.toUtf8().toHex(); }
@@ -171,13 +173,22 @@ QString validatePassword(const QString &pw)
     return QString();
 }
 
+/* Check if SSID is hidden: empty or consists only of NUL characters. */
+static bool isHiddenSsid(const QString &ssid)
+{
+    if (ssid.isEmpty()) return true;
+    for (const QChar c : ssid)
+        if (c != QChar(0)) return false;
+    return true;
+}
+
 QVariantList buildNetworkList(const QList<ScanEntry> &scan, const QList<SavedNet> &saved,
                               const QString &inUseSsid)
 {
-    // Strongest entry per SSID; hidden (empty) SSIDs dropped.
+    // Strongest entry per SSID; hidden (empty or NUL-only) SSIDs dropped.
     QMap<QString, ScanEntry> best;
     for (const ScanEntry &e : scan) {
-        if (e.ssid.isEmpty()) continue;
+        if (isHiddenSsid(e.ssid)) continue;
         auto it = best.find(e.ssid);
         if (it == best.end() || e.signal > it->signal) best.insert(e.ssid, e);
     }
