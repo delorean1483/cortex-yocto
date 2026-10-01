@@ -19,7 +19,7 @@ Item {
                 border.color: modelData.inUse ? Theme.accent : "transparent"; border.width: 1
                 RowLayout { anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 8; spacing: 12
                     Icon { name: "wifi"; size: 22; color: modelData.inUse ? Theme.accent : Theme.textMute }
-                    Text { Layout.fillWidth: true; elide: Text.ElideRight; text: modelData.ssid
+                    Text { Layout.fillWidth: true; elide: Text.ElideRight; text: modelData.ssid; textFormat: Text.PlainText
                         color: Theme.text; font.pixelSize: Theme.fsBody }
                     Text { visible: modelData.inUse; text: "✓ In use"; color: Theme.accent
                         font.pixelSize: Theme.fsLabel; font.weight: Font.DemiBold }

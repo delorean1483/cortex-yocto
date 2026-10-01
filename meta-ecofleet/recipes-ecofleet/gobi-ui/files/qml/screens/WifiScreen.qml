@@ -7,6 +7,8 @@ import "../atoms"
 // Open to anyone. Tap: saved/open → join now; secured → password screen.
 Item {
     id: page
+    readonly property bool isWifiScreen: true      // AppShell.openWifi() checks this
+    property string savedJoinSsid: ""              // a saved network we're joining (wrong password → ask again)
     Component { id: joinC;  WifiJoinScreen {} }
     Component { id: savedC; WifiSavedScreen {} }
     function push(c, props) { if (page.StackView.view) page.StackView.view.push(c, props || {}) }
@@ -21,10 +23,27 @@ Item {
     function tap(n) {
         if (n.inUse || !n.supported || wifi.state === "connecting") return
         wifi.clearError()
-        if (n.saved) wifi.joinSaved(n.savedId)
+        if (n.saved) { page.savedJoinSsid = n.ssid; wifi.joinSaved(n.savedId) }
         else if (!n.secured) wifi.join(n.ssid, "")
         else page.push(joinC, { ssid: n.ssid })
     }
+
+    // The id of the saved entry for the network in use (-1 if none).
+    readonly property int inUseId: {
+        for (const s of wifi.saved) if (s.inUse) return s.id
+        return -1
+    }
+
+    // A saved network whose password changed: ask for the new one. join() then
+    // replaces the old entry once the new password connects.
+    Connections { target: wifi
+        function onJoined(s) { page.savedJoinSsid = "" }
+        function onJoinFailed(s, e) {
+            const wasSaved = s === page.savedJoinSsid
+            page.savedJoinSsid = ""
+            if (wasSaved && e === "Wrong password." && page.StackView.status === StackView.Active)
+                page.push(joinC, { ssid: s, error: e })
+        } }
 
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 14; spacing: 10
@@ -49,12 +68,12 @@ Item {
                 Icon { name: wifi.state === "connected" ? "check-circle" : "wifi"; size: 30
                     color: wifi.state === "connected" ? Theme.accent : Theme.textMute }
                 ColumnLayout { Layout.fillWidth: true; spacing: 2
-                    Text { Layout.fillWidth: true; elide: Text.ElideRight
+                    Text { Layout.fillWidth: true; elide: Text.ElideRight; textFormat: Text.PlainText
                         text: wifi.state === "connected" ? wifi.ssid
                             : wifi.state === "connecting" ? "Connecting to " + wifi.pendingSsid + "…"
                             : wifi.state === "unavailable" ? "WiFi unavailable" : "Not connected"
                         color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
-                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2
+                    Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2; textFormat: Text.PlainText
                         visible: wifi.lastError !== "" || wifi.state === "connected"
                         text: wifi.lastError !== "" ? wifi.lastError
                             : (wifi.internet === "portal" ? "This network needs a web sign-in, which isn't supported. Try another network or a phone hotspot."
@@ -67,7 +86,15 @@ Item {
                         WifiBars { bars: wifi.signalBars; unit: 5 }
                         Text { text: wifi.signalDbm + " dBm"; color: Theme.textMute; font.pixelSize: Theme.fsLabel } }
                     Text { Layout.alignment: Qt.AlignRight; text: page.netText; color: page.netHue
+                        textFormat: Text.PlainText
                         font.pixelSize: Theme.fsLabel + 1; font.weight: Font.DemiBold } }
+                // Forget the network in use (it disconnects).
+                Rectangle { visible: card.on && page.inUseId >= 0
+                    Layout.preferredWidth: 96; Layout.preferredHeight: 38; radius: Theme.radiusSm
+                    color: cfa.pressed ? Theme.surface2 : "transparent"; border.color: Theme.fault
+                    Text { anchors.centerIn: parent; text: "Forget"; color: Theme.fault
+                        font.pixelSize: Theme.fsLabel + 1; font.weight: Font.DemiBold }
+                    MouseArea { id: cfa; anchors.fill: parent; onClicked: wifi.forget(page.inUseId) } }
             }
         }
 
@@ -88,9 +115,9 @@ Item {
                     anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14; spacing: 12
                     WifiBars { bars: modelData.bars; unit: 4 }
                     Icon { name: "lock"; size: 16; color: Theme.textMute; opacity: modelData.secured ? 1 : 0 }
-                    Text { Layout.fillWidth: true; elide: Text.ElideRight; text: modelData.ssid
+                    Text { Layout.fillWidth: true; elide: Text.ElideRight; text: modelData.ssid; textFormat: Text.PlainText
                         color: Theme.text; font.pixelSize: Theme.fsBody; font.weight: modelData.inUse ? Font.DemiBold : Font.Normal }
-                    Text { text: !modelData.supported ? "Not supported"
+                    Text { textFormat: Text.PlainText; text: !modelData.supported ? "Not supported"
                                : wifi.pendingSsid === modelData.ssid ? "Connecting…"
                                : modelData.inUse ? "✓ In use" : modelData.saved ? "Saved" : ""
                         color: modelData.inUse ? Theme.accent : Theme.textMute
@@ -99,7 +126,7 @@ Item {
                 MouseArea { id: nma; anchors.fill: parent; onClicked: page.tap(modelData) }
             }
             }
-            Text { anchors.centerIn: parent; visible: netList.count === 0
+            Text { anchors.centerIn: parent; visible: netList.count === 0; textFormat: Text.PlainText
                 text: wifi.state === "unavailable" ? "WiFi unavailable" : wifi.scanning ? "Scanning…" : "No networks found"
                 color: Theme.textMute; font.pixelSize: Theme.fsBody }
         }

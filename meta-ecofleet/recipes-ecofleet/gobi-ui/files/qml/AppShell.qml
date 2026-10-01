@@ -18,7 +18,10 @@ Item {
     Header { id: hdr; anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
              onWifiTapped: shell.openWifi() }
     Component { id: wifiC; WifiScreen {} }
-    function openWifi() { selectRail(2); stack.push(wifiC) }
+    function openWifi() {
+        if (stack.currentItem && stack.currentItem.isWifiScreen === true) return   // already there
+        selectRail(2); stack.push(wifiC)
+    }
     Rail {
         id: rail
         anchors.top: hdr.bottom; anchors.bottom: parent.bottom; anchors.left: parent.left

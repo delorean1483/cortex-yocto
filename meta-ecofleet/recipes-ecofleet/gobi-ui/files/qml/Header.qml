@@ -22,9 +22,13 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter; spacing: 16
         Item {
             anchors.verticalCenter: parent.verticalCenter
-            width: wbar.width + 12; height: 32
-            WifiBars { id: wbar; anchors.centerIn: parent; unit: 3.5
-                bars: wifi.signalBars; active: wifi.state === "connected" }
+            width: wrow.width + 12; height: 32
+            Row { id: wrow; anchors.centerIn: parent; spacing: 5
+                readonly property bool on: wifi.state === "connected"
+                Icon { name: "wifi"; size: 18; anchors.verticalCenter: parent.verticalCenter
+                    color: wrow.on ? Theme.accent : Theme.textMute; opacity: wrow.on ? 1 : 0.6 }
+                WifiBars { id: wbar; anchors.verticalCenter: parent.verticalCenter; unit: 3.5
+                    bars: wifi.signalBars; active: wrow.on } }
             MouseArea { anchors.fill: parent; anchors.margins: -6; onClicked: hdr.wifiTapped() }
         }
         Row {

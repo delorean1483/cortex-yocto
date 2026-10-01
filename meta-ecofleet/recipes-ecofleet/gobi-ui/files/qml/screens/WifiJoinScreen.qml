@@ -54,7 +54,7 @@ Item {
             // Open hidden network: no password row, so Connect lives here.
             Rectangle { visible: !page.secured; Layout.preferredWidth: 120; Layout.preferredHeight: 44; radius: Theme.radiusSm
                 color: page.valid && !page.busy ? Theme.accent : Theme.surface2
-                Text { anchors.centerIn: parent; text: page.busy ? "Connecting…" : "Connect"
+                Text { anchors.centerIn: parent; textFormat: Text.PlainText; text: page.busy ? "Connecting…" : "Connect"
                     color: page.valid && !page.busy ? Theme.textOnAccent : Theme.textMute
                     font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
                 MouseArea { anchors.fill: parent; onClicked: page.submit() } } }
@@ -75,7 +75,7 @@ Item {
                 MouseArea { anchors.fill: parent; onClicked: show.checked = !show.checked } }
             Rectangle { Layout.preferredWidth: 120; Layout.preferredHeight: 44; radius: Theme.radiusSm
                 color: page.valid && !page.busy ? Theme.accent : Theme.surface2
-                Text { anchors.centerIn: parent; text: page.busy ? "Connecting…" : "Connect"
+                Text { anchors.centerIn: parent; textFormat: Text.PlainText; text: page.busy ? "Connecting…" : "Connect"
                     color: page.valid && !page.busy ? Theme.textOnAccent : Theme.textMute
                     font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
                 MouseArea { anchors.fill: parent; onClicked: page.submit() } } }

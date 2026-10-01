@@ -50,6 +50,7 @@ Item {
     }
     function menuPage2() { var sv = findSwipe(shell); if (sv) sv.setCurrentIndex(1) }
     property var netsAll: []
+    property var page: null
     // Mock list with nothing in use (for steps where the unit is not connected).
     function netsIdle() { return netsAll.map(function(n) { var c = Object.assign({}, n); c.inUse = false; return c }) }
     function poke() { telemetry.tsMs += 1; telemetry.dataChanged() }
@@ -105,7 +106,12 @@ Item {
         ["21g2-wifi-hidden-symbols", function() { var p = root.sub(wifiHidC); p.kbSymbols = true }],
         ["21g3-wifi-hidden-error", function() { var p = root.sub(wifiHidC); p.error = "Couldn't connect to that network." }],
         ["21h-wifi-saved",     function() { root.sub(wifiSavedC) }],
-        ["21i-menu-p2",        function() { shell.selectRail(2); root.menuPage2() }]
+        // Saved network whose password changed: wrong password → the password screen opens.
+        ["21j-wifi-saved-wrongpw", function() { wifi.state = "idle"; wifi.networks = root.netsIdle()
+                                                root.page = root.sub(wifiC); root.page.savedJoinSsid = "Shop-Guest" }],
+        ["21j2-wifi-saved-wrongpw-join", function() { wifi.lastError = "Wrong password."; wifi.joinFailed("Shop-Guest", "Wrong password.") }],
+        ["21i-menu-p2",        function() { wifi.lastError = ""; wifi.state = "connected"; wifi.networks = root.netsAll
+                                            shell.selectRail(2); root.menuPage2() }]
     ]
     property int idx: 0
     Timer { id: act; interval: 300; onTriggered: { root.steps[root.idx][1](); grab.restart() } }
