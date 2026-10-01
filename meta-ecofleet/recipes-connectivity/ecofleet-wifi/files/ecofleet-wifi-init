@@ -1,0 +1,13 @@
+#!/bin/sh
+# Ensure wpa_supplicant has a config on /data (survives A/B updates). With no
+# networks it idles; the screen adds networks and wpa_supplicant SAVE_CONFIGs
+# them here. Never overwrites an existing file.
+set -eu
+CONF=${1:-/data/wifi/wpa_supplicant-wlan0.conf}
+DIR=$(dirname "$CONF")
+[ -f "$CONF" ] && exit 0
+mkdir -p "$DIR"
+chmod 700 "$DIR"
+umask 077
+printf 'ctrl_interface=/run/wpa_supplicant\nupdate_config=1\ncountry=US\n' > "$CONF.tmp"
+mv "$CONF.tmp" "$CONF"
