@@ -1,0 +1,10 @@
+# WiFi (IW612 on the DART SoM). DHCP, with a lower route priority than eth0
+# (networkd's DHCP default metric is 1024) so a wired link stays primary.
+[Match]
+Name=wlan0
+
+[Network]
+DHCP=ipv4
+
+[DHCPv4]
+RouteMetric=2048
