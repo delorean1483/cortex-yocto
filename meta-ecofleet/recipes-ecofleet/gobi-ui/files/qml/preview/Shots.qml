@@ -32,12 +32,27 @@ Item {
     Component { id: lockC;      ScreenLockScreen {} }
     Component { id: maintC;     MaintenanceScreen {} }
     Component { id: supportC;   SupportScreen {} }
+    Component { id: wifiC;      WifiScreen {} }
+    Component { id: wifiJoinC;  WifiJoinScreen { ssid: "Pilot-Travel-Center" } }
+    Component { id: wifiHidC;   WifiJoinScreen { hidden: true } }
+    Component { id: wifiSavedC; WifiSavedScreen {} }
 
     function sub(c) { shell.selectRail(2); return shell.pushScreen(c) }
     function notice(kind, title, detail, key) {
         telemetry.updateKind = kind; telemetry.updateTitle = title
         telemetry.updateDetail = detail; telemetry.updateKey = key; root.poke()
     }
+    // Swipe the Menu tile grid to its second page (find the SwipeView by walking the item tree).
+    function findSwipe(it) {
+        if (it.currentIndex !== undefined && it.incrementCurrentIndex) return it
+        for (var i = 0; i < it.children.length; i++) { var r = findSwipe(it.children[i]); if (r) return r }
+        return null
+    }
+    function menuPage2() { var sv = findSwipe(shell); if (sv) sv.setCurrentIndex(1) }
+    property var netsAll: []
+    property var page: null
+    // Mock list with nothing in use (for steps where the unit is not connected).
+    function netsIdle() { return netsAll.map(function(n) { var c = Object.assign({}, n); c.inUse = false; return c }) }
     function poke() { telemetry.tsMs += 1; telemetry.dataChanged() }
 
     property var steps: [
@@ -54,7 +69,8 @@ Item {
         ["05-diagnostics",   function() { root.sub(diagC) }],
         ["06-usermaint",     function() { root.sub(usermaintC) }],
         ["07-unitinfo",      function() { root.sub(unitC) }],
-        ["08-alerts",        function() { root.sub(alertsC) }],
+        ["07b-unitinfo-nowifi", function() { wifi.state = "idle"; wifi.ssid = ""; wifi.ip = ""; root.sub(unitC) }],
+        ["08-alerts",        function() { wifi.state = "connected"; wifi.ssid = "EcoFleet-Staff"; wifi.ip = "192.168.0.206"; root.sub(alertsC) }],
         ["09-alerts-fault",  function() { telemetry.hasError = true; telemetry.error = "low_oil"; root.poke(); root.sub(alertsC) }],
         ["10-errorlog",      function() { telemetry.hasError = false; telemetry.error = "none"; root.poke(); root.sub(logC) }],
         ["10b-errorlog-events", function() { eventlog.sample(); root.sub(logC) }],
@@ -66,7 +82,8 @@ Item {
         ["12c-cloud-back",   function() { telemetry.cloudConnected = true
                                            telemetry.cloudLastAckMs = Date.now() - 12000
                                            root.poke(); root.sub(cloudC) }],
-        ["13-screenlock",    function() { root.sub(lockC) }],
+        ["12d-cloud-nowifi", function() { wifi.state = "idle"; wifi.ssid = ""; wifi.ip = ""; root.sub(cloudC) }],
+        ["13-screenlock",    function() { wifi.state = "connected"; wifi.ssid = "EcoFleet-Staff"; wifi.ip = "192.168.0.206"; root.sub(lockC) }],
         ["14-maintenance",   function() { root.sub(maintC) }],
         ["15-comptest-lock", function() { root.sub(comptestC) }],
         ["16-comptest",      function() { var p = root.sub(comptestC); p.tryUnlock(MaintController.defaultPin)
@@ -79,7 +96,24 @@ Item {
         ["19c-update-failed", function() { telemetry.updateProgress = -1; LockController.tryUnlock("1234"); shell.selectRail(0)
                                            root.notice("failed", "Software update to 1.2.67 failed",
                                                        "The unit is still running its current software.",
-                                                       "failed: install 1.2.67 (rc 1)") }]
+                                                       "failed: install 1.2.67 (rc 1)") }],
+        ["21-wifi",            function() { root.netsAll = wifi.networks; root.notice("none", "", "", ""); root.sub(wifiC) }],
+        ["21b-wifi-portal",    function() { wifi.internet = "portal"; root.sub(wifiC) }],
+        ["21c-wifi-connecting",function() { wifi.internet = "online"; wifi.state = "connecting"; wifi.pendingSsid = "Shop-Guest"; wifi.networks = root.netsIdle(); root.sub(wifiC) }],
+        ["21d-wifi-wrongpw",   function() { wifi.state = "idle"; wifi.pendingSsid = ""; wifi.lastError = "Wrong password."; wifi.networks = root.netsIdle(); root.sub(wifiC) }],
+        ["21e-wifi-unavail",   function() { wifi.lastError = ""; wifi.state = "unavailable"; wifi.networks = []; root.sub(wifiC) }],
+        ["21f-wifi-join",      function() { wifi.state = "connected"; wifi.networks = root.netsAll; root.sub(wifiJoinC) }],
+        ["21f2-wifi-join-symbols", function() { var p = root.sub(wifiJoinC); p.kbSymbols = true; p.error = "Wrong password." }],
+        ["21g-wifi-hidden",    function() { root.sub(wifiHidC) }],
+        ["21g2-wifi-hidden-symbols", function() { var p = root.sub(wifiHidC); p.kbSymbols = true }],
+        ["21g3-wifi-hidden-error", function() { var p = root.sub(wifiHidC); p.error = "Couldn't connect to that network." }],
+        ["21h-wifi-saved",     function() { root.sub(wifiSavedC) }],
+        // Saved network whose password changed: wrong password → the password screen opens.
+        ["21j-wifi-saved-wrongpw", function() { wifi.state = "idle"; wifi.networks = root.netsIdle()
+                                                root.page = root.sub(wifiC); root.page.savedJoinSsid = "Shop-Guest" }],
+        ["21j2-wifi-saved-wrongpw-join", function() { wifi.lastError = "Wrong password."; wifi.joinFailed("Shop-Guest", "Wrong password.") }],
+        ["21i-menu-p2",        function() { wifi.lastError = ""; wifi.state = "connected"; wifi.networks = root.netsAll
+                                            shell.selectRail(2); root.menuPage2() }]
     ]
     property int idx: 0
     Timer { id: act; interval: 300; onTriggered: { root.steps[root.idx][1](); grab.restart() } }

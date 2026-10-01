@@ -1,6 +1,6 @@
 SUMMARY = "EcoFleet Gobi APU touchscreen dashboard"
 LICENSE = "CLOSED"
-PR = "r13"
+PR = "r14"
 
 SRC_URI = " \
     file://CMakeLists.txt \
@@ -17,6 +17,12 @@ SRC_URI = " \
     file://DisplayModel.cpp \
     file://UpdateNotice.h \
     file://UpdateNotice.cpp \
+    file://WpaParse.h \
+    file://WpaParse.cpp \
+    file://WpaCtrl.h \
+    file://WpaCtrl.cpp \
+    file://WifiModel.h \
+    file://WifiModel.cpp \
     file://qml/main.qml \
     file://qml/Theme.qml \
     file://qml/qmldir \
@@ -42,6 +48,8 @@ SRC_URI = " \
     file://qml/atoms/SegmentedControl.qml \
     file://qml/atoms/StepButton.qml \
     file://qml/atoms/Stepper.qml \
+    file://qml/atoms/WifiBars.qml \
+    file://qml/atoms/TextKeyboard.qml \
     file://qml/templates/BigNumberScreen.qml \
     file://qml/templates/ChoiceList.qml \
     file://qml/templates/TileGrid.qml \
@@ -60,6 +68,9 @@ SRC_URI = " \
     file://qml/screens/ScreenLockScreen.qml \
     file://qml/screens/MaintenanceScreen.qml \
     file://qml/screens/SupportScreen.qml \
+    file://qml/screens/WifiScreen.qml \
+    file://qml/screens/WifiJoinScreen.qml \
+    file://qml/screens/WifiSavedScreen.qml \
     file://qml/WeatherStrip.qml \
     file://qml/WeatherIcon.qml \
     file://gobi-ui.service \
@@ -129,4 +140,4 @@ FILES:${PN} += " \
 "
 
 # ── Qt runtime plugins needed at runtime (not link-time deps) ─────────────────
-RDEPENDS:${PN} += "qtwayland qtbase-plugins"
+RDEPENDS:${PN} += "qtwayland qtbase-plugins curl"

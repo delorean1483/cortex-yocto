@@ -45,33 +45,21 @@ void DeviceInfoModel::refreshNetwork()
     QString ip, mac;
     bool linked = false;
 
-    const auto ifaces = QNetworkInterface::allInterfaces();
-    for (const auto &iface : ifaces) {
-        if (iface.flags().testFlag(QNetworkInterface::IsLoopBack))
-            continue;
-        /* Skip virtual/bridge interfaces */
-        const QString name = iface.name();
-        if (name.startsWith(u"vir") || name.startsWith(u"docker") ||
-            name.startsWith(u"br") || name.startsWith(u"veth"))
-            continue;
-
-        if (mac.isEmpty())
-            mac = iface.hardwareAddress();
-
-        const bool up = iface.flags().testFlag(QNetworkInterface::IsUp) &&
-                        iface.flags().testFlag(QNetworkInterface::IsRunning);
-        if (up) {
-            linked = true;
+    /* Ethernet only: WiFi is reported by WifiModel. */
+    const QNetworkInterface iface = QNetworkInterface::interfaceFromName(QStringLiteral("eth0"));
+    if (iface.isValid()) {
+        mac = iface.hardwareAddress();
+        linked = iface.flags().testFlag(QNetworkInterface::IsUp) &&
+                 iface.flags().testFlag(QNetworkInterface::IsRunning);
+        if (linked) {
             for (const auto &entry : iface.addressEntries()) {
                 if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol &&
-                    !entry.ip().isLoopback() && ip.isEmpty()) {
+                    !entry.ip().isLoopback()) {
                     ip = entry.ip().toString();
+                    break;
                 }
             }
         }
-
-        if (linked && !ip.isEmpty())
-            break;
     }
 
     const QString newIp  = ip.isEmpty()  ? QStringLiteral("No IP")    : ip;

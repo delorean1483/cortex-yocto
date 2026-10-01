@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Test)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Network Test)
 enable_testing()
 
 add_executable(tst_displaymodel tst_displaymodel.cpp ../DisplayModel.h ../DisplayModel.cpp)
@@ -21,3 +21,19 @@ add_executable(tst_updatenotice tst_updatenotice.cpp ../UpdateNotice.h ../Update
 target_link_libraries(tst_updatenotice PRIVATE Qt6::Core Qt6::Test)
 target_compile_options(tst_updatenotice PRIVATE -Wall -Wextra)
 add_test(NAME tst_updatenotice COMMAND tst_updatenotice)
+
+add_executable(tst_wpaparse tst_wpaparse.cpp ../WpaParse.h ../WpaParse.cpp)
+target_link_libraries(tst_wpaparse PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+target_compile_options(tst_wpaparse PRIVATE -Wall -Wextra)
+add_test(NAME tst_wpaparse COMMAND tst_wpaparse)
+
+add_executable(tst_wpactrl tst_wpactrl.cpp FakeWpa.h ../WpaCtrl.h ../WpaCtrl.cpp)
+target_link_libraries(tst_wpactrl PRIVATE Qt6::Core Qt6::Test)
+target_compile_options(tst_wpactrl PRIVATE -Wall -Wextra)
+add_test(NAME tst_wpactrl COMMAND tst_wpactrl)
+
+add_executable(tst_wifimodel tst_wifimodel.cpp FakeWpa.h
+    ../WifiModel.h ../WifiModel.cpp ../WpaCtrl.h ../WpaCtrl.cpp ../WpaParse.h ../WpaParse.cpp)
+target_link_libraries(tst_wifimodel PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+target_compile_options(tst_wifimodel PRIVATE -Wall -Wextra)
+add_test(NAME tst_wifimodel COMMAND tst_wifimodel)

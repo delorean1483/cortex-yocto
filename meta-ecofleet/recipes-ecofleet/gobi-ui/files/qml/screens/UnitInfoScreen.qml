@@ -23,10 +23,13 @@ Item {
                         {k: "APU firmware", v: page.apuVer(telemetry.apuFwVersion)} ] }
             InfoCard { Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.alignment: Qt.AlignTop
                 title: "Network"
-                rows: [ {k: "Link",        v: devinfo.ethLinked ? "Linked" : "No link",
+                rows: [ {k: "Ethernet",    v: devinfo.ethLinked ? "Linked" : "No link",
                                            hue: devinfo.ethLinked ? Theme.ok : Theme.fault},
-                        {k: "IP address",  v: devinfo.ipAddress},
-                        {k: "MAC address", v: devinfo.macAddress} ] }
+                        {k: "Ethernet IP", v: devinfo.ipAddress},
+                        {k: "WiFi",        v: wifi.state === "connected" && wifi.ssid !== "" ? wifi.ssid : "Not connected",
+                                           hue: wifi.state === "connected" ? Theme.ok : Theme.textMute},
+                        {k: "WiFi IP",     v: wifi.state === "connected" && wifi.ip !== "" ? wifi.ip : "No IP"},
+                        {k: "MAC (Ethernet)", v: devinfo.macAddress} ] }
         }
         Item { Layout.fillHeight: true }
     }

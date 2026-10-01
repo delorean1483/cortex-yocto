@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import "."
+import "screens"
 Item {
     id: shell
     width: 800; height: 480
@@ -14,7 +15,13 @@ Item {
         stack.clear()
         stack.push(railScreens[i])
     }
-    Header { id: hdr; anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right }
+    Header { id: hdr; anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
+             onWifiTapped: shell.openWifi() }
+    Component { id: wifiC; WifiScreen {} }
+    function openWifi() {
+        if (stack.currentItem && stack.currentItem.isWifiScreen === true) return   // already there
+        selectRail(2); stack.push(wifiC)
+    }
     Rail {
         id: rail
         anchors.top: hdr.bottom; anchors.bottom: parent.bottom; anchors.left: parent.left

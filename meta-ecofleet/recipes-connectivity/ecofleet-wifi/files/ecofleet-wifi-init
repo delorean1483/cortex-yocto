@@ -1,0 +1,27 @@
+#!/bin/sh
+# Ensure wpa_supplicant has a usable config on /data (survives A/B updates).
+# With no networks it idles; the screen adds networks and wpa_supplicant
+# SAVE_CONFIGs them here. A good config is never overwritten. An empty or
+# broken one (e.g. a power cut during first boot) has no ctrl_interface, which
+# would leave WiFi unavailable for good: it is moved aside to $CONF.bad and
+# recreated. Permissions are always tightened.
+set -eu
+CONF=${1:-/data/wifi/wpa_supplicant-wlan0.conf}
+DIR=$(dirname "$CONF")
+mkdir -p "$DIR"
+chmod 700 "$DIR"
+if [ -s "$CONF" ] && grep -q '^ctrl_interface=' "$CONF"; then
+    chmod 600 "$CONF"
+    exit 0
+fi
+umask 077
+if [ -e "$CONF" ]; then
+    sync
+    mv -f "$CONF" "$CONF.bad"
+    sync
+fi
+printf 'ctrl_interface=/run/wpa_supplicant\nupdate_config=1\ncountry=US\n' > "$CONF.tmp"
+sync
+mv "$CONF.tmp" "$CONF"
+sync
+chmod 600 "$CONF"

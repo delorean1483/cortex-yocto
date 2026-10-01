@@ -21,8 +21,8 @@ RowLayout {
     }
     ColumnLayout {
         spacing: 0
-        Text { text: h.title; color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
-        Text { visible: h.subtitle !== ""; text: h.subtitle; color: h.subtitleColor; font.pixelSize: Theme.fsCaption }
+        Text { text: h.title; textFormat: Text.PlainText; color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
+        Text { visible: h.subtitle !== ""; text: h.subtitle; textFormat: Text.PlainText; color: h.subtitleColor; font.pixelSize: Theme.fsCaption }
     }
     Item { Layout.fillWidth: true }
 }
