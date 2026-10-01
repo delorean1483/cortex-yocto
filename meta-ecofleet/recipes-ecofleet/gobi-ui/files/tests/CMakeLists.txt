@@ -26,3 +26,8 @@ add_executable(tst_wpaparse tst_wpaparse.cpp ../WpaParse.h ../WpaParse.cpp)
 target_link_libraries(tst_wpaparse PRIVATE Qt6::Core Qt6::Network Qt6::Test)
 target_compile_options(tst_wpaparse PRIVATE -Wall -Wextra)
 add_test(NAME tst_wpaparse COMMAND tst_wpaparse)
+
+add_executable(tst_wpactrl tst_wpactrl.cpp FakeWpa.h ../WpaCtrl.h ../WpaCtrl.cpp)
+target_link_libraries(tst_wpactrl PRIVATE Qt6::Core Qt6::Test)
+target_compile_options(tst_wpactrl PRIVATE -Wall -Wextra)
+add_test(NAME tst_wpactrl COMMAND tst_wpactrl)
