@@ -18,7 +18,16 @@ WifiModel::WifiModel(const QString &socketPath, QObject *parent)
     connect(&m_poll, &QTimer::timeout, this, &WifiModel::refresh);
     connect(&m_netCheck, &QTimer::timeout, this, &WifiModel::runInternetCheck);
     connect(&m_joinTimer, &QTimer::timeout, this, [this] {
-        finishJoin(false, QStringLiteral("Couldn't connect to %1.").arg(m_pending.ssid));
+        // The CONNECTED event may have been missed: ask before calling it a failure.
+        const QString ssid = m_pending.ssid;
+        m_ctrl.request("STATUS", [this, ssid](bool ok, const QByteArray &r) {
+            if (!m_pending.active || m_pending.ssid != ssid) return;
+            const auto kv = wpa::parseKeyValues(r);
+            if (ok && kv.value("wpa_state") == QLatin1String("COMPLETED") && kv.value("ssid") == ssid)
+                finishJoin(true, QString());
+            else
+                finishJoin(false, QStringLiteral("Couldn't connect to %1.").arg(ssid));
+        });
     });
     connect(&m_ctrl, &WpaCtrl::wpaEvent, this, &WifiModel::onEvent);
     connect(&m_ctrl, &WpaCtrl::lost, this, &WifiModel::onLost);
@@ -33,6 +42,12 @@ WifiModel::WifiModel(const QString &socketPath, QObject *parent)
         m_internet = m_connected
             ? wpa::classifyCheck(st == QProcess::NormalExit ? exitCode : -1, code)
             : wpa::Internet::Unknown;
+        emit changed();
+    });
+    // No `finished` when the check can't start (e.g. curl missing): don't stay "Checking…".
+    connect(&m_check, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e) {
+        if (e != QProcess::FailedToStart) return;          // other errors still emit finished
+        m_internet = m_connected ? wpa::Internet::NoInternet : wpa::Internet::Unknown;
         emit changed();
     });
 }
@@ -85,6 +100,9 @@ void WifiModel::tryOpen()
         m_poll.start();
         m_netCheck.start();
         emit changed();
+        // A join cut short (gobi-ui restarted after SELECT_NETWORK) leaves the
+        // other networks disabled; a later SAVE_CONFIG would persist that.
+        m_ctrl.request("ENABLE_NETWORK all", [](bool, const QByteArray &) {});
         refresh();
         scan();
     } else {
@@ -272,8 +290,11 @@ void WifiModel::clearError() { setError(QString()); }
 void WifiModel::join(const QString &ssid, const QString &password)
 {
     if (busy()) return;
+    bool secured = false;                     // a secured network never joins as open
+    for (const wpa::ScanEntry &e : m_scan)
+        if (e.ssid == ssid && wpa::isSecured(e.flags)) secured = true;
     QString err = wpa::validateSsid(ssid);
-    if (err.isEmpty() && !password.isEmpty()) err = wpa::validatePassword(password);
+    if (err.isEmpty() && (secured || !password.isEmpty())) err = wpa::validatePassword(password);
     if (err.isEmpty() && !inScan(ssid)) err = QStringLiteral("%1 is out of range.").arg(ssid);
     if (!err.isEmpty()) { setError(err); return; }
     beginJoin(ssid, password, false);
@@ -304,7 +325,7 @@ void WifiModel::beginJoin(const QString &ssid, const QString &password, bool hid
             cmds << "SET_NETWORK " + sid + " key_mgmt NONE";
         } else {
             cmds << "SET_NETWORK " + sid + " psk " + wpa::pskHex(password, ssid)
-                 << "SET_NETWORK " + sid + " key_mgmt WPA-PSK FT-PSK";
+                 << "SET_NETWORK " + sid + " key_mgmt WPA-PSK FT-PSK WPA-PSK-SHA256";
         }
         if (hidden) cmds << "SET_NETWORK " + sid + " scan_ssid 1";
         cmds << "SELECT_NETWORK " + sid;
@@ -366,7 +387,7 @@ void WifiModel::finishJoin(bool ok, const QString &error)
 void WifiModel::forget(int id)
 {
     if (busy()) return;
-    runTracked({ "REMOVE_NETWORK " + QByteArray::number(id), "SAVE_CONFIG" });
+    runTracked({ "REMOVE_NETWORK " + QByteArray::number(id), "ENABLE_NETWORK all", "SAVE_CONFIG" });
 }
 
 void WifiModel::runInternetCheck()

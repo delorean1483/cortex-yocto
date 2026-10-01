@@ -102,7 +102,7 @@ private slots:
         QTRY_VERIFY(f.commands.contains("SELECT_NETWORK 0"));
         QVERIFY(f.commands.contains("SET_NETWORK 0 ssid " + QByteArray("Shop").toHex()));
         QVERIFY(f.commands.contains("SET_NETWORK 0 psk " + wpa::pskHex("password1", "Shop")));
-        QVERIFY(f.commands.contains("SET_NETWORK 0 key_mgmt WPA-PSK FT-PSK"));
+        QVERIFY(f.commands.contains("SET_NETWORK 0 key_mgmt WPA-PSK FT-PSK WPA-PSK-SHA256"));
         for (const auto &c : f.commands) QVERIFY(!c.contains("password1"));   // never sent in plaintext
         QCOMPARE(m.state(), QStringLiteral("connecting"));
         QCOMPARE(m.pendingSsid(), QStringLiteral("Shop"));
@@ -395,6 +395,83 @@ private slots:
             QCOMPARE(bss[i], want);                                  // FIRST, NEXT-0, NEXT-1, NEXT-2, FIRST, ...
         }
         QCOMPARE(m.networks().size(), 3);
+    }
+
+    void openReEnablesAllNetworks()
+    {
+        // A join interrupted by a gobi-ui restart leaves the others disabled.
+        FakeWpa f(path()); Script s; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QTRY_VERIFY(f.commands.contains("STATUS"));
+        const int en = f.commands.indexOf("ENABLE_NETWORK all");
+        QVERIFY(en >= 0);
+        QVERIFY(en < f.commands.indexOf("STATUS"));
+    }
+
+    void forgetReEnablesBeforeSaving()
+    {
+        FakeWpa f(path()); Script s; s.nets = {{0, "Shop"}}; s.nextId = 1; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QTRY_COMPARE(m.saved().size(), 1);
+        f.commands.clear();
+        m.forget(0);
+        QTRY_VERIFY(f.commands.contains("SAVE_CONFIG"));
+        const int rm = f.commands.indexOf("REMOVE_NETWORK 0");
+        const int en = f.commands.indexOf("ENABLE_NETWORK all");
+        const int sv = f.commands.indexOf("SAVE_CONFIG");
+        QVERIFY(rm >= 0 && rm < en && en < sv);
+    }
+
+    void securedJoinNeedsPassword()
+    {
+        FakeWpa f(path()); Script s; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QTRY_COMPARE(m.networks().size(), 3);
+        m.join("Shop", "");                       // Shop is WPA2: must not join as open
+        QCOMPARE(m.lastError(), QStringLiteral("Password must be at least 8 characters."));
+        QTest::qWait(50);
+        QCOMPARE(count(f, "ADD_NETWORK"), 0);
+    }
+
+    void timeoutChecksStatusFirst()
+    {
+        // CONNECTED event missed, but wpa_supplicant is on the network: success.
+        FakeWpa f(path()); Script s; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QSignalSpy ok(&m, &WifiModel::joined);
+        QSignalSpy bad(&m, &WifiModel::joinFailed);
+        QTRY_COMPARE(m.networks().size(), 3);
+        m.join("Free", "");
+        QTRY_VERIFY(f.commands.contains("SELECT_NETWORK 0"));
+        s.state = "COMPLETED"; s.ssid = "Free"; s.current = 0;
+        QTRY_COMPARE(ok.count(), 1);              // after joinTimeoutMs = 500
+        QCOMPARE(bad.count(), 0);
+        QTRY_VERIFY(f.commands.contains("SAVE_CONFIG"));
+        QVERIFY(!f.commands.contains("REMOVE_NETWORK 0"));
+    }
+
+    void timeoutOnOtherNetworkStillFails()
+    {
+        FakeWpa f(path()); Script s; s.nets = {{0, "Yard"}}; s.nextId = 1; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QSignalSpy bad(&m, &WifiModel::joinFailed);
+        QTRY_COMPARE(m.networks().size(), 3);
+        m.join("Free", "");
+        QTRY_VERIFY(f.commands.contains("SELECT_NETWORK 1"));
+        s.state = "COMPLETED"; s.ssid = "Yard"; s.current = 0;    // fell back to another network
+        QTRY_COMPARE(bad.count(), 1);
+        QTRY_VERIFY(f.commands.contains("REMOVE_NETWORK 1"));
+    }
+
+    void internetCheckThatCannotStart()
+    {
+        FakeWpa f(path()); Script s; s.nets = {{0, "Yard"}}; s.nextId = 1; s.current = 0;
+        s.state = "COMPLETED"; s.ssid = "Yard"; f.handler = std::ref(s);
+        WifiModel m(path()); m.setTimings(100, 60000, 500, 60000);
+        m.setInternetCheck(m_dir.path() + "/no-such-program", {});
+        m.start();
+        QTRY_COMPARE(m.state(), QStringLiteral("connected"));
+        QTRY_COMPARE(m.internet(), QStringLiteral("no_internet"));
     }
 };
 
