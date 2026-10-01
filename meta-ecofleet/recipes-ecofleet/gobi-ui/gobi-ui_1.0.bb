@@ -48,6 +48,8 @@ SRC_URI = " \
     file://qml/atoms/SegmentedControl.qml \
     file://qml/atoms/StepButton.qml \
     file://qml/atoms/Stepper.qml \
+    file://qml/atoms/WifiBars.qml \
+    file://qml/atoms/TextKeyboard.qml \
     file://qml/templates/BigNumberScreen.qml \
     file://qml/templates/ChoiceList.qml \
     file://qml/templates/TileGrid.qml \
