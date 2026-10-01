@@ -239,8 +239,101 @@ private slots:
         m.scan();                                   // next request notices
         QTRY_COMPARE(m.state(), QStringLiteral("unavailable"));
         QTRY_COMPARE(bad.count(), 1);
+        QCOMPARE(m.lastError(), QStringLiteral("WiFi unavailable"));
+        QCOMPARE(m.networks().size(), 0);
+        QCOMPARE(m.saved().size(), 0);
+        QVERIFY(!m.scanning());
         FakeWpa back(path()); Script s2; back.handler = std::ref(s2);
         QTRY_COMPARE(m.state(), QStringLiteral("idle"));   // retry every 100 ms
+    }
+
+    void forgetIgnoredWhileJoinPending()
+    {
+        FakeWpa f(path()); Script s; s.nets = {{5, "Old"}}; s.nextId = 6; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QTRY_COMPARE(m.networks().size(), 3);
+        m.join("Shop", "password1");
+        QTRY_VERIFY(f.commands.contains("SELECT_NETWORK 6"));
+        m.forget(5);
+        QTest::qWait(150);
+        QCOMPARE(count(f, "REMOVE_NETWORK"), 0);
+        QCOMPARE(count(f, "SAVE_CONFIG"), 0);
+    }
+
+    void joinIgnoredWhileCleanupInFlight()
+    {
+        FakeWpa f(path()); Script s; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QSignalSpy ok(&m, &WifiModel::joined);
+        QTRY_COMPARE(m.networks().size(), 3);
+        m.join("Shop", "password1");
+        QTRY_VERIFY(f.commands.contains("SELECT_NETWORK 0"));
+        s.state = "COMPLETED"; s.ssid = "Shop"; s.current = 0;
+        f.sendEvent("CTRL-EVENT-CONNECTED - Connection to 11:22:33:44:55:66 completed [id=0 id_str=]");
+        QTRY_COMPARE(ok.count(), 1);
+        m.join("Free", "");          // cleanup (ENABLE/SAVE_CONFIG) still in flight
+        QTRY_VERIFY(f.commands.contains("SAVE_CONFIG"));
+        QTest::qWait(100);
+        QCOMPARE(count(f, "ADD_NETWORK"), 1);
+    }
+
+    void cleanupContinuesPastFail()
+    {
+        FakeWpa f(path()); Script s; f.handler = [&s](const QByteArray &c) {
+            return c.startsWith("REMOVE_NETWORK") ? QByteArray("FAIL\n") : s(c); };
+        WifiModel m(path()); fast(m); m.start();
+        QSignalSpy bad(&m, &WifiModel::joinFailed);
+        QTRY_COMPARE(m.networks().size(), 3);
+        m.join("Shop", "wrongpass");
+        QTRY_VERIFY(f.commands.contains("SELECT_NETWORK 0"));
+        f.sendEvent("CTRL-EVENT-SSID-TEMP-DISABLED id=0 ssid=\"Shop\" auth_failures=1 duration=10 reason=WRONG_KEY");
+        QTRY_COMPARE(bad.count(), 1);
+        QTRY_VERIFY(f.commands.contains("ENABLE_NETWORK all"));
+    }
+
+    void scanFailClearsScanning()
+    {
+        FakeWpa f(path()); Script s;
+        f.handler = [&s](const QByteArray &c) { return c == "SCAN" ? QByteArray("FAIL-BUSY\n") : s(c); };
+        WifiModel m(path()); fast(m); m.start();
+        QTRY_VERIFY(f.commands.contains("SCAN"));
+        QTRY_VERIFY(!m.scanning());
+    }
+
+    void scanWithoutResultsTimesOut()
+    {
+        FakeWpa f(path()); Script s; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QTRY_VERIFY(m.scanning());
+        QTRY_VERIFY_WITH_TIMEOUT(!m.scanning(), 13000);
+    }
+
+    void internetRechecksOnNetworkChange()
+    {
+        FakeWpa f(path()); Script s; s.nets = {{0, "Yard"}}; s.nextId = 1; s.current = 0;
+        s.state = "COMPLETED"; s.ssid = "Yard"; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QTRY_COMPARE(m.internet(), QStringLiteral("online"));
+        m.setInternetCheck("sh", {"-c", "printf 302"});
+        s.ssid = "Shop";
+        f.sendEvent("CTRL-EVENT-DISCONNECTED bssid=11:22:33:44:55:66 reason=3");
+        QTRY_COMPARE(m.ssid(), QStringLiteral("Shop"));
+        QTRY_COMPARE(m.internet(), QStringLiteral("portal"));
+    }
+
+    void connectedEventForOtherIdDoesNotFinishJoin()
+    {
+        FakeWpa f(path()); Script s; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QSignalSpy ok(&m, &WifiModel::joined);
+        QTRY_COMPARE(m.networks().size(), 3);
+        m.join("Shop", "password1");
+        QTRY_VERIFY(f.commands.contains("SELECT_NETWORK 0"));
+        f.sendEvent("CTRL-EVENT-CONNECTED - Connection to 11:22:33:44:55:66 completed [id=7 id_str=]");
+        QTest::qWait(100);
+        QCOMPARE(ok.count(), 0);
+        QCOMPARE(m.state(), QStringLiteral("connecting"));
+        QCOMPARE(count(f, "SAVE_CONFIG"), 0);
     }
 };
 

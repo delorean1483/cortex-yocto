@@ -70,7 +70,10 @@ private:
     void onEvent(const QByteArray &line);
     void refresh();
     void rebuild();
-    void runSequence(const QList<QByteArray> &cmds, std::function<void(bool)> done);
+    void runSequence(const QList<QByteArray> &cmds, std::function<void(bool)> done,
+                     bool bestEffort = false);
+    void runTracked(const QList<QByteArray> &cmds);
+    bool busy() const { return m_pending.active || m_inflight > 0; }
     void beginJoin(const QString &ssid, const QString &password, bool hidden);
     void finishJoin(bool ok, const QString &error);
     void runInternetCheck();
@@ -78,7 +81,7 @@ private:
     void setError(const QString &e);
 
     WpaCtrl m_ctrl;
-    QTimer m_retry, m_poll, m_joinTimer, m_netCheck;
+    QTimer m_retry, m_poll, m_joinTimer, m_netCheck, m_scanTimer;
     QProcess m_check;
     QString m_checkProgram = QStringLiteral("curl");
     QStringList m_checkArgs = {
@@ -88,6 +91,8 @@ private:
         QStringLiteral("--max-time"), QStringLiteral("8"),
         QStringLiteral("http://connectivitycheck.gstatic.com/generate_204") };
 
+    int m_inflight = 0;          // cleanup/forget sequences still running
+    QString m_checkSsid;         // ssid the running internet check started for
     bool m_open = false;
     bool m_connected = false;
     QString m_wpaState;

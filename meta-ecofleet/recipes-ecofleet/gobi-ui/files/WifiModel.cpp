@@ -10,6 +10,9 @@ WifiModel::WifiModel(const QString &socketPath, QObject *parent)
     m_joinTimer.setSingleShot(true);
     m_joinTimer.setInterval(30000);
     m_netCheck.setInterval(120000);
+    m_scanTimer.setSingleShot(true);
+    m_scanTimer.setInterval(10000);
+    connect(&m_scanTimer, &QTimer::timeout, this, [this] { m_scanning = false; emit changed(); });
 
     connect(&m_retry, &QTimer::timeout, this, &WifiModel::tryOpen);
     connect(&m_poll, &QTimer::timeout, this, &WifiModel::refresh);
@@ -21,6 +24,12 @@ WifiModel::WifiModel(const QString &socketPath, QObject *parent)
     connect(&m_ctrl, &WpaCtrl::lost, this, &WifiModel::onLost);
     connect(&m_check, &QProcess::finished, this, [this](int exitCode, QProcess::ExitStatus st) {
         const QByteArray code = m_check.readAllStandardOutput();
+        if (m_checkSsid != m_ssid) {         // result is for a network we've left
+            m_internet = wpa::Internet::Unknown;
+            emit changed();
+            runInternetCheck();
+            return;
+        }
         m_internet = m_connected
             ? wpa::classifyCheck(st == QProcess::NormalExit ? exitCode : -1, code)
             : wpa::Internet::Unknown;
@@ -94,7 +103,11 @@ void WifiModel::onLost()
     m_open = false;
     m_connected = false;
     m_scanning = false;
+    m_scanTimer.stop();
     m_internet = wpa::Internet::Unknown;
+    m_scan.clear();
+    m_saved.clear();
+    m_networks.clear();
     m_poll.stop();
     m_netCheck.stop();
     m_retry.start();
@@ -111,12 +124,14 @@ void WifiModel::refresh()
         if (!ok) return;
         const auto kv = wpa::parseKeyValues(r);
         const bool wasConnected = m_connected;
+        const QString prevSsid = m_ssid;
         m_wpaState = kv.value("wpa_state");
         m_connected = m_wpaState == QLatin1String("COMPLETED");
         m_ssid = kv.value("ssid");
         m_ip = kv.value("ip_address");
         if (!m_connected) m_internet = wpa::Internet::Unknown;
-        if (m_connected && !wasConnected) runInternetCheck();
+        if (m_connected && wasConnected && m_ssid != prevSsid) m_internet = wpa::Internet::Unknown;
+        if (m_connected && (!wasConnected || m_ssid != prevSsid)) runInternetCheck();
         rebuild();
     });
     m_ctrl.request("LIST_NETWORKS", [this](bool ok, const QByteArray &r) {
@@ -141,9 +156,10 @@ void WifiModel::rebuild()
 void WifiModel::scan()
 {
     m_scanning = true;
+    m_scanTimer.start();
     emit changed();
-    m_ctrl.request("SCAN", [this](bool ok, const QByteArray &) {
-        if (!ok) { m_scanning = false; emit changed(); return; }
+    m_ctrl.request("SCAN", [this](bool ok, const QByteArray &r) {
+        if (!ok || r.startsWith("FAIL")) { m_scanning = false; m_scanTimer.stop(); emit changed(); return; }
         // Results arrive with CTRL-EVENT-SCAN-RESULTS; also read what's cached now.
         m_ctrl.request("SCAN_RESULTS", [this](bool ok2, const QByteArray &r) {
             if (ok2) m_scan = wpa::parseScanResults(r);
@@ -160,6 +176,7 @@ void WifiModel::onEvent(const QByteArray &line)
         m_ctrl.request("SCAN_RESULTS", [this](bool ok, const QByteArray &r) {
             if (ok) m_scan = wpa::parseScanResults(r);
             m_scanning = false;
+            m_scanTimer.stop();
             rebuild();
         });
         break;
@@ -178,15 +195,31 @@ void WifiModel::onEvent(const QByteArray &line)
     }
 }
 
-void WifiModel::runSequence(const QList<QByteArray> &cmds, std::function<void(bool)> done)
+/* Runs cmds one after another. By default stops at the first FAIL; with
+ * bestEffort every command is sent even after a FAIL reply (a transport
+ * failure — wpa_supplicant gone — still ends it). done(true) = all succeeded. */
+void WifiModel::runSequence(const QList<QByteArray> &cmds, std::function<void(bool)> done,
+                            bool bestEffort)
 {
     if (cmds.isEmpty()) { done(true); return; }
     const QByteArray head = cmds.first();
     const QList<QByteArray> rest = cmds.mid(1);
-    m_ctrl.request(head, [this, rest, done](bool ok, const QByteArray &r) {
-        if (!ok || r.startsWith("FAIL")) { done(false); return; }
-        runSequence(rest, done);
+    m_ctrl.request(head, [this, rest, done, bestEffort](bool ok, const QByteArray &r) {
+        const bool failed = r.startsWith("FAIL");
+        if (!ok || (failed && !bestEffort)) { done(false); return; }
+        if (!failed) { runSequence(rest, done, bestEffort); return; }
+        runSequence(rest, [done](bool) { done(false); }, bestEffort);
     });
+}
+
+/* Best-effort sequence that keeps the model busy until it has finished. */
+void WifiModel::runTracked(const QList<QByteArray> &cmds)
+{
+    ++m_inflight;
+    runSequence(cmds, [this](bool) {
+        --m_inflight;
+        refresh();
+    }, true);
 }
 
 bool WifiModel::inScan(const QString &ssid) const
@@ -206,7 +239,7 @@ void WifiModel::clearError() { setError(QString()); }
 
 void WifiModel::join(const QString &ssid, const QString &password)
 {
-    if (m_pending.active) return;
+    if (busy()) return;
     QString err = wpa::validateSsid(ssid);
     if (err.isEmpty() && !password.isEmpty()) err = wpa::validatePassword(password);
     if (err.isEmpty() && !inScan(ssid)) err = QStringLiteral("%1 is out of range.").arg(ssid);
@@ -216,7 +249,7 @@ void WifiModel::join(const QString &ssid, const QString &password)
 
 void WifiModel::addHidden(const QString &ssid, bool secured, const QString &password)
 {
-    if (m_pending.active) return;
+    if (busy()) return;
     QString err = wpa::validateSsid(ssid);
     if (err.isEmpty() && secured) err = wpa::validatePassword(password);
     if (!err.isEmpty()) { setError(err); return; }
@@ -252,7 +285,7 @@ void WifiModel::beginJoin(const QString &ssid, const QString &password, bool hid
 
 void WifiModel::joinSaved(int id)
 {
-    if (m_pending.active) return;
+    if (busy()) return;
     QString ssid;
     for (const wpa::SavedNet &s : m_saved)
         if (s.id == id) ssid = s.ssid;
@@ -286,7 +319,7 @@ void WifiModel::finishJoin(bool ok, const QString &error)
         if (p.isNew && p.id >= 0) cmds << "REMOVE_NETWORK " + QByteArray::number(p.id);
         cmds << "ENABLE_NETWORK all";
     }
-    runSequence(cmds, [this](bool) { refresh(); });
+    runTracked(cmds);
 
     if (ok) {
         m_lastError.clear();
@@ -300,12 +333,13 @@ void WifiModel::finishJoin(bool ok, const QString &error)
 
 void WifiModel::forget(int id)
 {
-    runSequence({ "REMOVE_NETWORK " + QByteArray::number(id), "SAVE_CONFIG" },
-                [this](bool) { refresh(); });
+    if (busy()) return;
+    runTracked({ "REMOVE_NETWORK " + QByteArray::number(id), "SAVE_CONFIG" });
 }
 
 void WifiModel::runInternetCheck()
 {
     if (!m_connected || m_check.state() != QProcess::NotRunning) return;
+    m_checkSsid = m_ssid;
     m_check.start(m_checkProgram, m_checkArgs);
 }
