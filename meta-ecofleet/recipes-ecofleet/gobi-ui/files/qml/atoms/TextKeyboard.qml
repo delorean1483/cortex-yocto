@@ -13,7 +13,11 @@ Rectangle {
     property bool symbols: false
     signal done()
     color: Theme.bg
-    implicitHeight: (symbols ? 5 : 4) * 52 + (symbols ? 4 : 3) * 6 + 12
+    // Symbols page has up to 12 keys in a row; narrower keys keep it inside the 660 px content width.
+    readonly property real keyW: symbols ? 46 : 58
+    // 5 rows on the symbols page: shorter keys so it still fits under the password row + hint.
+    readonly property real keyH: symbols ? 46 : 52
+    implicitHeight: (symbols ? 5 : 4) * keyH + (symbols ? 4 : 3) * 6 + 12
 
     readonly property var letters: [ "qwertyuiop", "asdfghjkl", "zxcvbnm" ]
     readonly property var syms:    [ "1234567890", "-/:;()$&@\"", ".,?!'#%*+=" , "_\\|~<>[]{}^`" ]
@@ -38,7 +42,7 @@ Rectangle {
         property real units: 1
         property bool accent: false
         signal tapped()
-        Layout.preferredWidth: 58 * units + 6 * (units - 1); Layout.preferredHeight: 52
+        Layout.preferredWidth: kb.keyW * units + 6 * (units - 1); Layout.preferredHeight: kb.keyH
         radius: Theme.radiusSm
         color: ka.pressed ? Theme.surface2 : (accent ? Theme.accent : Theme.surface)
         border.color: Theme.border; border.width: accent ? 0 : 1

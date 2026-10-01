@@ -68,6 +68,9 @@ SRC_URI = " \
     file://qml/screens/ScreenLockScreen.qml \
     file://qml/screens/MaintenanceScreen.qml \
     file://qml/screens/SupportScreen.qml \
+    file://qml/screens/WifiScreen.qml \
+    file://qml/screens/WifiJoinScreen.qml \
+    file://qml/screens/WifiSavedScreen.qml \
     file://qml/WeatherStrip.qml \
     file://qml/WeatherIcon.qml \
     file://gobi-ui.service \

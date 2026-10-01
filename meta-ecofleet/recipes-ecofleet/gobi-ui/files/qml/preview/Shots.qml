@@ -32,12 +32,23 @@ Item {
     Component { id: lockC;      ScreenLockScreen {} }
     Component { id: maintC;     MaintenanceScreen {} }
     Component { id: supportC;   SupportScreen {} }
+    Component { id: wifiC;      WifiScreen {} }
+    Component { id: wifiJoinC;  WifiJoinScreen { ssid: "Pilot-Travel-Center" } }
+    Component { id: wifiHidC;   WifiJoinScreen { hidden: true } }
+    Component { id: wifiSavedC; WifiSavedScreen {} }
 
     function sub(c) { shell.selectRail(2); return shell.pushScreen(c) }
     function notice(kind, title, detail, key) {
         telemetry.updateKind = kind; telemetry.updateTitle = title
         telemetry.updateDetail = detail; telemetry.updateKey = key; root.poke()
     }
+    // Swipe the Menu tile grid to its second page (find the SwipeView by walking the item tree).
+    function findSwipe(it) {
+        if (it.currentIndex !== undefined && it.incrementCurrentIndex) return it
+        for (var i = 0; i < it.children.length; i++) { var r = findSwipe(it.children[i]); if (r) return r }
+        return null
+    }
+    function menuPage2() { var sv = findSwipe(shell); if (sv) sv.setCurrentIndex(1) }
     function poke() { telemetry.tsMs += 1; telemetry.dataChanged() }
 
     property var steps: [
@@ -79,7 +90,17 @@ Item {
         ["19c-update-failed", function() { telemetry.updateProgress = -1; LockController.tryUnlock("1234"); shell.selectRail(0)
                                            root.notice("failed", "Software update to 1.2.67 failed",
                                                        "The unit is still running its current software.",
-                                                       "failed: install 1.2.67 (rc 1)") }]
+                                                       "failed: install 1.2.67 (rc 1)") }],
+        ["21-wifi",            function() { root.notice("none", "", "", ""); root.sub(wifiC) }],
+        ["21b-wifi-portal",    function() { wifi.internet = "portal"; root.sub(wifiC) }],
+        ["21c-wifi-connecting",function() { wifi.internet = "online"; wifi.state = "connecting"; wifi.pendingSsid = "Shop-Guest"; root.sub(wifiC) }],
+        ["21d-wifi-wrongpw",   function() { wifi.state = "idle"; wifi.pendingSsid = ""; wifi.lastError = "Wrong password."; root.sub(wifiC) }],
+        ["21e-wifi-unavail",   function() { wifi.lastError = ""; wifi.state = "unavailable"; wifi.networks = []; root.sub(wifiC) }],
+        ["21f-wifi-join",      function() { wifi.state = "connected"; root.sub(wifiJoinC) }],
+        ["21f2-wifi-join-symbols", function() { var p = root.sub(wifiJoinC); p.kbSymbols = true; p.error = "Wrong password." }],
+        ["21g-wifi-hidden",    function() { root.sub(wifiHidC) }],
+        ["21h-wifi-saved",     function() { root.sub(wifiSavedC) }],
+        ["21i-menu-p2",        function() { shell.selectRail(2); root.menuPage2() }]
     ]
     property int idx: 0
     Timer { id: act; interval: 300; onTriggered: { root.steps[root.idx][1](); grab.restart() } }
