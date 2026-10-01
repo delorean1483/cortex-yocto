@@ -23,11 +23,7 @@ Item {
                         color: Theme.text; font.pixelSize: Theme.fsBody }
                     Text { visible: modelData.inUse; text: "✓ In use"; color: Theme.accent
                         font.pixelSize: Theme.fsLabel; font.weight: Font.DemiBold }
-                    Rectangle { Layout.preferredWidth: 96; Layout.preferredHeight: 38; radius: Theme.radiusSm
-                        color: fma.pressed ? Theme.surface2 : "transparent"; border.color: Theme.fault
-                        Text { anchors.centerIn: parent; text: "Forget"; color: Theme.fault
-                            font.pixelSize: Theme.fsLabel + 1; font.weight: Font.DemiBold }
-                        MouseArea { id: fma; anchors.fill: parent; onClicked: wifi.forget(modelData.id) } } }
+                    ConfirmButton { onConfirmed: wifi.forget(modelData.id) } }
             }
             }
             Text { anchors.centerIn: parent; visible: savedList.count === 0; text: "No saved networks"

@@ -13,6 +13,7 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 SRC_URI:append = " \
     file://psplash-colors-ecofleet.h \
     file://psplash-ecofleet-bar.png \
+    file://psplash-systemd-wait-fifo.conf \
 "
 
 SPLASH_IMAGES:forcevariable = "file://psplash-ecofleet.png;outsuffix=default"
@@ -24,3 +25,10 @@ do_configure:append() {
     cp ${WORKDIR}/psplash-colors-ecofleet.h ${S}/psplash-colors.h
     cp ${WORKDIR}/psplash-ecofleet-bar.png ${S}/base-images/psplash-bar.png
 }
+
+# Fix the psplash-systemd start race (see the drop-in's comment).
+do_install:append() {
+    install -D -m 0644 ${WORKDIR}/psplash-systemd-wait-fifo.conf \
+        ${D}${sysconfdir}/systemd/system/psplash-systemd.service.d/ecofleet.conf
+}
+FILES:${PN} += "${sysconfdir}/systemd/system/psplash-systemd.service.d"

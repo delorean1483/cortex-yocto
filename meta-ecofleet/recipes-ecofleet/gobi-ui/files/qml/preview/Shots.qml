@@ -37,7 +37,15 @@ Item {
     Component { id: wifiHidC;   WifiJoinScreen { hidden: true } }
     Component { id: wifiSavedC; WifiSavedScreen {} }
 
-    function sub(c) { shell.selectRail(2); return shell.pushScreen(c) }
+    property var cur: null
+    function sub(c) { shell.selectRail(2); root.cur = shell.pushScreen(c); return root.cur }
+    // Arm every ConfirmButton under `item` (preview of the two-tap Forget).
+    function armAll(item) {
+        if (!item) return
+        if (item.confirmLabel !== undefined) item.armed = true
+        for (var i = 0; i < item.children.length; ++i) root.armAll(item.children[i])
+        if (item.contentItem) root.armAll(item.contentItem)
+    }
     function notice(kind, title, detail, key) {
         telemetry.updateKind = kind; telemetry.updateTitle = title
         telemetry.updateDetail = detail; telemetry.updateKey = key; root.poke()
@@ -108,6 +116,8 @@ Item {
         ["21g2-wifi-hidden-symbols", function() { var p = root.sub(wifiHidC); p.kbSymbols = true }],
         ["21g3-wifi-hidden-error", function() { var p = root.sub(wifiHidC); p.error = "Couldn't connect to that network." }],
         ["21h-wifi-saved",     function() { root.sub(wifiSavedC) }],
+        ["21h2-wifi-saved-forget-armed", function() { root.armAll(root.cur) }],
+        ["21h3-wifi-forget-armed", function() { root.sub(wifiC); Qt.callLater(function() { root.armAll(root.cur) }) }],
         // Saved network whose password changed: wrong password → the password screen opens.
         ["21j-wifi-saved-wrongpw", function() { wifi.state = "idle"; wifi.networks = root.netsIdle()
                                                 root.page = root.sub(wifiC); root.page.savedJoinSsid = "Shop-Guest" }],

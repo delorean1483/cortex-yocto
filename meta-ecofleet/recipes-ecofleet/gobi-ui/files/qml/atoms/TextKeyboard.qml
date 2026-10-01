@@ -4,7 +4,7 @@ import ".."
 // On-screen text keyboard for passwords and network names. Types into
 // `target` (any item with text/cursorPosition, e.g. TextField). Letters page
 // with Shift (one-shot; double-tap locks), numbers/symbols page, space,
-// backspace, Done. Keys ~60x52 for gloved fingers.
+// backspace (hold to repeat), Done. Keys 58x52 for gloved fingers.
 Rectangle {
     id: kb
     property Item target: null
@@ -37,10 +37,12 @@ Rectangle {
     }
 
     component Key: Rectangle {
+        id: key
         property string label: ""
         property string glyph: ""
         property real units: 1
         property bool accent: false
+        property bool autoRepeat: false   // hold: fire after 500 ms, then every 80 ms
         signal tapped()
         Layout.preferredWidth: 58 * units + 6 * (units - 1); Layout.preferredHeight: 52
         radius: Theme.radiusSm
@@ -50,7 +52,13 @@ Rectangle {
             color: parent.accent ? Theme.textOnAccent : Theme.text
             font.pixelSize: parent.label.length > 1 ? Theme.fsLabel + 1 : 22; font.weight: Font.Medium }
         Icon { visible: parent.glyph !== ""; anchors.centerIn: parent; name: parent.glyph; size: 24; color: Theme.textDim }
-        MouseArea { id: ka; anchors.fill: parent; onClicked: parent.tapped() }
+        MouseArea { id: ka; anchors.fill: parent
+            onClicked: if (!key.autoRepeat) key.tapped()
+            onPressed: if (key.autoRepeat) { key.tapped(); rep.interval = 500; rep.start() }
+            onReleased: rep.stop()
+            onCanceled: rep.stop() }
+        Timer { id: rep; repeat: true
+            onTriggered: { interval = 80; key.tapped() } }
     }
 
     ColumnLayout {
@@ -66,7 +74,7 @@ Rectangle {
                 Repeater { model: modelData.split("")
                     Key { label: (kb.shift && !kb.symbols) ? modelData.toUpperCase() : modelData
                           onTapped: kb.insert(label) } }
-                Key { visible: index === 2; glyph: "backspace"; units: 1.5; onTapped: kb.backspace() }
+                Key { visible: index === 2; glyph: "backspace"; units: 1.5; autoRepeat: true; onTapped: kb.backspace() }
             }
         }
         RowLayout { Layout.alignment: Qt.AlignHCenter; spacing: 6
