@@ -43,8 +43,9 @@ validated by a 1500-cycle soak).
 
 ### Entry points
 
-- **Settings → WiFi row** showing live state: `Connected · <ssid>`,
-  `Not connected`, `Searching…`, or `WiFi unavailable`. Tap opens the WiFi screen.
+- **Menu → WiFi tile** (page 2, next to Cloud Connection). *Changed during
+  planning from a Settings row: Settings already fills the screen and a row
+  would force scrolling.*
 - **Header WiFi indicator** (every screen, beside "APU live"): WiFi glyph with
   signal bars, greyed when not connected. Tap opens the WiFi screen.
 
@@ -101,13 +102,16 @@ dependency. If the socket is missing or stops answering, the model reports
 
 ### Exposed to QML
 
-- Properties: `state` (`unavailable` | `idle` | `scanning` | `connecting` |
-  `connected`), `ssid`, `signalDbm`, `signalBars` (0–4), `ip`, `internet`
+- Properties: `state` (`unavailable` | `idle` | `connecting` | `connected`),
+  `scanning`, `ssid`, `signalDbm`, `signalBars` (0–4), `ip`, `internet`
   (`unknown` | `online` | `no_internet` | `portal`), `networks` (list of
   `{ssid, signalBars, secured, saved, inUse}`), `saved` (list of `{id, ssid}`),
   `lastError` (user-facing text).
-- Methods: `scan()`, `connect(ssid, password)`, `connectSaved(id)`,
-  `forget(id)`, `addHidden(ssid, secured, password)`.
+- Methods: `scan()`, `join(ssid, password)`, `joinSaved(id)`,
+  `forget(id)`, `addHidden(ssid, secured, password)` (*`join` rather than
+  `connect`, which collides with `QObject::connect`*).
+- `scanning` is a separate bool rather than a `state` value, so a rescan while
+  connected still shows connected.
 
 ### Connect flow (new network)
 
