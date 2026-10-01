@@ -90,13 +90,9 @@ Item {
                     Text { Layout.alignment: Qt.AlignRight; text: page.netText; color: page.netHue
                         textFormat: Text.PlainText
                         font.pixelSize: Theme.fsLabel + 1; font.weight: Font.DemiBold } }
-                // Forget the network in use (it disconnects).
-                Rectangle { visible: card.on && page.inUseId >= 0
-                    Layout.preferredWidth: 96; Layout.preferredHeight: 38; radius: Theme.radiusSm
-                    color: cfa.pressed ? Theme.surface2 : "transparent"; border.color: Theme.fault
-                    Text { anchors.centerIn: parent; text: "Forget"; color: Theme.fault
-                        font.pixelSize: Theme.fsLabel + 1; font.weight: Font.DemiBold }
-                    MouseArea { id: cfa; anchors.fill: parent; onClicked: wifi.forget(page.inUseId) } }
+                // Forget the network in use (it disconnects); two taps.
+                ConfirmButton { visible: card.on && page.inUseId >= 0
+                    onConfirmed: wifi.forget(page.inUseId) }
             }
         }
 

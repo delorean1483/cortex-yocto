@@ -29,7 +29,8 @@ Item {
                 title: "Unit details"
                 rows: [ {k: "Serial",     v: devinfo.serial},
                         {k: "Firmware",   v: devinfo.fwVersion},
-                        {k: "IP address", v: devinfo.ipAddress} ] }
+                        {k: "Ethernet IP", v: devinfo.ethLinked ? devinfo.ipAddress : "No link"},
+                        {k: "WiFi IP",     v: wifi.state === "connected" && wifi.ip !== "" ? wifi.ip : "Not connected"} ] }
         }
         Item { Layout.fillHeight: true }
     }
