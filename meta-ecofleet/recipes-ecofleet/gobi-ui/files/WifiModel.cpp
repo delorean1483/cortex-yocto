@@ -152,7 +152,10 @@ void WifiModel::refresh()
         m_ip = kv.value("ip_address");
         if (!m_connected) m_internet = wpa::Internet::Unknown;
         if (m_connected && wasConnected && m_ssid != prevSsid) m_internet = wpa::Internet::Unknown;
-        if (m_connected && (!wasConnected || m_ssid != prevSsid)) runInternetCheck();
+        if (m_connected && (!wasConnected || m_ssid != prevSsid)) {
+            if (!m_pending.active && !m_lastError.isEmpty()) m_lastError.clear();   // stale join error
+            runInternetCheck();
+        }
         rebuild();
     });
     m_ctrl.request("LIST_NETWORKS", [this](bool ok, const QByteArray &r) {
@@ -232,7 +235,12 @@ void WifiModel::onEvent(const QByteArray &line)
         break;
     case wpa::Event::Connected:
         if (m_pending.active && (e.id < 0 || e.id == m_pending.id)) finishJoin(true, QString());
-        else refresh();
+        else {
+            // A fallback/auto-reconnect to some saved network: an earlier failed
+            // join's error no longer describes this connection.
+            if (!m_lastError.isEmpty()) clearError();
+            refresh();
+        }
         break;
     case wpa::Event::WrongKey:
         if (m_pending.active && e.id == m_pending.id) finishJoin(false, QStringLiteral("Wrong password."));

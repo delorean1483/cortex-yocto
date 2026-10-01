@@ -142,6 +142,25 @@ private slots:
         QCOMPARE(m.lastError(), QStringLiteral("Wrong password."));
     }
 
+    void connectedEventClearsStaleJoinError()
+    {
+        FakeWpa f(path()); Script s; f.handler = std::ref(s);
+        WifiModel m(path()); fast(m); m.start();
+        QSignalSpy bad(&m, &WifiModel::joinFailed);
+        QTRY_COMPARE(m.networks().size(), 3);
+        m.join("Shop", "wrongpass");
+        QTRY_VERIFY(f.commands.contains("SELECT_NETWORK 0"));
+        f.sendEvent("CTRL-EVENT-SSID-TEMP-DISABLED id=0 ssid=\"Shop\" auth_failures=1 duration=10 reason=WRONG_KEY");
+        QTRY_COMPARE(bad.count(), 1);
+        QCOMPARE(m.lastError(), QStringLiteral("Wrong password."));
+        QTRY_VERIFY(f.commands.contains("ENABLE_NETWORK all"));
+        // wpa_supplicant falls back to another saved network
+        s.state = "COMPLETED"; s.ssid = "Other"; s.current = 1;
+        f.sendEvent("CTRL-EVENT-CONNECTED - Connection to 11:22:33:44:55:66 completed [id=1 id_str=]");
+        QTRY_COMPARE(m.state(), QStringLiteral("connected"));
+        QCOMPARE(m.lastError(), QString());
+    }
+
     void timeoutFails()
     {
         FakeWpa f(path()); Script s; f.handler = std::ref(s);

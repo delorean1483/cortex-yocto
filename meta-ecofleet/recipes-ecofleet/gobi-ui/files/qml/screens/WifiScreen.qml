@@ -9,6 +9,8 @@ Item {
     id: page
     readonly property bool isWifiScreen: true      // AppShell.openWifi() checks this
     property string savedJoinSsid: ""              // a saved network we're joining (wrong password → ask again)
+    // lastError belongs to the join screen; never shown on the status card while connected
+    readonly property string statusError: wifi.state === "connected" ? "" : wifi.lastError
     Component { id: joinC;  WifiJoinScreen {} }
     Component { id: savedC; WifiSavedScreen {} }
     function push(c, props) { if (page.StackView.view) page.StackView.view.push(c, props || {}) }
@@ -74,12 +76,12 @@ Item {
                             : wifi.state === "unavailable" ? "WiFi unavailable" : "Not connected"
                         color: Theme.text; font.pixelSize: Theme.fsTitle; font.weight: Font.DemiBold }
                     Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2; textFormat: Text.PlainText
-                        visible: wifi.lastError !== "" || wifi.state === "connected"
-                        text: wifi.lastError !== "" ? wifi.lastError
+                        visible: page.statusError !== "" || wifi.state === "connected"
+                        text: page.statusError !== "" ? page.statusError
                             : (wifi.internet === "portal" ? "This network needs a web sign-in, which isn't supported. Try another network or a phone hotspot."
                             : wifi.internet === "no_internet" ? "Connected, but this network isn't reaching the internet."
                             : "In use · " + wifi.ip)
-                        color: wifi.lastError !== "" ? Theme.fault : Theme.textMute; font.pixelSize: Theme.fsLabel }
+                        color: page.statusError !== "" ? Theme.fault : Theme.textMute; font.pixelSize: Theme.fsLabel }
                 }
                 ColumnLayout { visible: wifi.state === "connected"; spacing: 4
                     RowLayout { Layout.alignment: Qt.AlignRight; spacing: 8
