@@ -34,6 +34,23 @@ write_ecofleet_version() {
 }
 ROOTFS_POSTPROCESS_COMMAND:append = " write_ecofleet_version;"
 
+# Units that must never run on this A/B layout, masked so a boot is clean:
+# - var-expand-partition: Variscite's "grow the root partition on first boot".
+#   Here the root partition is an A/B slot; growing it would run into the next
+#   slot and /data. It only failed so far because findmnt isn't in the image.
+#   (Same reason var-resize-flash is in BAD_RECOMMENDATIONS above.)
+# - swupdate.service: the stock suricatta/hawkBit daemon. OTA runs one-shot
+#   `swupdate -i`; the daemon only failed at boot ("provide a public key
+#   file"). The 10-ecofleet-swupdate.preset "disable" isn't applied by the
+#   image build, so mask it here.
+mask_unused_units() {
+    install -d ${IMAGE_ROOTFS}${sysconfdir}/systemd/system
+    for u in var-expand-partition.service swupdate.service; do
+        ln -sf /dev/null ${IMAGE_ROOTFS}${sysconfdir}/systemd/system/$u
+    done
+}
+ROOTFS_POSTPROCESS_COMMAND:append = " mask_unused_units;"
+
 IMAGE_INSTALL:append = " \
     gobi-agent \
     mosquitto \
