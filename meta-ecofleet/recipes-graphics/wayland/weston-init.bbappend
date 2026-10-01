@@ -15,6 +15,11 @@ do_install:append() {
     ini=${D}${sysconfdir}/xdg/weston/weston.ini
     grep -q '^\[shell\]' $ini || bbfatal "no [shell] section in $ini"
     sed -i -e '/^\[shell\]/a panel-position=none\nbackground-image=${datadir}/ecofleet/boot-bg.png\nbackground-type=scale-crop\nbackground-color=0xff0e1116' $ini
+
+    # gobi-ui ships its own on-screen keyboard (TextKeyboard). Without this,
+    # Weston launches weston-keyboard over it whenever a text field is focused.
+    # An empty path= disables Weston's input-method client.
+    grep -q '^\[input-method\]' $ini || printf '\n[input-method]\npath=\n' >> $ini
 }
 
 FILES:${PN} += "${datadir}/ecofleet/boot-bg.png"
