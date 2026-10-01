@@ -13,7 +13,7 @@ Rectangle {
     property bool symbols: false
     signal done()
     color: Theme.bg
-    implicitHeight: 4 * 52 + 3 * 6 + 12
+    implicitHeight: (symbols ? 5 : 4) * 52 + (symbols ? 4 : 3) * 6 + 12
 
     readonly property var letters: [ "qwertyuiop", "asdfghjkl", "zxcvbnm" ]
     readonly property var syms:    [ "1234567890", "-/:;()$&@\"", ".,?!'#%*+=" , "_\\|~<>[]{}^`" ]
