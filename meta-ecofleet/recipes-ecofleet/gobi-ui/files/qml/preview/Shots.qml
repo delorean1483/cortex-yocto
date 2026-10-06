@@ -69,10 +69,22 @@ Item {
                                           telemetry.fanAuto = true; telemetry.heaterCommsOk = true
                                           telemetry.heaterState = "running"; telemetry.heaterFanRpm = 2600
                                           telemetry.heaterExchanger = 180; root.poke() }],
+        ["02b-heater-autoterm", function() { telemetry.heaterExt = true; telemetry.heaterType = "autoterm"
+                                          telemetry.heaterControl = "setpoint"; telemetry.heaterPhase = "running"
+                                          telemetry.heaterState = "running"; telemetry.heaterSetpointF = 72
+                                          telemetry.heaterCommsOk = true; root.poke() }],
+        ["02c-heater-fault", function() { telemetry.heaterType = "vevor"; telemetry.heaterControl = "level"
+                                          telemetry.heaterPhase = "fault"; telemetry.heaterState = "off"
+                                          telemetry.heaterFault = true; telemetry.heaterError = 255
+                                          telemetry.heaterFanRpm = 0; telemetry.heaterExchanger = 0; root.poke() }],
+        ["02d-heater-detecting", function() { telemetry.heaterFault = false; telemetry.heaterError = 0
+                                          telemetry.heaterType = "none"; telemetry.heaterPhase = "detecting"
+                                          telemetry.heaterCommsOk = false; root.poke() }],
         ["03-battery",       function() { telemetry.mode = "off"; telemetry.controlStatus = "off"
                                           telemetry.fanAuto = false; telemetry.heaterCommsOk = false
                                           telemetry.heaterState = "off"; telemetry.heaterFanRpm = 0
-                                          telemetry.heaterExchanger = 0; root.poke(); shell.selectRail(1) }],
+                                          telemetry.heaterExchanger = 0; telemetry.heaterExt = false
+                                          telemetry.heaterPhase = "off"; root.poke(); shell.selectRail(1) }],
         ["04-menu",          function() { shell.selectRail(2) }],
         ["05-diagnostics",   function() { root.sub(diagC) }],
         ["06-usermaint",     function() { root.sub(usermaintC) }],

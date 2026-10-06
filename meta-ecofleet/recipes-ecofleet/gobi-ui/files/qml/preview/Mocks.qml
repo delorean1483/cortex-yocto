@@ -31,6 +31,10 @@ QtObject {
         property int    heaterStateSeconds: 0; property int    heaterAgeMs: 0
         property bool   heaterSafeOff: false;  property bool   heaterCommsOk: false
         property int    heaterFlags: 16
+        property bool   heaterExt: false;      property string heaterType: "none"
+        property string heaterPhase: "off";    property string heaterControl: "level"
+        property int    heaterSetpointF: 72;   property string heaterVendorState: ""
+        property bool   heaterFault: false;    property int    heaterCmdResult: 0
         // firmware update notice (TelemetryModel.update*: kind none|busy|failed)
         property string updateKind: "none";   property string updateTitle: ""
         property string updateDetail: "";     property string updateKey: ""
@@ -47,6 +51,8 @@ QtObject {
         function setTestRelay(i, on) {}
         function setHeaterOn(v) {}
         function setHeaterLevel(v) {}
+        function setHeaterSetpointF(v) {}
+        function clearHeaterFault() {}
     }
     // eventlog mock — mirrors EventLogModel (newest first; endMs 0 = active)
     property QtObject eventlog: QtObject {
