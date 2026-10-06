@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { heaterStateLabel, heaterFlags, fmt, heaterCmdSeq, heaterDesiredPending } from '../../api/contract.js'
+import { heaterStateLabel, heaterFlags, fmt, heaterCmdSeq, heaterDesiredPending,
+  heaterExt, heaterPhaseLabel, heaterTypeLabel } from '../../api/contract.js'
 import { useCommand, useShadow } from '../../data/hooks.js'
 import { useCan } from '../../components/RoleGate.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
@@ -19,6 +20,7 @@ export default function HeaterTab({ tele, unit, isDemo }) {
   const { allowed, reason } = useCan('heater')
   const [confirm, setConfirm] = useState(null) // { title, body, cmd }
   const [level, setLevel] = useState(tele?.heater_target_level || 3)
+  const [setpoint, setSetpoint] = useState(tele?.heater_setpoint_f || 72)
 
   // Ack tracking: capture the reported seq at send; the command is "applied"
   // once the device bumps heater_desired_seq past that baseline.
@@ -40,8 +42,14 @@ export default function HeaterTab({ tele, unit, isDemo }) {
   if (!tele.heater_present) return <div className="notice">No heater detected on this unit.</div>
 
   const flags = heaterFlags(tele.heater_flags)
-  const err = Number(tele.heater_error) !== 0
-  const on = tele.heater_state !== 'off'
+  const ext = heaterExt(tele)
+  const fault = ext && !!tele.heater_fault
+  // 255 = coprocessor fault without a vendor code (shown via the FAULT pill)
+  const err = Number(tele.heater_error) !== 0 && !(fault && Number(tele.heater_error) === 255)
+  const on = ext ? !['off', 'fault', 'detecting'].includes(tele.heater_phase) : tele.heater_state !== 'off'
+  const useSetpoint = ext && tele.heater_control === 'setpoint'
+  const typeLabel = heaterTypeLabel(tele.heater_type) || 'VEVOR'
+  const stateText = ext ? heaterPhaseLabel(tele.heater_phase) : heaterStateLabel(tele.heater_state)
   const disabled = !allowed || isDemo
   const disabledReason = isDemo ? 'Demo units cannot be controlled.' : reason
   const showPending = pending || heaterDesiredPending(shadow)
@@ -57,14 +65,19 @@ export default function HeaterTab({ tele, unit, isDemo }) {
   return (
     <div className="card">
       <div className="sec-hd">
-        <span className="sec-title">VEVOR diesel heater — {heaterStateLabel(tele.heater_state)}</span>
-        <span className={`pill ${tele.heater_comms_ok ? 'p-g' : 'p-r'}`}>
-          {tele.heater_comms_ok ? 'COMMS OK' : 'NO COMMS'}
+        <span className="sec-title">{typeLabel} diesel heater — {stateText}</span>
+        <span style={{ display: 'flex', gap: 5 }}>
+          {fault && <span className="pill p-r">FAULT</span>}
+          <span className={`pill ${tele.heater_comms_ok ? 'p-g' : 'p-r'}`}>
+            {tele.heater_comms_ok ? 'COMMS OK' : 'NO COMMS'}
+          </span>
         </span>
       </div>
 
       <div className="tgrid" style={{ marginTop: 4 }}>
-        <Cell label="Target level" value={fmt.int(tele.heater_target_level)} />
+        {useSetpoint
+          ? <Cell label="Setpoint" value={fmt.tempF(tele.heater_setpoint_f)} />
+          : <Cell label="Target level" value={fmt.int(tele.heater_target_level)} />}
         <Cell label="Active level" value={fmt.int(tele.heater_active_level)} />
         <Cell label="Exchanger" value={fmt.int(tele.heater_exchanger)} />
         <Cell label="Fan RPM" value={fmt.int(tele.heater_fan_rpm)} />
@@ -99,7 +112,8 @@ export default function HeaterTab({ tele, unit, isDemo }) {
       <div style={{ marginTop: 14, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
              title={disabled ? disabledReason : undefined}>
-          <button className={`btn btn-sm ${on ? 'btn-red' : 'btn-primary'}`} disabled={disabled}
+          <button className={`btn btn-sm ${on ? 'btn-red' : 'btn-primary'}`} disabled={disabled || (fault && !on)}
+            title={fault && !on ? 'Clear the fault before starting the heater.' : undefined}
             onClick={() => ask(
               on ? `Turn heater OFF` : `Turn heater ON`,
               `${on ? 'Stop' : 'Start'} the diesel heater on ${unit}?`,
@@ -107,6 +121,27 @@ export default function HeaterTab({ tele, unit, isDemo }) {
             {on ? 'Turn off' : 'Turn on'}
           </button>
 
+          {fault && (
+            <button className="btn btn-sm btn-red" disabled={disabled}
+              onClick={() => ask('Clear heater fault',
+                `Clear the heater fault on ${unit}? This does not start the heater; it only allows a new start once the heater reports standby.`,
+                { heater: { clear_fault: true } })}>
+              Clear fault
+            </button>
+          )}
+
+          {useSetpoint ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11.5, color: 'var(--color-text-tertiary)' }}>Setpoint</span>
+            <button className="btn btn-sm" disabled={disabled || setpoint <= 41} onClick={() => setSetpoint((v) => Math.max(41, v - 2))}>−</button>
+            <span style={{ minWidth: 34, textAlign: 'center', fontWeight: 600 }}>{setpoint}°F</span>
+            <button className="btn btn-sm" disabled={disabled || setpoint >= 86} onClick={() => setSetpoint((v) => Math.min(86, v + 2))}>+</button>
+            <button className="btn btn-sm btn-primary" disabled={disabled}
+              onClick={() => ask('Set heater setpoint', `Set heater setpoint to ${setpoint}°F on ${unit}?`, { heater: { setpoint_f: setpoint } })}>
+              Set
+            </button>
+          </div>
+          ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 11.5, color: 'var(--color-text-tertiary)' }}>Level</span>
             <button className="btn btn-sm" disabled={disabled || level <= 1} onClick={() => setLevel((l) => Math.max(1, l - 1))}>−</button>
@@ -117,6 +152,7 @@ export default function HeaterTab({ tele, unit, isDemo }) {
               Set
             </button>
           </div>
+          )}
 
           {showPending && <span className="pill p-a">Pending…</span>}
           {applied && !showPending && <span className="pill p-g">Applied ✓</span>}

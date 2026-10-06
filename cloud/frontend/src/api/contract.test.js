@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
+  heaterExt, heaterPhaseLabel, heaterTypeLabel,
          heaterFlags, diagOutputs, connLabel, otaStatusView,
          chronological, ageText, modeLabel, unitView, byAttention,
          activeFaults, faultInfo, reportView } from './contract.js'
@@ -49,6 +50,24 @@ describe('isStale', () => {
 describe('heaterStateLabel', () => {
   it('titlecases', () => expect(heaterStateLabel('preheat')).toBe('Preheat'))
   it('handles unknown', () => expect(heaterStateLabel('')).toBe('Unknown'))
+})
+
+describe('heater coprocessor helpers', () => {
+  it('heaterExt only when heater_phase is present', () => {
+    expect(heaterExt({ heater_state: 'off' })).toBe(false)
+    expect(heaterExt({ heater_phase: 'off' })).toBe(true)
+    expect(heaterExt(null)).toBe(false)
+  })
+  it('phase labels', () => {
+    expect(heaterPhaseLabel('stopping')).toBe('Stopping')
+    expect(heaterPhaseLabel('fault')).toBe('FAULT')
+    expect(heaterPhaseLabel('weird')).toBe('Weird')
+  })
+  it('type labels', () => {
+    expect(heaterTypeLabel('autoterm')).toBe('AUTOTERM')
+    expect(heaterTypeLabel('vevor')).toBe('VEVOR')
+    expect(heaterTypeLabel('none')).toBe(null)
+  })
 })
 
 describe('fmt', () => {

@@ -21,6 +21,23 @@ export function heaterStateLabel(state) {
   return String(state).charAt(0).toUpperCase() + String(state).slice(1)
 }
 
+// Heater coprocessor firmware adds heater_type/phase/control/setpoint_f/fault
+// (cloud/CONTRACT.md). heaterExt() is false for older units, which keep the
+// legacy heater_state view.
+export function heaterExt(tele) {
+  return !!tele && tele.heater_phase != null
+}
+const HEATER_PHASE_LABELS = {
+  off: 'Off', detecting: 'Detecting', starting: 'Starting', running: 'Running',
+  stopping: 'Stopping', cooldown: 'Cooling down', fault: 'FAULT',
+}
+export function heaterPhaseLabel(phase) {
+  return HEATER_PHASE_LABELS[phase] || heaterStateLabel(phase)
+}
+export function heaterTypeLabel(type) {
+  return { vevor: 'VEVOR', autoterm: 'AUTOTERM' }[type] || null
+}
+
 const dash = (v) => v == null || Number.isNaN(Number(v))
 export const fmt = {
   volts: (v) => dash(v) ? '—' : `${Number(v).toFixed(1)} V`,
