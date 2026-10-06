@@ -50,6 +50,9 @@ typedef struct {
                                   * applied to reg 53 only when >= 0             */
     int      heater_level;       /* pending: 1..10, or -1 = not provided/invalid —
                                   * applied to reg 54 only when >= 1             */
+    int      heater_setpoint_f;  /* pending: 41..86 degF, or -1 = not provided —
+                                  * applied to reg 69 (as degC) when >= 0        */
+    bool     heater_clear_fault; /* pending CLEAR_FAULT (reg 75 = 3)             */
 } shadow_config_t;
 
 /* ── Reported telemetry fields included in shadow update ────────────────── */
@@ -78,6 +81,16 @@ typedef struct {
     int      heater_fan_rpm;     /* raw fan RPM, reg 59                          */
     bool     heater_safe_off;    /* HEATER_FLAG_SAFE_OFF set                     */
     bool     heater_comms_ok;    /* fresh & no HEATER_FLAG_COMMS_FAULT           */
+
+    /* Heater coprocessor extended block (fw regs 68..75). Published inside
+     * reported.heater only when heater_ext (firmware has the block), so old
+     * firmware's reported shape is unchanged. */
+    bool     heater_ext;
+    char     heater_type[12];    /* "none"|"vevor"|"autoterm"|"unknown"          */
+    char     heater_phase[12];   /* "off"|"detecting"|...|"fault"|"unknown"       */
+    char     heater_control[10]; /* "level"|"setpoint"                           */
+    int      heater_setpoint_f;  /* reg 69 as degF                               */
+    bool     heater_fault;       /* phase == fault                               */
 } shadow_reported_t;
 
 /* ── Callbacks ────────────────────────────────────────────────────────────── */
@@ -195,14 +208,22 @@ void shadow_ack_apu_firmware_target(unsigned seq);
  * (never written) so a remote STOP can't be dropped just because no level
  * was supplied alongside it. */
 
-/* Copy any pending heater on/level command into *on / *level without
- * clearing it, as-is (including the -1 "not provided" sentinel on whichever
- * field wasn't part of the desired.heater payload). Also copies the current
- * heater-desired sequence number into *seq (guard NULL like the other
- * out-params) — pass it back unchanged to shadow_ack_heater_cmd() so the ack
- * only clears the command it actually saw. Returns true if a command is
- * pending (at least one of on/level valid). Thread-safe. */
-bool shadow_peek_heater_cmd(int *on, int *level, unsigned *seq);
+/* A pending heater command. Each field is independently optional: on/level/
+ * setpoint_f use -1 for "not provided"; clear_fault false = not requested. */
+typedef struct {
+    int  on;          /* 0|1 or -1                                  */
+    int  level;       /* 1..10 or -1                                */
+    int  setpoint_f;  /* 41..86 degF or -1                          */
+    bool clear_fault; /* CLEAR_FAULT requested                      */
+} shadow_heater_cmd_t;
+
+/* Copy any pending heater command into *cmd without clearing it, as-is
+ * (including the "not provided" sentinels). Also copies the current
+ * heater-desired sequence number into *seq — pass it back unchanged to
+ * shadow_ack_heater_cmd() so the ack only clears the command it actually
+ * saw. Returns true if a command is pending (at least one field valid).
+ * Thread-safe. */
+bool shadow_peek_heater_cmd(shadow_heater_cmd_t *cmd, unsigned *seq);
 
 /* Mark the pending heater command as applied IF it is still the same
  * command that was peeked: clears it and schedules a desired.heater=null

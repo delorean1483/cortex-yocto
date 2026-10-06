@@ -127,3 +127,12 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" "$here/test_heater_ext.c" "$files/heater_ext.c" \
    -o "$here/test_heater_ext" && "$here/test_heater_ext"
 
+# desired.heater setpoint_f/clear_fault + reported.heater extended fields
+# through the REAL shadow.c.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -DLOCATION_JSON_SHARED='"/tmp/test_shadow_heater_location.json"' \
+   -DLOCATION_JSON_LEGACY='"/tmp/test_shadow_heater_location.legacy.json"' \
+   -I"$here/mqstub" -I"$files" -I"$cjson/include" \
+   "$here/test_shadow_heater.c" "$files/location.c" "$files/state_path.c" \
+   -L"$cjson/lib" -lcjson -lpthread \
+   -o "$here/test_shadow_heater" && "$here/test_shadow_heater"
