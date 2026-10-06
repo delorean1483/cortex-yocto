@@ -116,6 +116,8 @@ static void set_default_config(shadow_config_t *cfg)
     cfg->heater_desired_valid = false;
     cfg->heater_on            = -1;  /* sentinel: not provided/invalid */
     cfg->heater_level         = -1;  /* sentinel: not provided/invalid */
+    cfg->heater_setpoint_f    = -1;  /* sentinel: not provided/invalid */
+    cfg->heater_clear_fault   = false;
 }
 
 /* ── Topic helpers ───────────────────────────────────────────────────────── */
@@ -246,7 +248,8 @@ static bool apply_desired(const cJSON *desired)
         s.apu_fw_target_seq++;
     }
 
-    /* Heater-scoped remote control: desired.heater = { "on": 0|1, "level": 1..10 },
+    /* Heater-scoped remote control: desired.heater = { "on": 0|1, "level": 1..10,
+     * "setpoint_f": 41..86, "clear_fault": true },
      * with "on" and "level" each INDEPENDENTLY optional so a bare stop
      * ({"on":0}) is never blocked on a level also being supplied — dropping a
      * remote stop would be a safety issue. Whichever field is absent/invalid
@@ -266,9 +269,13 @@ static bool apply_desired(const cJSON *desired)
     if (cJSON_IsObject(h)) {
         const cJSON *hon  = cJSON_GetObjectItemCaseSensitive(h, "on");
         const cJSON *hlvl = cJSON_GetObjectItemCaseSensitive(h, "level");
+        const cJSON *hsp  = cJSON_GetObjectItemCaseSensitive(h, "setpoint_f");
+        const cJSON *hclr = cJSON_GetObjectItemCaseSensitive(h, "clear_fault");
         int on_val    = s.config.heater_desired_valid ? s.config.heater_on    : -1;
         int level_val = s.config.heater_desired_valid ? s.config.heater_level : -1;
-        bool have_on = false, have_level = false;
+        int sp_val    = s.config.heater_desired_valid ? s.config.heater_setpoint_f : -1;
+        bool clr_val  = s.config.heater_desired_valid ? s.config.heater_clear_fault : false;
+        bool have_on = false, have_level = false, have_sp = false, have_clr = false;
 
         if (cJSON_IsNumber(hon)) {
             int v = (int)hon->valuedouble;
@@ -282,9 +289,18 @@ static bool apply_desired(const cJSON *desired)
             else
                 fprintf(stderr, "[shadow] heater.level %d out of range [1,10] — ignored\n", v);
         }
-        if (have_on || have_level) {
+        if (cJSON_IsNumber(hsp)) {
+            int v = (int)hsp->valuedouble;
+            if (v >= 41 && v <= 86) { sp_val = v; have_sp = true; }
+            else
+                fprintf(stderr, "[shadow] heater.setpoint_f %d out of range [41,86] — ignored\n", v);
+        }
+        if (cJSON_IsTrue(hclr)) { clr_val = true; have_clr = true; }
+        if (have_on || have_level || have_sp || have_clr) {
             s.config.heater_on            = on_val;
             s.config.heater_level         = level_val;
+            s.config.heater_setpoint_f    = sp_val;
+            s.config.heater_clear_fault   = clr_val;
             s.config.heater_desired_valid = true;
             s.heater_desired_seq++;
         }
@@ -511,6 +527,13 @@ int shadow_publish_reported(struct mosquitto *mosq,
         cJSON_AddNumberToObject(heater, "fan_rpm",  reported->heater_fan_rpm);
         cJSON_AddBoolToObject  (heater, "safe_off", reported->heater_safe_off);
         cJSON_AddBoolToObject  (heater, "comms_ok", reported->heater_comms_ok);
+        if (reported->heater_ext) {
+            cJSON_AddStringToObject(heater, "type",       reported->heater_type);
+            cJSON_AddStringToObject(heater, "phase",      reported->heater_phase);
+            cJSON_AddStringToObject(heater, "control",    reported->heater_control);
+            cJSON_AddNumberToObject(heater, "setpoint_f", reported->heater_setpoint_f);
+            cJSON_AddBoolToObject  (heater, "fault",      reported->heater_fault);
+        }
     }
 
     /* Echo the assigned location back so desired == reported (no standing
@@ -659,16 +682,18 @@ void shadow_ack_apu_firmware_target(unsigned seq)
     pthread_mutex_unlock(&s.config_mutex);
 }
 
-bool shadow_peek_heater_cmd(int *on, int *level, unsigned *seq)
+bool shadow_peek_heater_cmd(shadow_heater_cmd_t *cmd, unsigned *seq)
 {
-    if (!s.initialised || !on || !level || !seq) return false;
+    if (!s.initialised || !cmd || !seq) return false;
 
     pthread_mutex_lock(&s.config_mutex);
     bool pending = s.config.heater_desired_valid;
     if (pending) {
-        *on    = s.config.heater_on;
-        *level = s.config.heater_level;
-        *seq   = s.heater_desired_seq;
+        cmd->on          = s.config.heater_on;
+        cmd->level       = s.config.heater_level;
+        cmd->setpoint_f  = s.config.heater_setpoint_f;
+        cmd->clear_fault = s.config.heater_clear_fault;
+        *seq             = s.heater_desired_seq;
     }
     pthread_mutex_unlock(&s.config_mutex);
     return pending;

@@ -45,7 +45,17 @@ function validateCommand(body) {
         return { ok: false, error: 'heater.level must be an integer 1–10' };
       out.level = h.level;
     }
-    if (Object.keys(out).length === 0) return { ok: false, error: 'heater needs on and/or level' };
+    if (h.setpoint_f !== undefined) {
+      if (!Number.isInteger(h.setpoint_f) || h.setpoint_f < 41 || h.setpoint_f > 86)
+        return { ok: false, error: 'heater.setpoint_f must be an integer 41–86 (°F)' };
+      out.setpoint_f = h.setpoint_f;
+    }
+    if (h.clear_fault !== undefined) {
+      if (h.clear_fault !== true) return { ok: false, error: 'heater.clear_fault must be true' };
+      out.clear_fault = true;
+    }
+    if (Object.keys(out).length === 0)
+      return { ok: false, error: 'heater needs at least one of on, level, setpoint_f, clear_fault' };
     desired.heater = out;
   }
 

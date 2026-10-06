@@ -93,6 +93,15 @@
 #define REG_HEATER_VALID_FR    64   /* fw 65 */
 #define REG_HEATER_CSUM_FAIL   65   /* fw 66 */
 #define REG_HEATER_XPORT_ERR   66   /* fw 67 */
+/* Heater coprocessor extended block (g0b1-firmware PR #12): OPTIONAL, absent
+ * on older firmware (every read then fails with exception 0x02). */
+#define REG_HEATER_TYPE        67   /* fw 68 0 none,1 VEVOR,2 AUTOTERM       R  */
+#define REG_HEATER_SETPOINT_C  68   /* fw 69 5..30 degC                      RW */
+#define REG_HEATER_CAPS        69   /* fw 70 capability bits                 R  */
+#define REG_HEATER_PHASE       70   /* fw 71 generic phase 0..6              R  */
+#define REG_HEATER_VENDOR_ST   71   /* fw 72 major<<8|sub                    R  */
+#define REG_HEATER_DETECT      72   /* fw 73 detect_result<<8|line_sense     R  */
+#define REG_HEATER_COMMAND     74   /* fw 75 write 3 = clear fault; read = result RW */
 
 /* ── SQLite offline buffer ───────────────────────────────────────────────── */
 #define SQLITE_DB_PATH      "/var/lib/ecofleet/telemetry.db"

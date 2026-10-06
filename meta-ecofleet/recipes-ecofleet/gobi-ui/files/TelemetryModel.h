@@ -52,6 +52,16 @@ class TelemetryModel : public QObject
     Q_PROPERTY(bool    heaterSafeOff      READ heaterSafeOff      NOTIFY dataChanged)
     Q_PROPERTY(bool    heaterCommsOk      READ heaterCommsOk      NOTIFY dataChanged)
     Q_PROPERTY(int     heaterFlags        READ heaterFlags        NOTIFY dataChanged)
+    // Heater coprocessor extended block (fw regs 68-75); heaterExt false on
+    // older firmware, which then behaves exactly as before.
+    Q_PROPERTY(bool    heaterExt          READ heaterExt          NOTIFY dataChanged)
+    Q_PROPERTY(QString heaterType         READ heaterType         NOTIFY dataChanged)
+    Q_PROPERTY(QString heaterPhase        READ heaterPhase        NOTIFY dataChanged)
+    Q_PROPERTY(QString heaterControl      READ heaterControl      NOTIFY dataChanged)
+    Q_PROPERTY(int     heaterSetpointF    READ heaterSetpointF    NOTIFY dataChanged)
+    Q_PROPERTY(QString heaterVendorState  READ heaterVendorState  NOTIFY dataChanged)
+    Q_PROPERTY(bool    heaterFault        READ heaterFault        NOTIFY dataChanged)
+    Q_PROPERTY(int     heaterCmdResult    READ heaterCmdResult    NOTIFY dataChanged)
     /* Firmware update notice (see UpdateNotice.h): updateKind "none" | "busy" |
      * "failed"; updateKey identifies a failure so a dismissal can stick. */
     Q_PROPERTY(QString updateKind   READ updateKind   NOTIFY dataChanged)
@@ -77,6 +87,8 @@ public:
     Q_INVOKABLE void setTestRelay(int index, bool on);   // diag_out = (index<<8)|state
     Q_INVOKABLE void setHeaterOn(bool on);               // heater_on 0|1
     Q_INVOKABLE void setHeaterLevel(int level);          // heater_level 1..10
+    Q_INVOKABLE void setHeaterSetpointF(int degF);       // heater_setpoint_f 41..86
+    Q_INVOKABLE void clearHeaterFault();                 // heater_clear_fault 1
 
     double  cabinTempF()    const { return m_cabinTempF; }
     double  extTempF()      const { return m_extTempF; }
@@ -118,6 +130,14 @@ public:
     bool    heaterSafeOff()      const { return m_heaterSafeOff; }
     bool    heaterCommsOk()      const { return m_heaterCommsOk; }
     int     heaterFlags()        const { return m_heaterFlags; }
+    bool    heaterExt()          const { return m_heaterExt; }
+    QString heaterType()         const { return m_heaterType; }
+    QString heaterPhase()        const { return m_heaterPhase; }
+    QString heaterControl()      const { return m_heaterControl; }
+    int     heaterSetpointF()    const { return m_heaterSetpointF; }
+    QString heaterVendorState()  const { return m_heaterVendorState; }
+    bool    heaterFault()        const { return m_heaterFault; }
+    int     heaterCmdResult()    const { return m_heaterCmdResult; }
     QString updateKind()   const;
     QString updateTitle()  const { return m_update.title; }
     QString updateDetail() const { return m_update.detail; }
@@ -165,6 +185,14 @@ private:
     bool    m_heaterSafeOff      = false;
     bool    m_heaterCommsOk      = false;
     int     m_heaterFlags        = 0;
+    bool    m_heaterExt          = false;
+    QString m_heaterType         = QStringLiteral("none");
+    QString m_heaterPhase        = QStringLiteral("off");
+    QString m_heaterControl      = QStringLiteral("level");
+    int     m_heaterSetpointF    = 68;
+    QString m_heaterVendorState;
+    bool    m_heaterFault        = false;
+    int     m_heaterCmdResult    = 0;
 
     UpdateNotice m_update;
 };

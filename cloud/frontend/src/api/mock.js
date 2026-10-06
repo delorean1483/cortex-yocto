@@ -37,6 +37,8 @@ const SNAPSHOTS = {
     batt_v: 13.9, fan_speed: 65, cabin_temp_f: 74.2, engine_hrs: 812,
     heater_present: true, heater_state: 'running', heater_active_level: 4,
     heater_fan_rpm: 2600, heater_exchanger: 168, heater_comms_ok: true, heater_flags: 1,
+    heater_type: 'vevor', heater_phase: 'running', heater_control: 'level',
+    heater_setpoint_f: 72, heater_vendor_state: '3.0', heater_fault: false, heater_cmd_result: 0,
   }),
   'APU-DEMO-02': baseSnapshot('APU-DEMO-02', {
     demo: true, batt_v: 11.6, error: 'Low battery voltage', error_n: 4,
@@ -162,6 +164,13 @@ export const mockApi = {
         snap.heater_target_level = body.heater.level
         if (snap.heater_state === 'running') snap.heater_active_level = body.heater.level
       }
+      if (body.heater.setpoint_f !== undefined) snap.heater_setpoint_f = body.heater.setpoint_f
+      if (body.heater.clear_fault && snap.heater_fault) {
+        snap.heater_fault = false
+        snap.heater_phase = 'off'
+      }
+      if (snap.heater_phase != null && body.heater.on !== undefined)
+        snap.heater_phase = body.heater.on ? 'running' : 'off'
     }
     if (snap && body.apu_command) {
       // apu_command is the target op-state: 'climate' | 'battery' | 'stop'.

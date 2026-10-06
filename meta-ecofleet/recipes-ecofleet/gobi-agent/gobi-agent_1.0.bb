@@ -10,7 +10,9 @@ SRC_URI = " \
     file://shadow.h \
     file://config.h \
     file://heater_fields.h \
+    file://heater_ext.h \
     file://heater_fields.c \
+    file://heater_ext.c \
     file://apu_command.h \
     file://apu_command.c \
     file://ota_status.h \

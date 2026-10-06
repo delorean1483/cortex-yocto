@@ -16,6 +16,9 @@ const TELEMETRY_FIELD_NAMES = [
   'heater_exchanger', 'heater_state_seconds', 'heater_age_ms', 'heater_flags',
   'heater_safe_off', 'heater_comms_ok',
   'heater_valid_frames', 'heater_checksum_failures', 'heater_transport_errors',
+  // heater coprocessor (optional; present only from coprocessor firmware)
+  'heater_type', 'heater_phase', 'heater_control', 'heater_setpoint_f',
+  'heater_vendor_state', 'heater_fault', 'heater_cmd_result',
 ];
 
 function mapTelemetryRow(r) {
