@@ -53,3 +53,22 @@ bool heater_present_from(bool state_ok, bool type_ok, unsigned type)
 {
     return state_ok && (!type_ok || type != 0);
 }
+
+int heater_plan_writes(int on, int level, int setpoint_f, bool clear_fault,
+                       bool ext, heater_write_t out[4])
+{
+    int n = 0;
+    if (ext && clear_fault) {
+        out[n].reg = 75; out[n].value = HEATER_CMD_CLEAR_FAULT; out[n].what = "heater_clear_fault"; n++;
+    }
+    if (ext && setpoint_f >= HEATER_SETPOINT_F_MIN && setpoint_f <= HEATER_SETPOINT_F_MAX) {
+        out[n].reg = 69; out[n].value = heater_f_to_c(setpoint_f); out[n].what = "heater_setpoint_f"; n++;
+    }
+    if (level >= 1 && level <= 10) {
+        out[n].reg = 54; out[n].value = level; out[n].what = "heater_level"; n++;
+    }
+    if (on == 0 || on == 1) {
+        out[n].reg = 53; out[n].value = on; out[n].what = "heater_on"; n++;
+    }
+    return n;
+}

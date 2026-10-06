@@ -5,6 +5,7 @@ import {
 } from '@tabler/icons-react'
 import {
   fmt, apuVersionLabel, unitView, modeLabel, engineRunning, heaterStateLabel,
+  heaterExt, heaterPhaseLabel,
 } from '../../api/contract.js'
 import { useCommand, useShadow } from '../../data/hooks.js'
 import { useCan } from '../../components/RoleGate.jsx'
@@ -61,10 +62,14 @@ function HeaterToggle({ tele, unit, isDemo, offline }) {
   const command = useCommand()
   const { allowed, reason } = useCan('heater')
   const [confirm, setConfirm] = useState(false)
-  const on = tele.heater_state !== 'off'
-  // Same offline rule as the APU starts: never queue an ignition.
-  const disabled = !allowed || isDemo || (!on && offline)
-  const title = !allowed ? reason : isDemo ? 'Demo units cannot be controlled.' : undefined
+  const ext = heaterExt(tele)
+  const fault = ext && !!tele.heater_fault
+  const on = ext ? !['off', 'fault', 'detecting'].includes(tele.heater_phase) : tele.heater_state !== 'off'
+  // Same offline rule as the APU starts: never queue an ignition. A latched
+  // coprocessor fault must be cleared (Heater tab) before a start.
+  const disabled = !allowed || isDemo || (!on && (offline || fault))
+  const title = !allowed ? reason : isDemo ? 'Demo units cannot be controlled.'
+    : (fault && !on) ? 'Clear the heater fault (Heater tab) before starting.' : undefined
 
   return (
     <>
@@ -135,9 +140,15 @@ export default function OverviewTab({ tele, unit, isDemo, onOpenTab }) {
           {heater && (
             <Group id="g-heater" title="Diesel heater" Icon={IconFlame}
               badge={tele.heater_comms_ok ? null : <span className="badge badge-sm t-warn">No comms</span>}>
-              <Row label="State">{heaterStateLabel(tele.heater_state)}</Row>
-              <Row label="Level">{tele.heater_target_level == null ? '—' : `${tele.heater_target_level} of 10`}</Row>
-              {Number(tele.heater_error) !== 0 && <Row label="Error code" color="var(--err)">{tele.heater_error}</Row>}
+              <Row label="State" color={heaterExt(tele) && tele.heater_fault ? 'var(--err)' : undefined}>
+                {heaterExt(tele) ? heaterPhaseLabel(tele.heater_phase) : heaterStateLabel(tele.heater_state)}
+              </Row>
+              {heaterExt(tele) && tele.heater_control === 'setpoint'
+                ? <Row label="Setpoint">{fmt.tempF(tele.heater_setpoint_f)}</Row>
+                : <Row label="Level">{tele.heater_target_level == null ? '—' : `${tele.heater_target_level} of 10`}</Row>}
+              {/* 255 = coprocessor fault without a vendor code: shown by State */}
+              {Number(tele.heater_error) !== 0 && !(heaterExt(tele) && tele.heater_fault && Number(tele.heater_error) === 255) &&
+                <Row label="Error code" color="var(--err)">{tele.heater_error}</Row>}
             </Group>
           )}
         </div>

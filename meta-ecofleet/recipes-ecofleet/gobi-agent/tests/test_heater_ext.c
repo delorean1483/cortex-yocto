@@ -41,6 +41,25 @@ int main(void){
     CHECK(heater_present_from(true, true, 0)==false);  /* new fw, nothing detected */
     CHECK(heater_present_from(true, true, 2)==true);   /* new fw, AUTOTERM */
     CHECK(heater_present_from(false,true, 1)==false);  /* state read failed */
+    /* write plan: safe order clear -> setpoint -> level -> on */
+    heater_write_t w[4];
+    int n = heater_plan_writes(1, 4, 72, true, true, w);
+    CHECK(n==4);
+    CHECK(w[0].reg==75 && w[0].value==HEATER_CMD_CLEAR_FAULT);
+    CHECK(w[1].reg==69 && w[1].value==22);
+    CHECK(w[2].reg==54 && w[2].value==4);
+    CHECK(w[3].reg==53 && w[3].value==1);
+    /* review #2: old firmware (no ext block) never gets setpoint/clear writes,
+       which would fail forever and leave the command (and its ON) pending */
+    n = heater_plan_writes(0, -1, 72, true, false, w);
+    CHECK(n==1 && w[0].reg==53 && w[0].value==0);
+    n = heater_plan_writes(-1, -1, 72, true, false, w);
+    CHECK(n==0);
+    /* unset / invalid fields skipped */
+    n = heater_plan_writes(-1, 0, 40, false, true, w);
+    CHECK(n==0);
+    n = heater_plan_writes(2, 11, 87, false, true, w);
+    CHECK(n==0);
     printf(fails?"test_heater_ext FAILED (%d)\n":"test_heater_ext ok\n", fails);
     return fails?1:0;
 }

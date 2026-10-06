@@ -573,6 +573,11 @@ static uint16_t modbus_read_reg_besteffort(modbus_t *ctx, int wire_addr, uint16_
  * the VEVOR heater block are optional. A failure here (unbound on old
  * firmware, or a transient) leaves the field at its default and never forces
  * a reconnect. */
+/* Last-read "firmware has the heater coprocessor block" (regs 68..75): set by
+ * modbus_read_besteffort(), consumed by the command paths so ext-only writes
+ * are never attempted on older firmware. Telemetry thread only. */
+static bool g_heater_ext = false;
+
 static void modbus_read_besteffort(telemetry_t *t)
 {
     t->diag_mode    = (uint8_t)  modbus_read_reg_besteffort(g_modbus, REG_DIAG_MODE,   0);
@@ -591,6 +596,7 @@ static void modbus_read_besteffort(telemetry_t *t)
     t->heater_type = heater_ok
         ? modbus_read_reg_besteffort_ok(g_modbus, REG_HEATER_TYPE, 0, &ext_ok) : 0;
     t->heater_ext          = ext_ok;
+    g_heater_ext           = ext_ok;   /* for the local command path */
     t->heater_present      = heater_present_from(heater_ok, ext_ok, t->heater_type);
     if (ext_ok) {
         t->heater_setpoint_c   = modbus_read_reg_besteffort(g_modbus, REG_HEATER_SETPOINT_C, 20);
@@ -893,32 +899,23 @@ static void apply_command_file(void)
         else syslog(LOG_WARNING, "control: bad diag_out 0x%04x", v);
     }
 
-    /* heater_on -> reg 53 (heater_request, 0|1) */
-    const cJSON *hon = cJSON_GetObjectItemCaseSensitive(root, "heater_on");
-    if (cJSON_IsNumber(hon)) {
-        int v = (int)hon->valuedouble;
-        if (v == 0 || v == 1) mb_write_reg(53, v, "heater_on");
+    /* Heater: heater_on (reg 53) / heater_level (54) / heater_setpoint_f (69,
+     * as degC) / heater_clear_fault (75 = CLEAR_FAULT, never starts the
+     * heater). Same planner + order as the shadow path; setpoint/clear only
+     * on coprocessor firmware. */
+    {
+        const cJSON *hon = cJSON_GetObjectItemCaseSensitive(root, "heater_on");
+        const cJSON *hlv = cJSON_GetObjectItemCaseSensitive(root, "heater_level");
+        const cJSON *hsp = cJSON_GetObjectItemCaseSensitive(root, "heater_setpoint_f");
+        const cJSON *hcf = cJSON_GetObjectItemCaseSensitive(root, "heater_clear_fault");
+        heater_write_t hw[4];
+        int n = heater_plan_writes(cJSON_IsNumber(hon) ? (int)hon->valuedouble : -1,
+                                   cJSON_IsNumber(hlv) ? (int)hlv->valuedouble : -1,
+                                   cJSON_IsNumber(hsp) ? (int)hsp->valuedouble : -1,
+                                   cJSON_IsNumber(hcf) && (int)hcf->valuedouble == 1,
+                                   g_heater_ext, hw);
+        for (int i = 0; i < n; i++) mb_write_reg(hw[i].reg, hw[i].value, hw[i].what);
     }
-
-    /* heater_level -> reg 54 (1..10) */
-    const cJSON *hlv = cJSON_GetObjectItemCaseSensitive(root, "heater_level");
-    if (cJSON_IsNumber(hlv)) {
-        int v = (int)hlv->valuedouble;
-        if (v >= 1 && v <= 10) mb_write_reg(54, v, "heater_level");
-    }
-
-    /* heater_setpoint_f -> reg 69 (degC 5..30; coprocessor firmware only) */
-    const cJSON *hsp = cJSON_GetObjectItemCaseSensitive(root, "heater_setpoint_f");
-    if (cJSON_IsNumber(hsp)) {
-        int v = (int)hsp->valuedouble;
-        if (v >= HEATER_SETPOINT_F_MIN && v <= HEATER_SETPOINT_F_MAX)
-            mb_write_reg(69, heater_f_to_c(v), "heater_setpoint_f");
-    }
-
-    /* heater_clear_fault: 1 -> reg 75 = CLEAR_FAULT (never starts the heater) */
-    const cJSON *hcf = cJSON_GetObjectItemCaseSensitive(root, "heater_clear_fault");
-    if (cJSON_IsNumber(hcf) && (int)hcf->valuedouble == 1)
-        mb_write_reg(75, HEATER_CMD_CLEAR_FAULT, "heater_clear_fault");
 
     cJSON_Delete(root);
 }
@@ -1227,16 +1224,18 @@ int main(void)
             /* Order: clear_fault -> setpoint -> level -> on, so a single
              * "clear then start" message lands in a usable order (the
              * firmware still refuses the start if the clear was BUSY). */
+            /* On older firmware (no regs 68..75) setpoint/clear are dropped by
+             * the planner (spec 3.4) — otherwise they fail forever, the
+             * command never acks, and any ON merged into it is re-asserted
+             * every cycle. */
             shadow_heater_cmd_t hc;
             unsigned hseq;
             if (shadow_peek_heater_cmd(&hc, &hseq)) {
+                heater_write_t hw[4];
+                int n = heater_plan_writes(hc.on, hc.level, hc.setpoint_f,
+                                           hc.clear_fault, t.heater_ext, hw);
                 int rc = 0;
-                if (hc.clear_fault)
-                    rc |= mb_write_reg(75, HEATER_CMD_CLEAR_FAULT, "heater_clear_fault(shadow)");
-                if (hc.setpoint_f >= 0)
-                    rc |= mb_write_reg(69, heater_f_to_c(hc.setpoint_f), "heater_setpoint_f(shadow)");
-                if (hc.level >= 1) rc |= mb_write_reg(54, hc.level, "heater_level(shadow)");
-                if (hc.on    >= 0) rc |= mb_write_reg(53, hc.on,    "heater_on(shadow)");
+                for (int i = 0; i < n; i++) rc |= mb_write_reg(hw[i].reg, hw[i].value, hw[i].what);
                 if (rc == 0) shadow_ack_heater_cmd(hseq);
             }
 

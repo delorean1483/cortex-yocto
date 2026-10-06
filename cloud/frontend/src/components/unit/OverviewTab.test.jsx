@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 
 const mutate = vi.fn()
 vi.mock('../../data/hooks.js', () => ({
@@ -53,6 +53,23 @@ describe('OverviewTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /turn heater on/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
     expect(mutate.mock.calls[0][0]).toEqual({ unit: 'TRUCK-001', body: { heater: { on: 1 } } })
+  })
+
+  it('coprocessor FAULT: shows FAULT, hides code 255, blocks Turn heater on', () => {
+    renderTab({ ...BASE, heater_phase: 'fault', heater_type: 'vevor', heater_control: 'level',
+      heater_fault: true, heater_error: 255 })
+    expect(screen.getByText('FAULT')).toBeTruthy()
+    expect(screen.queryByText('Error code')).toBeNull()
+    expect(screen.getByRole('button', { name: /turn heater on/i }).disabled).toBe(true)
+  })
+
+  it('AUTOTERM: shows the setpoint instead of a level', () => {
+    renderTab({ ...BASE, heater_phase: 'running', heater_type: 'autoterm',
+      heater_control: 'setpoint', heater_setpoint_f: 72, heater_fault: false })
+    const heater = within(document.getElementById('g-heater').closest('section'))
+    expect(heater.getByText('Setpoint')).toBeTruthy()
+    expect(heater.getByText('72°F')).toBeTruthy()
+    expect(heater.queryByText(/of 10/)).toBeNull()
   })
 
   it('offline: blocks anything that would start, keeps Stop available', () => {
