@@ -39,7 +39,7 @@ Every field is authoritative. Enum fields carry **both** a string label and a ra
 | `diag_active` | bool | Component-Test (OP_DIAG) mode active |
 | `diag_outputs` | int (bitmask) | Energized output bitmask |
 | `apu_fw_version` | int | APU firmware version (encoded) |
-| `heater_present` | bool | Heater block answered Modbus |
+| `heater_present` | bool | Heater block answered Modbus (coprocessor firmware: and a heater type is detected) |
 | `heater_state` | string | off / preheat / ignition / running / cooldown |
 | `heater_target_level`, `heater_active_level` | int | Requested / active level (1–10) |
 | `heater_error` | int | Heater ECU error code |
@@ -52,6 +52,20 @@ Every field is authoritative. Enum fields carry **both** a string label and a ra
 | `heater_flags` | int (bitmask) | bit0 fresh, bit1 cooldown, bit2 safe_off, bit3 comms_fault, bit4 xport_fault |
 | `heater_safe_off`, `heater_comms_ok` | bool | Derived from `heater_flags` |
 | `heater_valid_frames`, `heater_checksum_failures`, `heater_transport_errors` | int | One-wire link health counters |
+
+Heater coprocessor keys — **optional**: sent only by units whose G0B1 firmware
+has the coprocessor block (Modbus regs 68–75); absent on older units, and the
+ingest stores them only when present.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `heater_type` | string | `none` / `vevor` / `autoterm` / `unknown` (tag) |
+| `heater_phase` | string | `off` / `detecting` / `starting` / `running` / `stopping` / `cooldown` / `fault` (tag) |
+| `heater_control` | string | `level` (1–10) or `setpoint` (°F) — which control the heater takes (tag) |
+| `heater_setpoint_f` | int | Setpoint, °F (firmware stores whole °C) |
+| `heater_vendor_state` | string | Raw vendor state `major.sub`, e.g. `4.0` (tag) |
+| `heater_fault` | bool | Coprocessor latched a fault (cleared only by `clear_fault`) |
+| `heater_cmd_result` | int | Result of the last coprocessor command: 0 OK, 1 BUSY, 2 BAD_ARG, 3 NOT_SUPPORTED, 4 NO_TYPE |
 
 ### InfluxDB storage
 
@@ -84,7 +98,7 @@ and `POST /fleet/config`):
 
 | Key | Type | Notes |
 |---|---|---|
-| `heater` | `{on: 0\|1, level: 1..10}` | Heater remote control |
+| `heater` | `{on?: 0\|1, level?: 1..10, setpoint_f?: 41..86, clear_fault?: true}` | Heater remote control; at least one field. `clear_fault` never starts the heater; the agent applies clear → setpoint → level → on |
 | `apu_command` | `"climate"` \| `"battery"` \| `"stop"` | APU op-state → firmware mode reg 10 (`1`/`2`/`0`). Agent also accepts legacy `"start"` as `"climate"`; the API does not. |
 | `firmware_target` | semver string | Triggers OTA (see §4) |
 | `reboot` | bool | Reboot request |

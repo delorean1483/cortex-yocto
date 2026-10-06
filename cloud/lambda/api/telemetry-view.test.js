@@ -34,5 +34,15 @@ check('carries STM32 OTA fields (bundled + flash state)', () => {
 });
 check('no _time leaks through', () => assert.ok(!('_time' in out)));
 
-console.log(`\n${6 - failed}/6 checks passed`);
+check('coprocessor heater keys passed through when present', () => {
+  const o = mapTelemetryRow({ ...row, heater_phase: 'running', heater_type: 'vevor', heater_fault: false,
+    heater_setpoint_f: 70, heater_control: 'level', heater_vendor_state: '3.0', heater_cmd_result: 0 });
+  assert.strictEqual(o.heater_phase, 'running');
+  assert.strictEqual(o.heater_type, 'vevor');
+  assert.strictEqual(o.heater_fault, false);
+  assert.strictEqual(o.heater_setpoint_f, 70);
+  assert.strictEqual('heater_phase' in out, false);              // absent stays absent
+});
+
+console.log(`\n${7 - failed}/7 checks passed`);
 process.exit(failed === 0 ? 0 : 1);

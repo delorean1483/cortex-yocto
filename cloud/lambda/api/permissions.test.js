@@ -42,6 +42,24 @@ check('valid heater command', () => {
 check('heater level out of range rejected', () => {
   assert.strictEqual(validateCommand({ heater: { on: 1, level: 11 } }).ok, false);
 });
+check('heater setpoint_f and clear_fault accepted', () => {
+  const r = validateCommand({ heater: { setpoint_f: 72, clear_fault: true } });
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.desired, { heater: { setpoint_f: 72, clear_fault: true } });
+  assert.deepStrictEqual(commandActions(r.desired), ['heater']);
+});
+check('heater setpoint_f out of range / non-integer rejected', () => {
+  assert.strictEqual(validateCommand({ heater: { setpoint_f: 40 } }).ok, false);
+  assert.strictEqual(validateCommand({ heater: { setpoint_f: 87 } }).ok, false);
+  assert.strictEqual(validateCommand({ heater: { setpoint_f: 72.5 } }).ok, false);
+});
+check('heater clear_fault must be true', () => {
+  assert.strictEqual(validateCommand({ heater: { clear_fault: false } }).ok, false);
+  assert.strictEqual(validateCommand({ heater: { clear_fault: 1 } }).ok, false);
+});
+check('empty heater object rejected', () => {
+  assert.strictEqual(validateCommand({ heater: {} }).ok, false);
+});
 check('apu climate valid, requires apu action', () => {
   const r = validateCommand({ apu_command: 'climate' });
   assert.strictEqual(r.ok, true);

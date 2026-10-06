@@ -24,6 +24,13 @@ const BOOL = [
   'heater_safe_off', 'heater_comms_ok',
 ];
 
+// Heater coprocessor keys (firmware regs 68-75). Only sent by agents talking
+// to coprocessor firmware, so they are mapped ONLY when present — older units
+// never get placeholder 'unknown'/0 values for them.
+const OPT_TAGS = ['heater_type', 'heater_phase', 'heater_control', 'heater_vendor_state'];
+const OPT_INT = ['heater_setpoint_f', 'heater_cmd_result'];
+const OPT_BOOL = ['heater_fault'];
+
 function mapTelemetry(msg) {
   const tags = { unit: String(msg.unit) };
   for (const t of TAGS) tags[t] = msg[t] != null ? String(msg[t]) : 'unknown';
@@ -32,8 +39,11 @@ function mapTelemetry(msg) {
   for (const f of FLOAT) fields[f] = { type: 'float', value: Number(msg[f] ?? 0) };
   for (const f of INT)   fields[f] = { type: 'int',   value: Math.trunc(Number(msg[f] ?? 0)) };
   for (const f of BOOL)  fields[f] = { type: 'bool',  value: Boolean(msg[f] ?? false) };
+  for (const t of OPT_TAGS) if (msg[t] != null) tags[t] = String(msg[t]);
+  for (const f of OPT_INT)  if (msg[f] != null) fields[f] = { type: 'int', value: Math.trunc(Number(msg[f])) };
+  for (const f of OPT_BOOL) if (msg[f] != null) fields[f] = { type: 'bool', value: Boolean(msg[f]) };
 
   return { measurement: 'telemetry', tags, fields, timestamp: msg.ts };
 }
 
-module.exports = { mapTelemetry, TAGS, FLOAT, INT, BOOL };
+module.exports = { mapTelemetry, TAGS, FLOAT, INT, BOOL, OPT_TAGS, OPT_INT, OPT_BOOL };

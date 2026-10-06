@@ -51,5 +51,20 @@ check('missing fields tolerated', () => {
   assert.strictEqual(bare.fields.batt_v.value, 0);
 });
 
-console.log(`\n${10 - failed}/10 checks passed`);
+check('coprocessor heater keys mapped only when present', () => {
+  assert.strictEqual('heater_phase' in p.tags, false);           // VEVOR-era fixture
+  assert.strictEqual('heater_setpoint_f' in p.fields, false);
+  const q = mapTelemetry({ ...fx, heater_type: 'autoterm', heater_phase: 'fault',
+    heater_control: 'setpoint', heater_vendor_state: '4.0', heater_setpoint_f: 72,
+    heater_cmd_result: 1, heater_fault: true });
+  assert.strictEqual(q.tags.heater_type, 'autoterm');
+  assert.strictEqual(q.tags.heater_phase, 'fault');
+  assert.strictEqual(q.tags.heater_control, 'setpoint');
+  assert.strictEqual(q.tags.heater_vendor_state, '4.0');
+  assert.deepStrictEqual(q.fields.heater_setpoint_f, { type: 'int', value: 72 });
+  assert.deepStrictEqual(q.fields.heater_cmd_result, { type: 'int', value: 1 });
+  assert.deepStrictEqual(q.fields.heater_fault, { type: 'bool', value: true });
+});
+
+console.log(`\n${11 - failed}/11 checks passed`);
 process.exit(failed === 0 ? 0 : 1);
