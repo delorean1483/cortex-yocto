@@ -121,3 +121,9 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" -I"$cjson/include" "$here/test_event_log.c" "$files/event_log.c" \
    -L"$cjson/lib" -lcjson -o "$here/test_event_log" && "$here/test_event_log"
+
+# Heater coprocessor extended block (fw regs 68..75): pure helpers.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" "$here/test_heater_ext.c" "$files/heater_ext.c" \
+   -o "$here/test_heater_ext" && "$here/test_heater_ext"
+
