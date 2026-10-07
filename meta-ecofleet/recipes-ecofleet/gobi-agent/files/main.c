@@ -18,6 +18,7 @@
 #include "heater_ext.h"
 #include "apu_command.h"
 #include "ota_status.h"
+#include "ota_offer.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +37,7 @@
 #include <mosquitto.h>
 #include <sqlite3.h>
 #include <cjson/cJSON.h>
+#include <curl/curl.h>
 
 /* ── EF-G0B1R enum → label helpers ───────────────────────────────────────── */
 /* Mirror the firmware enums in App/services/control.h. */
@@ -354,6 +356,74 @@ static void read_ota_status(char *out, size_t out_len)
     out[out_len - 1] = '\0';
 }
 
+/* ── On-panel software update (Maintenance → Software Update) ───────────────
+ * The panel asks for a check ({"ota_check":1}); we fetch the public manifest
+ * CI writes on every normal tag release and publish the outcome in
+ * latest.json. An install ({"ota_install":"N.N.N"}) is honoured only for the
+ * exact version a successful check offered, and only while nothing else is
+ * updating; it then follows the same root-worker path as a dashboard OTA.
+ * Telemetry thread only (same thread as apply_command_file). */
+#define OTA_LATEST_URL     "https://ecofleet-ota.s3.amazonaws.com/releases/latest.json"
+#define OTA_CHECK_TIMEOUT_S 8L
+#define OTA_MANIFEST_MAX   4096u
+
+static char     g_ota_latest[16];          /* last fetched manifest version     */
+static char     g_ota_check_state[32] = "idle";
+static uint64_t g_ota_check_ts;            /* epoch ms of last completed check   */
+
+typedef struct { char data[OTA_MANIFEST_MAX + 1]; size_t len; bool overflow; } ota_buf_t;
+
+static size_t ota_on_data(char *ptr, size_t size, size_t nmemb, void *ud)
+{
+    ota_buf_t *b = ud;
+    size_t add = size * nmemb;
+    if (b->len + add > OTA_MANIFEST_MAX) { b->overflow = true; return 0; }  /* abort */
+    memcpy(b->data + b->len, ptr, add);
+    b->len += add;
+    b->data[b->len] = '\0';
+    return add;
+}
+
+static uint64_t now_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (uint64_t)ts.tv_sec * 1000u + (uint64_t)(ts.tv_nsec / 1000000);
+}
+
+static void ota_check_now(void)
+{
+    ota_buf_t buf = { .len = 0, .overflow = false };
+    buf.data[0] = '\0';
+    CURL *c = curl_easy_init();
+    if (!c) { snprintf(g_ota_check_state, sizeof(g_ota_check_state), "failed: network"); return; }
+    curl_easy_setopt(c, CURLOPT_URL, OTA_LATEST_URL);
+    curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, ota_on_data);
+    curl_easy_setopt(c, CURLOPT_WRITEDATA, &buf);
+    curl_easy_setopt(c, CURLOPT_TIMEOUT, OTA_CHECK_TIMEOUT_S);
+    curl_easy_setopt(c, CURLOPT_CONNECTTIMEOUT, OTA_CHECK_TIMEOUT_S);
+    curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(c, CURLOPT_USERAGENT, "gobi-agent-ota-check/1.0");
+    CURLcode rc = curl_easy_perform(c);
+    long http = 0;
+    curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &http);
+    curl_easy_cleanup(c);
+
+    char ver[sizeof(g_ota_latest)];
+    if (rc != CURLE_OK && !buf.overflow) {
+        syslog(LOG_WARNING, "ota-check: fetch failed: %s", curl_easy_strerror(rc));
+        snprintf(g_ota_check_state, sizeof(g_ota_check_state), "failed: network");
+    } else if (buf.overflow || http != 200 || !ota_parse_latest(buf.data, ver, sizeof(ver))) {
+        syslog(LOG_WARNING, "ota-check: bad manifest (HTTP %ld, %zu bytes)", http, buf.len);
+        snprintf(g_ota_check_state, sizeof(g_ota_check_state), "failed: bad manifest");
+    } else {
+        snprintf(g_ota_latest, sizeof(g_ota_latest), "%s", ver);
+        snprintf(g_ota_check_state, sizeof(g_ota_check_state), "ok");
+        syslog(LOG_INFO, "ota-check: latest release %s", ver);
+    }
+    g_ota_check_ts = now_ms();
+}
+
 /* Atomically drop a one-line request for the root gobi-ota-apply worker (temp
  * file + rename, so the .path unit never triggers on a partial line). */
 static void write_ota_request(const char *line)
@@ -637,6 +707,35 @@ static const char *apu_flash_state_str(stu_status_t s)
     }
 }
 
+/* Current offer for the panel, re-evaluated against live busy state. */
+static ota_offer_t ota_current_offer(void)
+{
+    char running[32], st[64];
+    running_version(running, sizeof(running));
+    read_ota_status(st, sizeof(st));
+    return ota_decide(running, g_ota_latest, ota_status_busy(st),
+                      stm32_flash_status() == STU_FLASHING);
+}
+
+static void ota_install_request(const char *version)
+{
+    if (strcmp(version, g_ota_latest) != 0 || !ota_ver_valid(version)) {
+        syslog(LOG_WARNING, "ota: panel install of '%s' refused — not offered", version);
+        snprintf(g_ota_check_state, sizeof(g_ota_check_state), "failed: not offered");
+        return;
+    }
+    ota_offer_t o = ota_current_offer();
+    if (o != OTA_OFFER_AVAILABLE) {
+        syslog(LOG_WARNING, "ota: panel install of %s refused — %s", version,
+               o == OTA_OFFER_BLOCKED_BUSY ? "busy" : "not newer");
+        snprintf(g_ota_check_state, sizeof(g_ota_check_state),
+                 o == OTA_OFFER_BLOCKED_BUSY ? "failed: busy" : "failed: not offered");
+        return;
+    }
+    syslog(LOG_INFO, "ota: panel install of %s", version);
+    ota_trigger(version);
+}
+
 static cJSON *telemetry_object(const telemetry_t *t)
 {
     cJSON *root = cJSON_CreateObject();
@@ -742,6 +841,17 @@ static char *build_latest_json(const telemetry_t *t)
     char ota[64];
     read_ota_status(ota, sizeof(ota));
     cJSON_AddStringToObject(root, "ota_status", ota[0] ? ota : "idle");
+    /* On-panel software update state (Maintenance → Software Update). */
+    {
+        char running[32];
+        running_version(running, sizeof(running));
+        cJSON_AddStringToObject(root, "ota_running",     running);
+        cJSON_AddStringToObject(root, "ota_latest",      g_ota_latest);
+        cJSON_AddStringToObject(root, "ota_available",
+            ota_current_offer() == OTA_OFFER_AVAILABLE ? g_ota_latest : "");
+        cJSON_AddStringToObject(root, "ota_check_state", g_ota_check_state);
+        cJSON_AddNumberToObject(root, "ota_check_ts",    (double)g_ota_check_ts);
+    }
     char *json = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
     return json;
@@ -917,6 +1027,14 @@ static void apply_command_file(void)
         for (int i = 0; i < n; i++) mb_write_reg(hw[i].reg, hw[i].value, hw[i].what);
     }
 
+    /* ota_check: 1 -> fetch releases/latest.json (never installs anything) */
+    const cJSON *och = cJSON_GetObjectItemCaseSensitive(root, "ota_check");
+    if (cJSON_IsNumber(och) && (int)och->valuedouble == 1) ota_check_now();
+
+    /* ota_install: "N.N.N" -> only the version a successful check offered */
+    const cJSON *oin = cJSON_GetObjectItemCaseSensitive(root, "ota_install");
+    if (cJSON_IsString(oin) && oin->valuestring) ota_install_request(oin->valuestring);
+
     cJSON_Delete(root);
 }
 
@@ -948,6 +1066,10 @@ int main(void)
      * for a systemd-managed service. */
     openlog("gobi-agent", LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);
     syslog(LOG_INFO, "gobi-agent starting (agent build %s)", FIRMWARE_VERSION);
+
+    /* libcurl (on-panel update check): global init once, before any thread
+     * starts — curl_easy_init()'s lazy init is not thread-safe. */
+    curl_global_init(CURL_GLOBAL_DEFAULT);
 
     signal(SIGTERM, handle_signal);
     signal(SIGINT,  handle_signal);
@@ -1296,6 +1418,7 @@ int main(void)
     mosquitto_loop_stop(g_mosq, true);
     mosquitto_destroy(g_mosq);
     mosquitto_lib_cleanup();
+    curl_global_cleanup();
     modbus_close(g_modbus);
     modbus_free(g_modbus);
     sqlite3_close(g_db);
