@@ -35,6 +35,9 @@ QtObject {
         property string heaterPhase: "off";    property string heaterControl: "level"
         property int    heaterSetpointF: 72;   property string heaterVendorState: ""
         property bool   heaterFault: false;    property int    heaterCmdResult: 0
+        property string otaRunning: "1.2.73"; property string otaLatest: "1.2.73"
+        property string otaAvailable: "";     property string otaCheckState: "ok"
+        property real   otaCheckTs: Date.now() - 120000
         // firmware update notice (TelemetryModel.update*: kind none|busy|failed)
         property string updateKind: "none";   property string updateTitle: ""
         property string updateDetail: "";     property string updateKey: ""
@@ -53,6 +56,8 @@ QtObject {
         function setHeaterLevel(v) {}
         function setHeaterSetpointF(v) {}
         function clearHeaterFault() {}
+        function checkForUpdate() {}
+        function installUpdate(v) {}
     }
     // eventlog mock — mirrors EventLogModel (newest first; endMs 0 = active)
     property QtObject eventlog: QtObject {

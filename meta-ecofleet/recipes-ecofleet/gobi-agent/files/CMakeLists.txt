@@ -51,6 +51,7 @@ target_sources(gobi-agent PRIVATE
     heater_ext.c
     apu_command.c
     ota_status.c
+    ota_offer.c
 )
 
 target_include_directories(gobi-agent PRIVATE
@@ -59,6 +60,7 @@ target_include_directories(gobi-agent PRIVATE
     ${MOSQUITTO_INCLUDE_DIR}
     ${SQLITE3_INCLUDE_DIR}
     ${CJSON_INCLUDE_DIR}
+    ${CURL_INCLUDE_DIR}
 )
 
 target_link_libraries(gobi-agent PRIVATE
@@ -66,6 +68,7 @@ target_link_libraries(gobi-agent PRIVATE
     ${MOSQUITTO_LIB}
     ${SQLITE3_LIB}
     ${CJSON_LIB}
+    ${CURL_LIB}
     pthread
 )
 

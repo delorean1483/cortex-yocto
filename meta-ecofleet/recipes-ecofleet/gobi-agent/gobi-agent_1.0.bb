@@ -16,7 +16,9 @@ SRC_URI = " \
     file://apu_command.h \
     file://apu_command.c \
     file://ota_status.h \
+    file://ota_offer.h \
     file://ota_status.c \
+    file://ota_offer.c \
     file://weather.h \
     file://weather.c \
     file://location.h \

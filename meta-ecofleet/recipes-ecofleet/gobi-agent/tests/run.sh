@@ -136,3 +136,8 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    "$here/test_shadow_heater.c" "$files/location.c" "$files/state_path.c" \
    -L"$cjson/lib" -lcjson -lpthread \
    -o "$here/test_shadow_heater" && "$here/test_shadow_heater"
+
+# On-panel software update: manifest parse, version compare, offer decision.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" -I"$cjson/include" "$here/test_ota_offer.c" "$files/ota_offer.c" \
+   -L"$cjson/lib" -lcjson -o "$here/test_ota_offer" && "$here/test_ota_offer"

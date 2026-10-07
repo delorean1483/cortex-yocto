@@ -650,6 +650,17 @@ void shadow_clear_firmware_target(const char *version)
     pthread_mutex_unlock(&s.config_mutex);
 }
 
+void shadow_drop_firmware_target(void)
+{
+    if (!s.initialised) return;
+    pthread_mutex_lock(&s.config_mutex);
+    if (s.config.firmware_target[0] != '\0') {
+        s.config.firmware_target[0] = '\0';
+        s.clear_fw_target_desired = true;
+    }
+    pthread_mutex_unlock(&s.config_mutex);
+}
+
 bool shadow_peek_apu_firmware_target(char *out, size_t out_len, unsigned *seq)
 {
     if (!s.initialised || !out || out_len == 0 || !seq) return false;

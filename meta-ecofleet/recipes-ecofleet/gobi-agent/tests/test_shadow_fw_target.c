@@ -63,6 +63,17 @@ int main(void) {
     shadow_clear_firmware_target(NULL);
     CHECK(strcmp(shadow_get_config()->firmware_target, "1.2.57") == 0);
 
+    /* ---- panel install supersedes any pending dashboard target (review #1):
+     * a failed dashboard push to 1.2.57 must not downgrade the unit after a
+     * technician installs a newer release from the panel. ---- */
+    s.clear_fw_target_desired = false;
+    shadow_drop_firmware_target();
+    CHECK(shadow_get_config()->firmware_target[0] == '\0');
+    CHECK(s.clear_fw_target_desired);                  /* cloud desired gets nulled */
+    s.clear_fw_target_desired = false;
+    shadow_drop_firmware_target();                     /* nothing pending: no-op */
+    CHECK(!s.clear_fw_target_desired);
+
     printf(fails ? "test_shadow_fw_target FAILED (%d)\n" : "test_shadow_fw_target ok\n", fails);
     return fails ? 1 : 0;
 }

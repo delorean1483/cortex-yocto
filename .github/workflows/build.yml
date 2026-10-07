@@ -190,6 +190,25 @@ jobs:
 
           echo "Published s3://ecofleet-ota/releases/${VERSION}/ecofleet-${VERSION}.swu"
 
+          # On-panel software update (Maintenance → Software Update) reads
+          # releases/latest.json. Only a clean N.N.N release becomes "latest" —
+          # suffixed bench tags (-rc/-diag/-validate) never do — and it is
+          # written AFTER the bundle so it can never point at a missing .swu.
+          if printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            mkdir -p /tmp/yocto-latest
+            printf '{"version":"%s","published":"%s"}\n' "$VERSION" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              > /tmp/yocto-latest/latest.json
+            docker run --rm \
+              -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY \
+              -e AWS_DEFAULT_REGION=us-east-1 \
+              -v /tmp/yocto-latest:/lat \
+              amazon/aws-cli s3 cp /lat/latest.json s3://ecofleet-ota/releases/latest.json \
+              --content-type application/json --cache-control max-age=60
+            echo "Published s3://ecofleet-ota/releases/latest.json -> ${VERSION}"
+          else
+            echo "Prerelease tag ${VERSION}: releases/latest.json left unchanged"
+          fi
+
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')

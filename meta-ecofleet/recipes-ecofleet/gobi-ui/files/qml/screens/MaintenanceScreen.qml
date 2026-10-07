@@ -9,6 +9,7 @@ Item {
     Component { id: comptestC;  ComponentTestScreen {} }
     Component { id: diagC;      DiagnosticsScreen {} }
     Component { id: usermaintC; UserMaintScreen {} }
+    Component { id: swupdC;     SoftwareUpdateScreen {} }
     function open(c) { if (page.StackView.view) page.StackView.view.push(c) }
 
     ColumnLayout {
@@ -20,7 +21,8 @@ Item {
             model: [
                 { icon: "mode",   title: "Component Test",   desc: "Actuate relays one at a time — maintenance passcode required", c: comptestC, locked: true },
                 { icon: "diag",   title: "Live Diagnostics", desc: "Live sensor, engine and service readings", c: diagC, locked: false },
-                { icon: "wrench", title: "User Maintenance", desc: "Service hours and oil-timer reset", c: usermaintC, locked: false }
+                { icon: "wrench", title: "User Maintenance", desc: "Service hours and oil-timer reset", c: usermaintC, locked: false },
+                { icon: "cpu",    title: "Software Update",  desc: "Check for and install new unit software", c: swupdC, locked: false }
             ]
             Rectangle {
                 Layout.fillWidth: true; Layout.preferredHeight: 76

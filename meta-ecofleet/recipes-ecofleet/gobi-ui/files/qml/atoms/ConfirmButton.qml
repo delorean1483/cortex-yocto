@@ -9,18 +9,19 @@ Rectangle {
     property string label: "Forget"
     property string confirmLabel: "Tap again to forget"
     property int armMs: 3000
+    property color tone: Theme.fault   // fault red for destructive actions; accent for e.g. Install
     property bool armed: false
     signal confirmed()
 
     Layout.preferredWidth: armed ? 168 : 96
     Layout.preferredHeight: 38
     radius: Theme.radiusSm
-    color: armed ? Theme.fault : (ma.pressed ? Theme.surface2 : "transparent")
-    border.color: Theme.fault
+    color: armed ? cb.tone : (ma.pressed ? Theme.surface2 : "transparent")
+    border.color: cb.tone
     Behavior on Layout.preferredWidth { NumberAnimation { duration: 120 } }
 
     Text { anchors.centerIn: parent; text: cb.armed ? cb.confirmLabel : cb.label
-        color: cb.armed ? Theme.text : Theme.fault
+        color: cb.armed ? Theme.text : cb.tone
         font.pixelSize: Theme.fsLabel + 1; font.weight: Font.DemiBold }
 
     Timer { id: disarm; interval: cb.armMs; onTriggered: cb.armed = false }
