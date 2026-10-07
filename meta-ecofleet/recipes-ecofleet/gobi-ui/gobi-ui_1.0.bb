@@ -61,6 +61,7 @@ SRC_URI = " \
     file://qml/screens/DiagnosticsScreen.qml \
     file://qml/screens/ComponentTestScreen.qml \
     file://qml/screens/UserMaintScreen.qml \
+    file://qml/screens/SoftwareUpdateScreen.qml \
     file://qml/screens/UnitInfoScreen.qml \
     file://qml/screens/AlertsScreen.qml \
     file://qml/screens/ErrorLogScreen.qml \

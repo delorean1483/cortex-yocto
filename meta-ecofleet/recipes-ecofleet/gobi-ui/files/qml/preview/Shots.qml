@@ -31,6 +31,7 @@ Item {
     Component { id: cloudC;     CloudScreen {} }
     Component { id: lockC;      ScreenLockScreen {} }
     Component { id: maintC;     MaintenanceScreen {} }
+    Component { id: swupdC;     SoftwareUpdateScreen {} }
     Component { id: supportC;   SupportScreen {} }
     Component { id: wifiC;      WifiScreen {} }
     Component { id: wifiJoinC;  WifiJoinScreen { ssid: "Pilot-Travel-Center" } }
@@ -105,6 +106,11 @@ Item {
         ["12d-cloud-nowifi", function() { wifi.state = "idle"; wifi.ssid = ""; wifi.ip = ""; root.sub(cloudC) }],
         ["13-screenlock",    function() { wifi.state = "connected"; wifi.ssid = "EcoFleet-Staff"; wifi.ip = "192.168.0.206"; root.sub(lockC) }],
         ["14-maintenance",   function() { root.sub(maintC) }],
+        ["14b-swupdate-uptodate", function() { var p = root.sub(swupdC); p.checking = false }],
+        ["14c-swupdate-available", function() { telemetry.otaLatest = "1.2.74"; telemetry.otaAvailable = "1.2.74"
+                                                 root.poke(); var p = root.sub(swupdC); p.checking = false }],
+        ["14d-swupdate-failed", function() { telemetry.otaAvailable = ""; telemetry.otaCheckState = "failed: network"
+                                              root.poke(); var p = root.sub(swupdC); p.checking = false }],
         ["15-comptest-lock", function() { root.sub(comptestC) }],
         ["16-comptest",      function() { var p = root.sub(comptestC); p.tryUnlock(MaintController.defaultPin)
                                           telemetry.diagActive = true; root.poke() }],

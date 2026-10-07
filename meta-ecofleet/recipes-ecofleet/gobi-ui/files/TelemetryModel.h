@@ -69,6 +69,12 @@ class TelemetryModel : public QObject
     Q_PROPERTY(QString updateDetail READ updateDetail NOTIFY dataChanged)
     Q_PROPERTY(QString updateKey    READ updateKey    NOTIFY dataChanged)
     Q_PROPERTY(int     updateProgress READ updateProgress NOTIFY dataChanged)   // 0-100, -1 = indeterminate
+    /* On-panel software update (Maintenance → Software Update). */
+    Q_PROPERTY(QString otaRunning    READ otaRunning    NOTIFY dataChanged)
+    Q_PROPERTY(QString otaLatest     READ otaLatest     NOTIFY dataChanged)
+    Q_PROPERTY(QString otaAvailable  READ otaAvailable  NOTIFY dataChanged)
+    Q_PROPERTY(QString otaCheckState READ otaCheckState NOTIFY dataChanged)
+    Q_PROPERTY(double  otaCheckTs    READ otaCheckTs    NOTIFY dataChanged)
 
 public:
     explicit TelemetryModel(QObject *parent = nullptr);
@@ -88,6 +94,8 @@ public:
     Q_INVOKABLE void setHeaterOn(bool on);               // heater_on 0|1
     Q_INVOKABLE void setHeaterLevel(int level);          // heater_level 1..10
     Q_INVOKABLE void setHeaterSetpointF(int degF);       // heater_setpoint_f 41..86
+    Q_INVOKABLE void checkForUpdate();                   // ota_check 1
+    Q_INVOKABLE void installUpdate(const QString &ver);  // ota_install "N.N.N"
     Q_INVOKABLE void clearHeaterFault();                 // heater_clear_fault 1
 
     double  cabinTempF()    const { return m_cabinTempF; }
@@ -140,6 +148,11 @@ public:
     int     heaterCmdResult()    const { return m_heaterCmdResult; }
     QString updateKind()   const;
     QString updateTitle()  const { return m_update.title; }
+    QString otaRunning()    const { return m_otaRunning; }
+    QString otaLatest()     const { return m_otaLatest; }
+    QString otaAvailable()  const { return m_otaAvailable; }
+    QString otaCheckState() const { return m_otaCheckState; }
+    double  otaCheckTs()    const { return m_otaCheckTs; }
     QString updateDetail() const { return m_update.detail; }
     QString updateKey()    const { return m_update.key; }
     int     updateProgress() const { return m_update.progress; }
@@ -193,6 +206,11 @@ private:
     QString m_heaterVendorState;
     bool    m_heaterFault        = false;
     int     m_heaterCmdResult    = 0;
+    QString m_otaRunning;
+    QString m_otaLatest;
+    QString m_otaAvailable;
+    QString m_otaCheckState      = QStringLiteral("idle");
+    double  m_otaCheckTs         = 0;
 
     UpdateNotice m_update;
 };

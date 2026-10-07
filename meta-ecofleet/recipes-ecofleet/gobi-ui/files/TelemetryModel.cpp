@@ -105,6 +105,12 @@ void TelemetryModel::poll()
     m_heaterFault        = o[u"heater_fault"].toBool();
     m_heaterCmdResult    = static_cast<int>(o[u"heater_cmd_result"].toDouble());
 
+    m_otaRunning    = o[u"ota_running"].toString();
+    m_otaLatest     = o[u"ota_latest"].toString();
+    m_otaAvailable  = o[u"ota_available"].toString();
+    m_otaCheckState = o[u"ota_check_state"].toString(QStringLiteral("idle"));
+    m_otaCheckTs    = o[u"ota_check_ts"].toDouble();
+
     m_update = describeUpdate(o[u"ota_status"].toString(),
                               o[u"apu_flash_state"].toString(),
                               static_cast<int>(o[u"stm32_update_pct"].toDouble()));
@@ -137,4 +143,6 @@ void TelemetryModel::setTestRelay(int index, bool on)  { writeCommand(QStringLit
 void TelemetryModel::setHeaterOn(bool on)    { writeCommand(QStringLiteral("heater_on"), on ? 1 : 0); }
 void TelemetryModel::setHeaterLevel(int level) { writeCommand(QStringLiteral("heater_level"), level); }
 void TelemetryModel::setHeaterSetpointF(int degF) { writeCommand(QStringLiteral("heater_setpoint_f"), degF); }
+void TelemetryModel::checkForUpdate()        { writeCommand(QStringLiteral("ota_check"), 1); }
+void TelemetryModel::installUpdate(const QString &ver) { writeCommand(QStringLiteral("ota_install"), ver); }
 void TelemetryModel::clearHeaterFault()       { writeCommand(QStringLiteral("heater_clear_fault"), 1); }
