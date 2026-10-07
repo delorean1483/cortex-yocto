@@ -370,6 +370,8 @@ static void read_ota_status(char *out, size_t out_len)
 static char     g_ota_latest[16];          /* last fetched manifest version     */
 static char     g_ota_check_state[32] = "idle";
 static uint64_t g_ota_check_ts;            /* epoch ms of last completed check   */
+static bool     g_ota_publish;             /* OTA state changed: refresh latest.json now */
+static telemetry_t g_last_t;               /* last good snapshot, for OTA-only refreshes */
 
 typedef struct { char data[OTA_MANIFEST_MAX + 1]; size_t len; bool overflow; } ota_buf_t;
 
@@ -733,6 +735,10 @@ static void ota_install_request(const char *version)
         return;
     }
     syslog(LOG_INFO, "ota: panel install of %s", version);
+    /* The technician's choice supersedes any older dashboard push still
+     * pending (e.g. one whose download failed): otherwise it re-fires after
+     * the reboot and silently downgrades the unit. */
+    shadow_drop_firmware_target();
     ota_trigger(version);
 }
 
@@ -1029,11 +1035,11 @@ static void apply_command_file(void)
 
     /* ota_check: 1 -> fetch releases/latest.json (never installs anything) */
     const cJSON *och = cJSON_GetObjectItemCaseSensitive(root, "ota_check");
-    if (cJSON_IsNumber(och) && (int)och->valuedouble == 1) ota_check_now();
+    if (cJSON_IsNumber(och) && (int)och->valuedouble == 1) { ota_check_now(); g_ota_publish = true; }
 
     /* ota_install: "N.N.N" -> only the version a successful check offered */
     const cJSON *oin = cJSON_GetObjectItemCaseSensitive(root, "ota_install");
-    if (cJSON_IsString(oin) && oin->valuestring) ota_install_request(oin->valuestring);
+    if (cJSON_IsString(oin) && oin->valuestring) { ota_install_request(oin->valuestring); g_ota_publish = true; }
 
     cJSON_Delete(root);
 }
@@ -1236,6 +1242,7 @@ int main(void)
                 publish_or_buffer(g_topic_telemetry, "telemetry", t.ts_ms, telem_json);
                 free(telem_json);
             }
+            g_last_t = t;                                /* for OTA-only refreshes */
             char *latest_json = build_latest_json(&t);   /* live source for gobi-ui */
             if (latest_json) {
                 write_latest_snapshot(latest_json);
@@ -1409,6 +1416,15 @@ int main(void)
         for (int slept = 0; slept < poll_s && g_running; slept++) {
             sleep(1);
             apply_command_file();
+            /* A panel check/install changed the OTA state: publish it now from
+             * the last good snapshot (zeros + ts 0 if the APU link never came
+             * up — the UI shows that as stale) instead of waiting for the next
+             * cycle, which never comes while the Modbus link is down. */
+            if (g_ota_publish) {
+                g_ota_publish = false;
+                char *lj = build_latest_json(&g_last_t);
+                if (lj) { write_latest_snapshot(lj); free(lj); }
+            }
         }
     }
 

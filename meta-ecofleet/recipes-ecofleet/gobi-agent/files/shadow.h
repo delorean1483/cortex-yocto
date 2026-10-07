@@ -173,6 +173,12 @@ void shadow_ack_apu_command(unsigned seq);
  * (ota_trigger's loop-guard). Thread-safe. */
 void shadow_clear_firmware_target(const char *version);
 
+/* Unconditionally drop any pending desired.firmware_target (and null it in the
+ * cloud on the next report). Used when a technician starts an install from the
+ * panel: that choice supersedes an older dashboard push which otherwise
+ * re-fires after the reboot and downgrades the unit. No-op if none pending. */
+void shadow_drop_firmware_target(void);
+
 /* ── One-shot STM32 APU-controller firmware flash request ────────────────────
  * Same one-shot peek→apply→ack idiom as the APU op-state command above, for a
  * remote STM32 firmware flash. The target semver arrives via
