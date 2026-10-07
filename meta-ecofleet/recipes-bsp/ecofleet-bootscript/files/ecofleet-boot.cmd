@@ -52,6 +52,10 @@ ext4load mmc ${devnum}:${_root_part} ${loadaddr} /boot/Image.gz
 ext4load mmc ${devnum}:${_root_part} ${fdt_addr} /boot/imx8mm-var-dart-dt8mcustomboard.dtb
 
 # mmcblk device number matches U-Boot devnum on i.MX8MM (devnum 1 = mmcblk1, etc.)
-setenv bootargs "console=ttymxc3,115200 root=/dev/mmcblk${devnum}p${_root_part} rootwait rw quiet"
+# Console on UART1 (ttymxc0, the debug header). ttymxc3 is the IW612 Bluetooth
+# UART; a console there corrupts BT traffic and hung the board with WiFi up.
+# Note: u-boot always sources slot A's boot.scr (mmcpart=1), so this takes
+# effect once an update lands on slot A (ecofleet-wifi guards BT until then).
+setenv bootargs "console=ttymxc0,115200 root=/dev/mmcblk${devnum}p${_root_part} rootwait rw quiet"
 
 booti ${loadaddr} - ${fdt_addr}

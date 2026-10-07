@@ -1,9 +1,8 @@
 SUMMARY = "EcoFleet WiFi setup for the DART-MX8M-MINI IW612"
-DESCRIPTION = "WiFi on the SoM's IW612, made safe. Bluetooth (same chip) is \
-masked: with it running, the board hard-hangs within seconds of WiFi \
-associating; with it off WiFi passed 150/150 reconnect cycles (bench \
-2026-09-30). The driver is never unloaded, and wpa_supplicant always runs \
-with its config on /data/wifi."
+DESCRIPTION = "WiFi + Bluetooth on the SoM's IW612, made safe. The driver is \
+never unloaded, wpa_supplicant always runs with its config on /data/wifi, and \
+Bluetooth starts only when the kernel console is off the BT UART (the cause of \
+the 2026-09-30 hangs). BT audio and OBEX file transfer stay masked."
 LICENSE = "CLOSED"
 
 SRC_URI = " \
@@ -11,6 +10,7 @@ SRC_URI = " \
     file://ecofleet-wifi-init \
     file://wpa_supplicant-wlan0.conf \
     file://variscite-wifi-nostop.conf \
+    file://variscite-bt-guard.conf \
 "
 S = "${WORKDIR}"
 
@@ -36,10 +36,14 @@ do_install() {
     ln -sf ${systemd_system_unitdir}/wpa_supplicant@.service \
         $unitdir/multi-user.target.wants/wpa_supplicant@wlan0.service
 
-    # Bluetooth off: masking variscite-bt also skips its BT_EN pulse and the
-    # BT firmware load, the combination that hung the board.
-    ln -sf /dev/null $unitdir/variscite-bt.service
-    ln -sf /dev/null $unitdir/bluetooth.service
+    install -D -m 0644 ${WORKDIR}/variscite-bt-guard.conf \
+        $unitdir/variscite-bt.service.d/ecofleet.conf
+
+    # BT audio and OBEX are not used. obexd runs with -a (auto-accept incoming
+    # files), so keep it off.
+    for u in bluealsa.service bluealsa-aplay.service obex.service; do
+        ln -sf /dev/null $unitdir/$u
+    done
 }
 
 FILES:${PN} = " \
