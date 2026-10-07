@@ -1,0 +1,7 @@
+# Stable name for the APU RS-485 adapter: /dev/ecofleet-rs485.
+# ttyUSBn names follow plug order and skip names still held open, so after a
+# quick unplug/replug the adapter can come back as ttyUSB1 while gobi-agent
+# keeps retrying ttyUSB0 (and a cellular modem would claim ttyUSB0-3). udev
+# moves this link to wherever the adapter lands; the agent reopens it by name.
+# FTDI FT232R (0403:6001). Add other adapter chips here as they are fitted.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="ecofleet-rs485"

@@ -10,7 +10,7 @@
  * wire, framed by inter-byte idle-gap (RTU 3.5-char-time) detection
  * rather than by libmodbus's own framing.
  *
- * The RS-485 transceiver on /dev/ttyUSB0 is auto-direction (the same path
+ * The RS-485 transceiver on /dev/ecofleet-rs485 is auto-direction (the same path
  * libmodbus already drives for normal Modbus traffic), so this transport
  * does no DE/RTS toggling of its own.
  *

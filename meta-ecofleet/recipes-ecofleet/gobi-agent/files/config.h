@@ -33,7 +33,7 @@
 #define UNIT_SERIAL_FILE "/etc/ecofleet/unit-serial"
 
 /* ── Modbus ───────────────────────────────────────────────────────────────── */
-#define MODBUS_DEVICE_DEFAULT "/dev/ttyUSB0"
+#define MODBUS_DEVICE_DEFAULT "/dev/ecofleet-rs485"  /* udev link, see 99-ecofleet-rs485.rules */
 #define MODBUS_BAUD           9600    /* EF-G0B1R firmware USART1 = 9600 8N1 */
 #define MODBUS_PARITY         'N'
 #define MODBUS_DATA_BITS      8
