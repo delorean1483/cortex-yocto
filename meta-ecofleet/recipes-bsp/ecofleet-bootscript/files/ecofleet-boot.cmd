@@ -45,7 +45,7 @@ fi
 setenv kernel_comp_addr_r 0x44000000
 setenv kernel_comp_size   0x4000000
 
-for _try in 1 2; do
+for try in 1 2; do
     if test "${slot_active}" = "a"; then
         setenv _part 2
         setenv _other b
@@ -69,7 +69,7 @@ for _try in 1 2; do
     fi
 
     # Only reached if this slot could not be loaded or booti returned.
-    if test "${_try}" = "1"; then
+    if test "${try}" = "1"; then
         echo "==> EcoFleet: slot ${slot_active} did not boot, trying slot ${_other}"
         setenv slot_active ${_other}
         setenv upgrade_available 0
