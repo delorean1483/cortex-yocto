@@ -73,6 +73,7 @@ IMAGE_INSTALL:append = " \
     tzdata \
     ecofleet-data \
     ecofleet-wifi \
+    ecofleet-pmic-restart \
 "
 
 # STM32 (g0b1/APU) firmware delivery — GO-LIVE 2026-09-18.
