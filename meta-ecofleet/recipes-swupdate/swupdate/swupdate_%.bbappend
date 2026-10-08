@@ -67,7 +67,7 @@ do_install:append() {
     # Disable the stock suricatta daemon (swupdate.service) in the shipped image
     # via a higher-priority preset than the recipe's 98-swupdate.preset. ecofleet
     # OTA is gobi-agent's one-shot `swupdate -i`; the daemon is unused and only
-    # ever appears as a failed unit at boot. swupdate.socket is left untouched.
+    # ever appears as a failed unit at boot. (swupdate.socket is masked by the image.)
     install -d ${D}${systemd_unitdir}/system-preset
     install -m 0644 ${WORKDIR}/10-ecofleet-swupdate.preset ${D}${systemd_unitdir}/system-preset/
 }

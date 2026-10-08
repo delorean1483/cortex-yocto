@@ -58,9 +58,13 @@ ROOTFS_POSTPROCESS_COMMAND:append = " write_ecofleet_hwrevision;"
 #   `swupdate -i`; the daemon only failed at boot ("provide a public key
 #   file"). The 10-ecofleet-swupdate.preset "disable" isn't applied by the
 #   image build, so mask it here.
+# - swupdate.socket: the daemon's socket activation. With the service masked
+#   it failed at every boot ("Socket service swupdate.service not loaded,
+#   refusing"); it would also listen on /tmp/sockinstctrl + /tmp/swupdateprog,
+#   the same paths the one-shot `swupdate -i` creates.
 mask_unused_units() {
     install -d ${IMAGE_ROOTFS}${sysconfdir}/systemd/system
-    for u in var-expand-partition.service swupdate.service; do
+    for u in var-expand-partition.service swupdate.service swupdate.socket; do
         ln -sf /dev/null ${IMAGE_ROOTFS}${sysconfdir}/systemd/system/$u
     done
 }
