@@ -49,11 +49,11 @@ so no u-boot environment default needs to change. p1 is not mounted in Linux.
    `bootcount` with `saveenv` before `booti`, flipping `slot_active` once the count passes the limit.
 4. Slot → partition: `a` → 2, `b` → 3.
 5. **Load the kernel `/boot/Image.gz` and DTB `/boot/imx8mm-var-dart-dt8mcustomboard.dtb` from
-   the slot.** If either load fails, switch `slot_active` to the other slot, clear the trial
-   (`upgrade_available=0`, `bootcount=0`), `saveenv` and `reset`. To avoid a reset loop when
-   both slots are bad, a per-boot guard variable (`_fallback_tried`, RAM only, not saved) plus
-   a saved counter `ecofleet_fallbacks` capped at 2 stop the flipping; after that it prints an
-   error and stops.
+   the slot.** If either load fails, or `booti` returns, switch `slot_active` to the other slot,
+   clear the trial (`upgrade_available=0`, `bootcount=0`), `saveenv`, and try that slot **in the
+   same boot pass** (a two-iteration loop). There is no `reset`: u-boot's reset goes through the
+   same WDOG path that hangs this board. Doing it in one pass also means there can be no reset
+   loop. If both slots fail, it prints an error and stops.
 6. **Per-slot extra kernel arguments (optional):** if the slot has `/boot/ecofleet-bootargs.env`,
    load it and run `env import -t ${loadaddr} ${filesize} ecofleet_extra_args` (a whitelist:
    only that variable is imported). Otherwise `ecofleet_extra_args` is empty. A slot file can
@@ -61,14 +61,14 @@ so no u-boot environment default needs to change. p1 is not mounted in Linux.
 7. `bootargs = console=ttymxc0,115200 root=/dev/mmcblk${devnum}p${part} rootwait rw quiet ${ecofleet_extra_args}`
 8. `booti`. If `booti` returns, the same failure handling as step 5 applies.
 
-`ecofleet_fallbacks` is reset to 0 by `ecofleet-boot-confirm` on a healthy boot (it already
-clears the trial there).
-
 ## Linux side
 
 - **`scripts/pre-install.sh`:** inactive slot device is `/dev/mmcblk2p3` when slot a is
-  active, `/dev/mmcblk2p2` when slot b is active. Update `scripts/tests/test-ab-slot-scripts.sh`.
-- **`ecofleet-boot-confirm.sh`:** additionally `fw_setenv ecofleet_fallbacks 0` when it confirms.
+  active, `/dev/mmcblk2p2` when slot b is active. **Safety guard:** before linking, check
+  the target is slot-sized (`/sys/class/block/<dev>/size` = 3481600 sectors = 1700 MiB) and exit
+  non-zero otherwise, which makes swupdate abort. Labels can't be used: a slot written by an
+  update has no label (the rootfs image carries none). Without it, an old-layout unit (p3 = `data`) receiving
+  a new-layout update would overwrite `/data`. Update `scripts/tests/test-ab-slot-scripts.sh`.
 - **Auto-mount ignore lists** (`ecofleet-data`): boot p1, slots p2 and p3, data p4 (the data
   file changes from p3 to p4).
 - **`ecofleet-emmc.wks.in`:** the new four-partition layout. p1 comes from a small ext4 image
@@ -102,7 +102,7 @@ Units need one full `.wic` reflash (today: .86 and bench units). For .86:
    behaviour, re-verified).
 4. **Missing kernel:** delete `/boot/Image.gz` in the inactive slot and activate it. The same
    boot falls back to the good slot.
-5. **Both slots bad (guard):** no endless reset loop; it stops with an error after 2 fallbacks.
+5. **Both slots bad:** it tries both in one pass, then stops with an error (no reset loop).
    Restore by reflash.
 6. **Wiped env:** zero the env area (`dd` at `0x700000`, 16 KiB). The unit still boots slot A.
 7. **Bad per-slot args file:** a slot with `ecofleet-bootargs.env` that also tries to set
