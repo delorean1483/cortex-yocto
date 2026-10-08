@@ -1,5 +1,10 @@
 # Bench runbook — fix warm-reboot hang + land the new agent on TRUCK-001
 
+> **Layout changed 2026-10 (stable boot partition, `docs/superpowers/specs/2026-10-07-boot-partition-design.md`):**
+> p1 = `boot` (boot.scr only), **slot a = p2, slot b = p3**, data = p4, hardware revision 2.0.
+> The partition numbers below are the old layout (slot a = p1, slot b = p2) as recorded at the time.
+> Also: never `reset` from u-boot on this board to recover; power-cycle instead (u-boot's reset is the WDOG path that hangs).
+
 **Board:** Variscite DART-MX8M-MINI / DT8MCustomBoard 2.x (i.MX8MM), unit **TRUCK-001** @ `192.168.0.86`
 **You need:** serial console (to reach u-boot and watch reboots) **and** SSH (`root@192.168.0.86`, empty password, same LAN).
 **Date diagnosed:** 2026-09-15

@@ -1,7 +1,7 @@
 SUMMARY = "EcoFleet shared /data partition mount"
 DESCRIPTION = "Mounts the 64 MB 'data' partition (shared by both A/B root \
 slots) at /data so data kept there survives OTA updates, and keeps the udev \
-automounter off it and off both root slots."
+automounter off it, the boot partition and both root slots."
 LICENSE = "CLOSED"
 
 SRC_URI = " \

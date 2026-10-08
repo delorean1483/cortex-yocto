@@ -14,6 +14,11 @@ IMAGE_FSTYPES:append = " ext4"
 
 WKS_FILE:mx8-nxp-bsp = "ecofleet-emmc.wks.in"
 
+# The wic "boot" partition (p1) carries only the stable boot script, deployed
+# by ecofleet-bootscript; it is never part of the root filesystem.
+IMAGE_BOOT_FILES = "ecofleet-boot.scr;boot/boot.scr"
+do_image_wic[depends] += "ecofleet-bootscript:do_deploy"
+
 # Allow root SSH login with empty password for dev/field access
 EXTRA_IMAGE_FEATURES += "debug-tweaks"
 
@@ -33,6 +38,16 @@ write_ecofleet_version() {
     echo "${ECOFLEET_FW_VERSION}" > ${IMAGE_ROOTFS}/etc/ecofleet/firmware-version
 }
 ROOTFS_POSTPROCESS_COMMAND:append = " write_ecofleet_version;"
+
+# swupdate hardware revision = eMMC layout generation. 2.0 = boot partition
+# (p1 boot, p2/p3 slots, p4 data). Bundles say hardware-compatibility = ["2.0"]
+# (scripts/sw-description), so swupdate itself refuses an old-layout bundle on
+# this image and this image's bundle on an old-layout unit. Written after all
+# packages so it wins over the BSP's /etc/hwrevision.
+write_ecofleet_hwrevision() {
+    echo "imx8mm-var-dart 2.0" > ${IMAGE_ROOTFS}${sysconfdir}/hwrevision
+}
+ROOTFS_POSTPROCESS_COMMAND:append = " write_ecofleet_hwrevision;"
 
 # Units that must never run on this A/B layout, masked so a boot is clean:
 # - var-expand-partition: Variscite's "grow the root partition on first boot".
@@ -67,7 +82,6 @@ IMAGE_INSTALL:append = " \
     swupdate \
     libubootenv \
     libubootenv-bin \
-    ecofleet-bootscript \
     ecofleet-boot-confirm \
     swupdate-keys \
     tzdata \
