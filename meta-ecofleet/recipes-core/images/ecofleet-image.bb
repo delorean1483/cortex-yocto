@@ -14,6 +14,11 @@ IMAGE_FSTYPES:append = " ext4"
 
 WKS_FILE:mx8-nxp-bsp = "ecofleet-emmc.wks.in"
 
+# The wic "boot" partition (p1) carries only the stable boot script, deployed
+# by ecofleet-bootscript; it is never part of the root filesystem.
+IMAGE_BOOT_FILES = "ecofleet-boot.scr;boot/boot.scr"
+do_image_wic[depends] += "ecofleet-bootscript:do_deploy"
+
 # Allow root SSH login with empty password for dev/field access
 EXTRA_IMAGE_FEATURES += "debug-tweaks"
 
@@ -67,7 +72,6 @@ IMAGE_INSTALL:append = " \
     swupdate \
     libubootenv \
     libubootenv-bin \
-    ecofleet-bootscript \
     ecofleet-boot-confirm \
     swupdate-keys \
     tzdata \
