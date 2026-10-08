@@ -26,15 +26,24 @@ else
     NEXT_SLOT=a
 fi
 
-# Refuse anything that isn't a root slot. On the old layout (p1/p2 slots,
-# p3 data) "the inactive slot" of a unit on slot a would be /data. Slots carry
-# no label once written, so check the size: 1700 MiB = 3481600 sectors.
+refuse() { echo "pre-install: $* — refusing to install" >&2; exit 1; }
+sectors() { cat "$SYS_BLOCK/$1/size" 2>/dev/null || echo 0; }
+
+# Only ever write a root slot of the current layout. On the old layout (p1/p2
+# slots, p3 data) the mapping above would hit /data (slot a) or the RUNNING root
+# (slot b, old p2 is slot-sized too), so check the whole layout: p1 is the 32 MiB
+# boot partition and p4 exists. Slots carry no label once written, so sizes it is.
 SYS_BLOCK=${ECOFLEET_SYS_BLOCK:-/sys/class/block}
-SECTORS=$(cat "$SYS_BLOCK/$(basename "$INACTIVE_DEV")/size" 2>/dev/null || echo 0)
-if [ "$SECTORS" != 3481600 ]; then
-    echo "pre-install: ${INACTIVE_DEV} is ${SECTORS} sectors, not a 1700 MiB root slot — wrong partition layout, refusing to install" >&2
-    exit 1
-fi
+[ "$(sectors mmcblk2p1)" = 65536 ] && [ -e "$SYS_BLOCK/mmcblk2p4" ] || \
+    refuse "not the boot/rootfs-a/rootfs-b/data layout (p1 is $(sectors mmcblk2p1) sectors)"
+[ "$(sectors "$(basename "$INACTIVE_DEV")")" = 3481600 ] || \
+    refuse "${INACTIVE_DEV} is not a 1700 MiB root slot"
+
+# Never write the partition we are running from, whatever slot_active says
+# (e.g. a fresh or reset u-boot env reading "a" on a unit booted from p3).
+ROOT_DEV=$(sed -n 's/.*root=\([^ ]*\).*/\1/p' "${ECOFLEET_PROC_CMDLINE:-/proc/cmdline}")
+[ "$ROOT_DEV" != "$INACTIVE_DEV" ] || \
+    refuse "${INACTIVE_DEV} is the running root (slot_active=${ACTIVE} disagrees with root=${ROOT_DEV})"
 
 echo "pre-install: active slot=${ACTIVE}, writing to ${INACTIVE_DEV} (slot ${NEXT_SLOT})"
 

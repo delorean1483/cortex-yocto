@@ -36,7 +36,8 @@ for a in "$@"; do case "$a" in /dev/mmcblk*) printf '%s' "$a" > "$LNLOG";; esac;
 exit 0
 EOF
 chmod +x "$TMP/bin"/*
-export PATH="$TMP/bin:$PATH" STATE="$TMP/state" LNLOG="$TMP/lnlog" ECOFLEET_SYS_BLOCK="$TMP/sys"
+export PATH="$TMP/bin:$PATH" STATE="$TMP/state" LNLOG="$TMP/lnlog" ECOFLEET_SYS_BLOCK="$TMP/sys" \
+       ECOFLEET_PROC_CMDLINE="$TMP/cmdline"
 
 # Fake /sys/class/block/<dev>/size (512-byte sectors).
 layout() { # new | old
@@ -55,9 +56,11 @@ layout() { # new | old
 }
 
 # Replay swupdate's call sequence for one OTA; echo "<image_target> <final_slot> <preinst_rc>".
+# $1 = slot_active in the u-boot env, $2 = the partition the kernel booted from.
 # swupdate stops (no write, no postinst) when the preinst script fails.
 replay() {
     printf '%s' "$1" > "$STATE"; : > "$LNLOG"; rm -f /tmp/next-slot
+    echo "console=ttymxc0,115200 root=/dev/mmcblk2p$2 rootwait rw quiet" > "$TMP/cmdline"
     rc=0
     sh "$SCRIPTS_DIR/pre-install.sh"  preinst  >/dev/null 2>&1 || rc=$?
     if [ "$rc" = 0 ]; then
@@ -76,9 +79,11 @@ check() { # desc  got  want
     if [ "$2" = "$3" ]; then echo "ok   - $1"; else echo "FAIL - $1: got '$2' want '$3'"; fail=1; fi
 }
 layout new
-check "from slot a: image->p3, activate b" "$(replay a)" "/dev/mmcblk2p3 b 0"
-check "from slot b: image->p2, activate a" "$(replay b)" "/dev/mmcblk2p2 a 0"
+check "from slot a: image->p3, activate b" "$(replay a 2)" "/dev/mmcblk2p3 b 0"
+check "from slot b: image->p2, activate a" "$(replay b 3)" "/dev/mmcblk2p2 a 0"
+check "env says a but running from p3: refuse to write the running root" "$(replay a 3)" "none a 1"
 layout old
-check "old layout: refuse to write data partition" "$(replay a)" "none a 1"
+check "old layout, slot a: refuse to write data partition" "$(replay a 1)" "none a 1"
+check "old layout, slot b: refuse to write the running root (old p2)" "$(replay b 2)" "none b 1"
 
 if [ "$fail" = 0 ]; then echo "PASS"; exit 0; else echo "FAILED"; exit 1; fi
