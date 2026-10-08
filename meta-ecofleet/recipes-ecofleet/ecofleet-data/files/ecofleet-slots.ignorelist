@@ -1,0 +1,7 @@
+# Keep udev's automounter off both A/B root slots (ecofleet-emmc.wks: p1 = A,
+# p2 = B). The running slot is already "/", so this only affects the inactive
+# one, which swupdate rewrites raw during an update. Left auto-mounted rw at
+# /run/media/mmcblk2pN, a stale mount sits on top of the freshly written
+# filesystem and could write old metadata back into it.
+/dev/mmcblk2p1
+/dev/mmcblk2p2
