@@ -56,6 +56,7 @@ SRC_URI = " \
     file://weather-fetch.service \
     file://weather-fetch.timer \
     file://gobi-agent.conf \
+    file://99-ecofleet-rs485.rules \
     file://AmazonRootCA1.pem \
     file://device.crt \
     file://device.key \
@@ -156,6 +157,7 @@ do_install:append() {
     install -m 0755 ${WORKDIR}/gobi-cold-reboot        ${D}${sbindir}/gobi-cold-reboot
     install -m 0755 ${WORKDIR}/gobi-tz-apply           ${D}${sbindir}/gobi-tz-apply
     install -D -m 0644 ${WORKDIR}/gobi-agent-tmpfiles.conf ${D}${nonarch_libdir}/tmpfiles.d/gobi-agent.conf
+    install -D -m 0644 ${WORKDIR}/99-ecofleet-rs485.rules ${D}${nonarch_base_libdir}/udev/rules.d/99-ecofleet-rs485.rules
 }
 
 # ── systemd integration ───────────────────────────────────────────────────────
@@ -174,6 +176,7 @@ FILES:${PN} += " \
     ${sbindir}/gobi-ota-apply \
     ${sbindir}/gobi-tz-apply \
     ${nonarch_libdir}/tmpfiles.d/gobi-agent.conf \
+    ${nonarch_base_libdir}/udev/rules.d/99-ecofleet-rs485.rules \
     ${sbindir}/gobi-cold-reboot \
     ${systemd_system_unitdir}/gobi-agent.service \
     ${systemd_system_unitdir}/gobi-ota-apply.service \
