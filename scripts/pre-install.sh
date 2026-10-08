@@ -2,7 +2,8 @@
 # Determine which partition is currently inactive and create a symlink so
 # sw-description can reference it as /dev/swupdate-inactive.
 #
-# Partition map:  mmcblk2p1 = rootfs-a,  mmcblk2p2 = rootfs-b
+# Partition map:  mmcblk2p1 = boot (never written here), mmcblk2p2 = rootfs-a,
+#                 mmcblk2p3 = rootfs-b, mmcblk2p4 = data
 # u-boot env var: slot_active = "a" | "b"
 
 set -e
@@ -18,11 +19,21 @@ set -e
 ACTIVE=$(fw_printenv -n slot_active 2>/dev/null || echo "a")
 
 if [ "$ACTIVE" = "a" ]; then
-    INACTIVE_DEV=/dev/mmcblk2p2
+    INACTIVE_DEV=/dev/mmcblk2p3
     NEXT_SLOT=b
 else
-    INACTIVE_DEV=/dev/mmcblk2p1
+    INACTIVE_DEV=/dev/mmcblk2p2
     NEXT_SLOT=a
+fi
+
+# Refuse anything that isn't a root slot. On the old layout (p1/p2 slots,
+# p3 data) "the inactive slot" of a unit on slot a would be /data. Slots carry
+# no label once written, so check the size: 1700 MiB = 3481600 sectors.
+SYS_BLOCK=${ECOFLEET_SYS_BLOCK:-/sys/class/block}
+SECTORS=$(cat "$SYS_BLOCK/$(basename "$INACTIVE_DEV")/size" 2>/dev/null || echo 0)
+if [ "$SECTORS" != 3481600 ]; then
+    echo "pre-install: ${INACTIVE_DEV} is ${SECTORS} sectors, not a 1700 MiB root slot — wrong partition layout, refusing to install" >&2
+    exit 1
 fi
 
 echo "pre-install: active slot=${ACTIVE}, writing to ${INACTIVE_DEV} (slot ${NEXT_SLOT})"
