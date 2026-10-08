@@ -39,6 +39,16 @@ write_ecofleet_version() {
 }
 ROOTFS_POSTPROCESS_COMMAND:append = " write_ecofleet_version;"
 
+# swupdate hardware revision = eMMC layout generation. 2.0 = boot partition
+# (p1 boot, p2/p3 slots, p4 data). Bundles say hardware-compatibility = ["2.0"]
+# (scripts/sw-description), so swupdate itself refuses an old-layout bundle on
+# this image and this image's bundle on an old-layout unit. Written after all
+# packages so it wins over the BSP's /etc/hwrevision.
+write_ecofleet_hwrevision() {
+    echo "imx8mm-var-dart 2.0" > ${IMAGE_ROOTFS}${sysconfdir}/hwrevision
+}
+ROOTFS_POSTPROCESS_COMMAND:append = " write_ecofleet_hwrevision;"
+
 # Units that must never run on this A/B layout, masked so a boot is clean:
 # - var-expand-partition: Variscite's "grow the root partition on first boot".
 #   Here the root partition is an A/B slot; growing it would run into the next
