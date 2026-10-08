@@ -12,7 +12,6 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 # config shipped to the device. A unique name (ecofleet-swupdate.cfg) is the fix.
 SRC_URI += "file://ecofleet-swupdate.cfg"
 SRC_URI += "file://signing.cfg"
-SRC_URI += "file://10-ecofleet-swupdate.preset"
 
 # HARD GATE: whether meta-swupdate actually merges the .cfg fragment is only
 # provable by inspecting the resulting .config. Fail the build loudly if signing
@@ -63,14 +62,9 @@ do_install:append() {
     if [ "$ident_open" = "[" ]; then
         bbfatal "swupdate ecofleet.cfg: identify uses an array '[ ]' — it must be a list '( )' (arrays can't hold { } groups; swupdate then fails to parse the file)"
     fi
-
-    # Disable the stock suricatta daemon (swupdate.service) in the shipped image
-    # via a higher-priority preset than the recipe's 98-swupdate.preset. ecofleet
-    # OTA is gobi-agent's one-shot `swupdate -i`; the daemon is unused and only
-    # ever appears as a failed unit at boot. (swupdate.socket is masked by the image.)
-    install -d ${D}${systemd_unitdir}/system-preset
-    install -m 0644 ${WORKDIR}/10-ecofleet-swupdate.preset ${D}${systemd_unitdir}/system-preset/
 }
 
+# The stock daemon (swupdate.service + swupdate.socket) is unused — OTA is
+# gobi-agent's one-shot `swupdate -i` — and both units are masked by
+# ecofleet-image.bb (mask_unused_units), not turned off here.
 FILES:${PN} += "${sysconfdir}/swupdate/ecofleet.cfg"
-FILES:${PN} += "${systemd_unitdir}/system-preset/10-ecofleet-swupdate.preset"

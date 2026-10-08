@@ -56,15 +56,19 @@ ROOTFS_POSTPROCESS_COMMAND:append = " write_ecofleet_hwrevision;"
 #   (Same reason var-resize-flash is in BAD_RECOMMENDATIONS above.)
 # - swupdate.service: the stock suricatta/hawkBit daemon. OTA runs one-shot
 #   `swupdate -i`; the daemon only failed at boot ("provide a public key
-#   file"). The 10-ecofleet-swupdate.preset "disable" isn't applied by the
-#   image build, so mask it here.
+#   file"). A preset "disable" doesn't help: the image build runs preset-all
+#   in enable-only mode, so mask it here.
 # - swupdate.socket: the daemon's socket activation. With the service masked
 #   it failed at every boot ("Socket service swupdate.service not loaded,
 #   refusing"); it would also listen on /tmp/sockinstctrl + /tmp/swupdateprog,
 #   the same paths the one-shot `swupdate -i` creates.
+# A mask on a name that isn't installed (typo, upstream rename) does nothing,
+# and the failed unit would only show up again on hardware, so fail the build.
 mask_unused_units() {
     install -d ${IMAGE_ROOTFS}${sysconfdir}/systemd/system
     for u in var-expand-partition.service swupdate.service swupdate.socket; do
+        [ -e ${IMAGE_ROOTFS}${systemd_system_unitdir}/$u ] || \
+            bbfatal "mask_unused_units: $u is not in ${systemd_system_unitdir} (renamed or dropped upstream?) — the mask would do nothing; update the list"
         ln -sf /dev/null ${IMAGE_ROOTFS}${sysconfdir}/systemd/system/$u
     done
 }
