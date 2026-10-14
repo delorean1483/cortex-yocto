@@ -17,6 +17,10 @@ bad() { echo "FAIL - $1"; fail=1; }
 grep -qx 'CONFIG_AUTOBOOT_KEYED=y' "$CFG" 2>/dev/null && ok "keyed autoboot" || bad "CONFIG_AUTOBOOT_KEYED=y"
 grep -qx 'CONFIG_AUTOBOOT_STOP_STR="ecofleet"' "$CFG" 2>/dev/null && ok "stop string" || bad 'CONFIG_AUTOBOOT_STOP_STR="ecofleet"'
 grep -q '^CONFIG_AUTOBOOT_PROMPT=".*ecofleet' "$CFG" 2>/dev/null && ok "prompt names the stop string" || bad "CONFIG_AUTOBOOT_PROMPT must name the stop string"
+# U-Boot 2024.04's kconfig copies .config strings into C verbatim (no escaping
+# either way), so the fragment needs a single backslash: \\n printed a literal
+# "\n" on the console (CI run 38578285180).
+grep -q '^CONFIG_AUTOBOOT_PROMPT=".*[^\\]\\n"$' "$CFG" 2>/dev/null && ok "prompt ends in a C newline" || bad "CONFIG_AUTOBOOT_PROMPT must end in a single backslash-n"
 grep -q '^CONFIG_AUTOBOOT_KEYED_CTRLC=y' "$CFG" 2>/dev/null && bad "Ctrl-C would stop autoboot" || ok "Ctrl-C does not stop autoboot"
 grep -q '^CONFIG_BOOTDELAY=' "$CFG" 2>/dev/null && bad "fragment changes CONFIG_BOOTDELAY (keep the defconfig's 1 s)" || ok "boot delay untouched"
 [ -f "$D/u-boot-variscite.bbappend" ] && ok "bbappend named for the unversioned recipe" || bad "missing $D/u-boot-variscite.bbappend"
