@@ -99,6 +99,11 @@ def main():
     while time.time() < end and not got:
         os.write(fd, noise)
         _, got = read_until(fd, (PROMPT, b"Starting kernel", b"booting slot"), 0.1)
+    if got is None:
+        # Neither a prompt nor a boot marker: a lost or silent console proves
+        # nothing about the stop string, so it is never a pass.
+        print("\n[uboot-console] FAIL: no prompt and no boot seen after autoboot")
+        sys.exit(1)
     if got != PROMPT:
         print(f"\n[uboot-console] autoboot NOT stopped (saw {got!r})")
         sys.exit(0 if args.no_stop else 1)
