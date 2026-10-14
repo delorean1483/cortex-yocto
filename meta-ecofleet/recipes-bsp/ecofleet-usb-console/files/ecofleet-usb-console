@@ -1,0 +1,53 @@
+#!/bin/sh
+# Login console on R1's USB-C port, the one used for programming: a CDC ACM USB
+# serial device on usbotg1 (32e40000.usb). The PC sees a plain serial port with
+# no driver to install (/dev/cu.usbmodem* on a Mac, a COM port on Windows,
+# /dev/ttyACM0 on Linux); serial-getty@ttyGS0 puts a login on it.
+# R1's UART1 is wired to the Ezurio module, so this replaces wires tacked onto
+# UART1 once Linux is up. SPL and U-Boot still print on UART1 only.
+# Paths can be overridden for the host test (scripts/tests/test-usb-console.sh).
+set -eu
+CONFIGFS=${CONFIGFS:-/sys/kernel/config}
+UDC_DIR=${UDC_DIR:-/sys/class/udc}
+SOC_SERIAL=${SOC_SERIAL:-/sys/devices/soc0/serial_number}
+G=$CONFIGFS/usb_gadget/ecofleet
+
+# usbotg2 (the hub) is host-only on R1, but pick the controller by address,
+# not by probe order.
+udc=
+for d in "$UDC_DIR"/*; do
+    case $(cd -P "$d" 2>/dev/null && pwd -P) in
+    */32e40000.usb/*) udc=${d##*/} ;;
+    esac
+done
+if [ -z "$udc" ]; then
+    echo "ecofleet-usb-console: no USB device controller for 32e40000.usb" >&2
+    exit 1
+fi
+
+# Already bound (service restart): configfs refuses changes while bound.
+if [ -n "$(cat "$G/UDC" 2>/dev/null)" ]; then
+    exit 0
+fi
+
+serial=$(cat "$SOC_SERIAL" 2>/dev/null || echo 0)
+
+mkdir -p "$G/strings/0x409" "$G/functions/acm.usb0" "$G/configs/c.1/strings/0x409"
+echo 0x1d6b > "$G/idVendor"     # Linux Foundation
+echo 0x0104 > "$G/idProduct"    # Multifunction Composite Gadget
+echo 0x0100 > "$G/bcdDevice"
+echo 0x0200 > "$G/bcdUSB"
+# Miscellaneous class with an interface association, so Windows loads its
+# inbox CDC ACM driver without an .inf.
+echo 0xEF > "$G/bDeviceClass"
+echo 0x02 > "$G/bDeviceSubClass"
+echo 0x01 > "$G/bDeviceProtocol"
+echo EcoFleet > "$G/strings/0x409/manufacturer"
+echo "EF-MX8MM console" > "$G/strings/0x409/product"
+echo "$serial" > "$G/strings/0x409/serialnumber"
+echo "CDC ACM" > "$G/configs/c.1/strings/0x409/configuration"
+# Self-powered: R1 only senses VBUS on this port, it never draws from it.
+echo 0xC0 > "$G/configs/c.1/bmAttributes"
+echo 2 > "$G/configs/c.1/MaxPower"
+[ -e "$G/configs/c.1/acm.usb0" ] || ln -s "$G/functions/acm.usb0" "$G/configs/c.1/acm.usb0"
+echo "$udc" > "$G/UDC"
