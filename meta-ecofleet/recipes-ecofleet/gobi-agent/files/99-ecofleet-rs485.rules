@@ -1,7 +1,13 @@
-# Stable name for the APU RS-485 adapter: /dev/ecofleet-rs485.
-# ttyUSBn names follow plug order and skip names still held open, so after a
-# quick unplug/replug the adapter can come back as ttyUSB1 while gobi-agent
-# keeps retrying ttyUSB0 (and a cellular modem would claim ttyUSB0-3). udev
-# moves this link to wherever the adapter lands; the agent reopens it by name.
-# FTDI FT232R (0403:6001). Add other adapter chips here as they are fitted.
+# Stable name for the APU RS-485 port: /dev/ecofleet-rs485 (gobi-agent opens it).
+#
+# Dev kit: an FTDI USB adapter. ttyUSBn names follow plug order and skip names
+# still held open, so after a quick unplug/replug the adapter can come back as
+# ttyUSB1 while gobi-agent keeps retrying ttyUSB0 (and a cellular modem would
+# claim ttyUSB0-3). udev moves this link to wherever the adapter lands; the agent
+# reopens it by name. FTDI FT232R (0403:6001). Add other adapter chips here.
 SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="ecofleet-rs485"
+#
+# R1 (EF-MX8MM): the on-board isolated transceiver on UART2. The kernel drives
+# its DE line (RS-485 mode, R1 DTS). ttymxc1 also exists on the dev kit, so only
+# link it when the R1 device tree's marker alias is present.
+SUBSYSTEM=="tty", KERNEL=="ttymxc1", TEST=="/proc/device-tree/aliases/ecofleet-rs485-uart", SYMLINK+="ecofleet-rs485"
