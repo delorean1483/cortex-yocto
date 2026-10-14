@@ -18,6 +18,9 @@ echo "$rules" | grep -q 'ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYML
 r1=$(echo "$rules" | grep 'KERNEL=="ttymxc1"')
 [ -n "$r1" ] && ok "R1 rule for ttymxc1" || bad "no R1 rule for ttymxc1"
 echo "$r1" | grep -q 'SYMLINK+="ecofleet-rs485"' && ok "R1 rule links ecofleet-rs485" || bad "R1 rule does not link ecofleet-rs485"
+# A USB-serial adapter plugged into R1 also matches the FTDI rule; with equal
+# link priority the newest device takes the link and the agent loses the APU.
+echo "$r1" | grep -Eq 'OPTIONS\+="link_priority=[1-9][0-9]*"' && ok "R1 link wins over a plugged-in FTDI" || bad "R1 rule needs OPTIONS+=\"link_priority=<positive>\""
 alias=$(echo "$r1" | sed -n 's#.*TEST=="/proc/device-tree/aliases/\([^"]*\)".*#\1#p')
 [ -n "$alias" ] && ok "R1 rule gated on DT alias '$alias'" || bad "R1 rule is not gated on a /proc/device-tree/aliases TEST"
 case "$alias" in *[0-9]) bad "alias '$alias' ends in a digit";; *) ok "alias name does not end in a digit";; esac

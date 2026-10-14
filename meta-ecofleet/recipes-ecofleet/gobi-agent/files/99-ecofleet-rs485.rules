@@ -9,5 +9,7 @@ SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="e
 #
 # R1 (EF-MX8MM): the on-board isolated transceiver on UART2. The kernel drives
 # its DE line (RS-485 mode, R1 DTS). ttymxc1 also exists on the dev kit, so only
-# link it when the R1 device tree's marker alias is present.
-SUBSYSTEM=="tty", KERNEL=="ttymxc1", TEST=="/proc/device-tree/aliases/ecofleet-rs485-uart", SYMLINK+="ecofleet-rs485"
+# link it when the R1 device tree's marker alias is present. The priority keeps
+# the link on ttymxc1 if a USB-serial adapter is plugged into R1 (it matches the
+# FTDI rule above; with equal priority the newest device would take the link).
+SUBSYSTEM=="tty", KERNEL=="ttymxc1", TEST=="/proc/device-tree/aliases/ecofleet-rs485-uart", SYMLINK+="ecofleet-rs485", OPTIONS+="link_priority=100"
