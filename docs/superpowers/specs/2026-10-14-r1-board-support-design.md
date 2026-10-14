@@ -172,7 +172,9 @@ Per slot, after the kernel loads: if `ecofleet_board` is `r1`, try
 `/boot/imx8mm-ecofleet-ef-mx8mm.dtb` first; if that is missing (an older release in that slot)
 or not R1, load `/boot/imx8mm-var-dart-dt8mcustomboard.dtb`. Only if neither DTB loads does the
 existing same-pass fallback to the other slot run. Kernel arguments are unchanged on both boards
-(`console=ttymxc0,115200 … ${ecofleet_extra_args}`).
+(`console=ttymxc0,115200 … ${ecofleet_extra_args}`) except for one diagnostic addition,
+`ecofleet_board=${ecofleet_board}`: it shows from Linux whether R1 was detected, including when
+an R1 slot fell back to the dev-kit DTB.
 
 The existing rules hold: hush for-loop variables start with a letter, no `reset`, rollback
 trial and `ecofleet-bootargs.env` whitelist unchanged.
