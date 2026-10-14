@@ -10,6 +10,11 @@
 #   and tries the dev-kit DTB before giving up on the slot (an older release in
 #   a slot has no R1 DTB). The R1 DTB name must match the kernel bbappend and
 #   the CI release staging, or R1 silently boots the dev-kit DTB.
+# - R1 safety (R1 hardware finding 3 + review): U-Boot itself holds the KSZ9031
+#   in reset on R1 (SAI3_TXFS muxed to GPIO4_IO31 and driven low) before any
+#   DTB loads, because nothing pulls that reset line; and when R1 boots the
+#   dev-kit DTB, the script disables that DTB's SAI3 (it would take the pad
+#   back) and SD-card host (it could run R1's 3.3 V carrier eMMC at 1.8 V).
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 F=$ROOT/meta-ecofleet/recipes-bsp/ecofleet-bootscript/files/ecofleet-boot.cmd
 R1_DTB=imx8mm-ecofleet-ef-mx8mm.dtb
@@ -35,6 +40,25 @@ n_fb=$(line 'did not boot, trying slot')
 [ -n "$n_r1" ] && [ -n "$n_dk" ] && [ "$n_r1" -lt "$n_dk" ] && ok "R1 DTB tried before the dev-kit DTB" || bad "DTB order (R1 line $n_r1, dev kit line $n_dk)"
 [ -n "$n_dk" ] && [ -n "$n_fb" ] && [ "$n_dk" -lt "$n_fb" ] && ok "dev-kit DTB tried before the slot fallback" || bad "dev-kit DTB must be tried before falling back to the other slot"
 echo "$code" | grep -q 'ecofleet_board=${ecofleet_board}' && ok "detected board on the kernel command line" || bad "bootargs lack ecofleet_board=\${ecofleet_board}"
+
+n_mux=$(line 'mw.l 0x303301d8 0x5')
+n_pad=$(line 'mw.l 0x30330440 0x16')
+n_low=$(line 'gpio clear GPIO4_31')
+n_r1if=$(echo "$code" | grep -n -F 'if test "${ecofleet_board}" = "r1"' | cut -d: -f1 | head -1)
+[ -n "$n_mux" ] && [ -n "$n_pad" ] && [ -n "$n_low" ] && [ "$n_mux" -lt "$n_low" ] && [ "$n_pad" -lt "$n_low" ] \
+    && ok "R1: U-Boot muxes ETH_dReset to GPIO4_IO31 and drives it low" || bad "R1 PHY hold: mw.l mux/pad then gpio clear GPIO4_31"
+[ -n "$n_r1if" ] && [ -n "$n_probe" ] && [ -n "$n_mux" ] && [ -n "$n_loop" ] && [ "$n_probe" -lt "$n_r1if" ] && [ "$n_r1if" -lt "$n_mux" ] && [ "$n_low" -lt "$n_loop" ] \
+    && ok "R1 PHY hold is board-gated and runs before any DTB loads" || bad "R1 PHY hold must sit in an r1 block between the probe and the slot loop"
+n_resize=$(line 'fdt resize')
+n_sai=$(line 'fdt set /soc@0/bus@30000000/spba-bus@30000000/sai@30030000 status disabled')
+n_sd=$(line 'fdt set /soc@0/bus@30800000/mmc@30b50000 status disabled')
+n_booti=$(line 'booti ${loadaddr}')
+[ -n "$n_dk" ] && [ -n "$n_resize" ] && [ -n "$n_sai" ] && [ -n "$n_sd" ] && [ -n "$n_booti" ] \
+    && [ "$n_dk" -lt "$n_resize" ] && [ "$n_resize" -lt "$n_sai" ] && [ "$n_resize" -lt "$n_sd" ] && [ "$n_sai" -lt "$n_booti" ] && [ "$n_sd" -lt "$n_booti" ] \
+    && ok "R1 on the dev-kit DTB: SAI3 and SD host disabled before booti" || bad "dev-kit DTB on R1 needs fdt resize + sai3/usdhc2 disabled between its load and booti"
+n_r1if2=$(echo "$code" | grep -n -F 'if test "${ecofleet_board}" = "r1"' | cut -d: -f1 | sed -n 3p)
+[ -n "$n_r1if2" ] && [ -n "$n_dk" ] && [ -n "$n_resize" ] && [ "$n_dk" -lt "$n_r1if2" ] && [ "$n_r1if2" -lt "$n_resize" ] \
+    && ok "dev-kit DTB fixups only on R1" || bad "the fdt fixups must be inside an r1 check after the dev-kit DTB load"
 
 grep -q "freescale/$R1_DTB" "$ROOT/meta-ecofleet/recipes-kernel/linux/linux-variscite-fslc-imx_%.bbappend" 2>/dev/null \
     && ok "kernel bbappend builds $R1_DTB" || bad "kernel bbappend does not build $R1_DTB"

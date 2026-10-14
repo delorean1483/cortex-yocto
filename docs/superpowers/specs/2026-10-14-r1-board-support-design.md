@@ -176,6 +176,14 @@ existing same-pass fallback to the other slot run. Kernel arguments are unchange
 `ecofleet_board=${ecofleet_board}`: it shows from Linux whether R1 was detected, including when
 an R1 slot fell back to the dev-kit DTB.
 
+**R1 safety (added after the branch review, 2026-10-14).** Nothing on R1 pulls the Ethernet
+PHY's reset line (ETH_dReset → U20), so on R1 the script holds it low itself before any DTB loads:
+`SAI3_TXFS` muxed to GPIO4_IO31 (`mw.l 0x303301d8 0x5`, pad `mw.l 0x30330440 0x16`) and
+`gpio clear GPIO4_31`. When R1 boots the dev-kit DTB, the script disables two of that DTB's nodes
+before `booti` (`fdt resize`, `fdt set … status disabled`): SAI3, which would take the reset pad
+back, and the SD-card host `usdhc2`, which on R1 is the carrier eMMC (VCCQ fixed at 3.3 V; the SD
+host could switch it to 1.8 V signalling).
+
 The existing rules hold: hush for-loop variables start with a letter, no `reset`, rollback
 trial and `ecofleet-bootargs.env` whitelist unchanged.
 
@@ -201,7 +209,11 @@ so either board accepts either bundle.
 
 ### 7. Userspace
 
-`99-ecofleet-rs485.rules` gains an R1 rule: `KERNEL=="ttymxc1"` with
+The udev automounter ignores `mmcblk1` (R1's carrier eMMC, the dev kit's SD card), as it already
+ignores the SoM eMMC's boot, slot and data partitions.
+
+`99-ecofleet-rs485.rules` gains an R1 rule (with `link_priority`, so a USB-serial adapter plugged
+into R1 can't take the link): `KERNEL=="ttymxc1"` with
 `TEST=="/proc/device-tree/aliases/ecofleet-rs485-uart"` → `SYMLINK+="ecofleet-rs485"`. The FTDI rule
 stays for the dev kit. gobi-agent and the STM32 bootloader flasher open the same link and need
 no code change; the kernel drives DE. Nothing else in userspace changes for part A: WiFi/BT and
@@ -273,6 +285,10 @@ stop string and set `slot_active`; (3) move the SoM back to the dev kit and refl
 - KSZ9031 MDIO address (bench: MDIO scan), touch I2C address (bench: I2C scan), flip-pin levels.
 
 ## Out of scope (parts B–D)
+
+**Precondition for part B:** `/data` is mounted by label (`/dev/disk/by-label/data`). Before
+anything is written to the carrier eMMC, the recovery image must not carry a `data` label, or
+`data.mount` must be tied to the boot device; otherwise `/data` can land on the carrier eMMC.
 
 Factory flashing over USB-C and the recovery eMMC image; carrier-EEPROM board ID; eMMC
 `RST_n` programming; cab temperature readout; Ezurio module firmware and the move of the R1

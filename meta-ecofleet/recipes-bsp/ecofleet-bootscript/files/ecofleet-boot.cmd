@@ -54,6 +54,17 @@ if i2c dev 2; then
 fi
 echo "==> EcoFleet: board ${ecofleet_board}"
 
+# R1: hold the Ethernet PHY (KSZ9031) in reset from here on. Its RGMII I/O is
+# 3.3 V while the SoC's ENET pads are fed 1.8 V (R1 hardware finding 3), and
+# nothing on the board pulls its reset line (ETH_dReset). SAI3_TXFS -> ALT5
+# GPIO4_IO31 (IOMUXC mux 0x1D8, pad 0x440), driven low. With the R1 DTB, Linux
+# keeps it low (eth-rst-hog); with the dev-kit DTB, see the fixups below.
+if test "${ecofleet_board}" = "r1"; then
+    mw.l 0x303301d8 0x5
+    mw.l 0x30330440 0x16
+    gpio clear GPIO4_31
+fi
+
 # Required by booti when the kernel is compressed (Image.gz)
 setenv kernel_comp_addr_r 0x44000000
 setenv kernel_comp_size   0x4000000
@@ -86,6 +97,16 @@ for try in 1 2; do
         if test "${fdt_ok}" = "0"; then
             if ext4load mmc ${devnum}:${_part} ${fdt_addr} /boot/imx8mm-var-dart-dt8mcustomboard.dtb; then
                 setenv fdt_ok 1
+                # R1 on the dev-kit DTB: switch off the dev kit's SAI3 audio
+                # (it would take ETH_dReset back from GPIO and release the PHY)
+                # and its SD-card host (on R1 that bus is the carrier eMMC, with
+                # VCCQ fixed at 3.3 V; the SD host could switch it to 1.8 V).
+                if test "${ecofleet_board}" = "r1"; then
+                    fdt addr ${fdt_addr}
+                    fdt resize 1024
+                    fdt set /soc@0/bus@30000000/spba-bus@30000000/sai@30030000 status disabled
+                    fdt set /soc@0/bus@30800000/mmc@30b50000 status disabled
+                fi
             fi
         fi
         if test "${fdt_ok}" = "1"; then
