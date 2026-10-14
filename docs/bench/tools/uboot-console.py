@@ -16,6 +16,12 @@ Usage:
   --trigger runs CMD (e.g. "ssh root@192.168.0.86 reboot") after the port is
   open; otherwise power-cycle the board yourself once it says "waiting".
 
+  --port may be a glob for R1's USB-C console ('/dev/cu.usbmodem*'): that port
+  only exists while U-Boot (or Linux) runs, so the helper triggers first, then
+  opens the first matching port that was not already there (a port from the
+  previous boot that vanishes and returns counts as new). U-Boot keeps its
+  output until the port is opened, so nothing is lost.
+
 Example (.86):
   uboot-console.py --trigger 'ssh root@192.168.0.86 reboot' --boot -- \
       'i2c bus' 'i2c dev 2' \
@@ -36,7 +42,7 @@ AUTOBOOT = (b"Hit any key to stop autoboot", b"Autoboot in")
 STOP_STR = b"ecofleet"
 
 
-def open_port(path):
+def open_port(path, flush=True):
     fd = os.open(path, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
     a = termios.tcgetattr(fd)
     a[0] = 0                                                # iflag: raw
@@ -47,8 +53,22 @@ def open_port(path):
     a[6][termios.VMIN] = 0
     a[6][termios.VTIME] = 0
     termios.tcsetattr(fd, termios.TCSANOW, a)
-    termios.tcflush(fd, termios.TCIOFLUSH)
+    if flush:
+        termios.tcflush(fd, termios.TCIOFLUSH)
     return fd
+
+
+def wait_new_port(pattern, before, timeout):
+    """First port matching pattern that was not listed before the trigger."""
+    end = time.time() + timeout
+    while time.time() < end:
+        now = set(glob.glob(pattern))
+        before &= now               # gone and back = the board re-enumerated
+        new = sorted(now - before)
+        if new:
+            return new[0]
+        time.sleep(0.05)
+    return None
 
 
 def read_until(fd, markers, timeout):
@@ -59,7 +79,10 @@ def read_until(fd, markers, timeout):
         r, _, _ = select.select([fd], [], [], 0.05)
         if not r:
             continue
-        chunk = os.read(fd, 4096)
+        try:
+            chunk = os.read(fd, 4096)
+        except OSError:             # USB port gone (board rebooted or booted)
+            return buf, None
         sys.stdout.write(chunk.decode(errors="replace"))
         sys.stdout.flush()
         buf += chunk
@@ -80,14 +103,25 @@ def main():
     ap.add_argument("cmds", nargs="*")
     args = ap.parse_args()
 
-    port = args.port or (sorted(glob.glob("/dev/cu.usbserial-*")) or [None])[0]
-    if not port:
-        sys.exit("no serial port found (plug in the console cable or pass --port)")
-    fd = open_port(port)
-    print(f"[uboot-console] {port}: waiting for the autoboot prompt "
-          f"({'trigger: ' + args.trigger if args.trigger else 'power-cycle the board now'})")
-    if args.trigger:
-        subprocess.Popen(args.trigger, shell=True)
+    how = "trigger: " + args.trigger if args.trigger else "power-cycle the board now"
+    if args.port and any(c in args.port for c in "*?["):
+        before = set(glob.glob(args.port))
+        print(f"[uboot-console] waiting for a new {args.port} ({how})")
+        if args.trigger:
+            subprocess.Popen(args.trigger, shell=True)
+        port = wait_new_port(args.port, before, args.timeout)
+        if not port:
+            sys.exit(f"[uboot-console] no new port matching {args.port}")
+        fd = open_port(port, flush=False)
+        print(f"[uboot-console] {port}: waiting for the autoboot prompt")
+    else:
+        port = args.port or (sorted(glob.glob("/dev/cu.usbserial-*")) or [None])[0]
+        if not port:
+            sys.exit("no serial port found (plug in the console cable or pass --port)")
+        fd = open_port(port)
+        print(f"[uboot-console] {port}: waiting for the autoboot prompt ({how})")
+        if args.trigger:
+            subprocess.Popen(args.trigger, shell=True)
 
     _, m = read_until(fd, AUTOBOOT, args.timeout)
     if not m:
