@@ -127,7 +127,7 @@ watchdog come along unchanged. Root `model = "EcoFleet EF-MX8MM Cortex Controlle
 | `snvs_rtc` | disabled, so the MCP7940N is `rtc0` (as the dev kit does with its DS1337) |
 | `sai3`, WM8904 sound card | **disabled**: R1 uses the SAI3 pads as GPIOs (`ETH_dReset`, `ETH_INT`, `RTC_WKUP`, `EZURIO_WAKE`); left on, SAI3 would own the Ethernet PHY's reset pin |
 | `panel_lvds` | Riverdi 800×480 timings and data mapping from its datasheet; until then the dev kit's 800×480 timings; `backlight` = `pwm-backlight` on PWM1 (GPIO1_IO01), 1 kHz to start |
-| `fec1` | `rgmii-id`, the SoM's `ethphy0` node and `phy-supply` replaced by a KSZ9031 node: reset GPIO4_IO31, IRQ GPIO5_IO02, MDIO address from the bench |
+| `fec1` | `rgmii-id`, the SoM's `ethphy0` node and `phy-supply` removed, PHY reset GPIO4_IO31, MDIO scan. **Off on R1** (decided 2026-10-14) until finding 3 is fixed: `status = "disabled"` and the KSZ9031 held in reset by a GPIO hog, so it never drives 3.3 V RGMII into the 1.8 V SoC pads |
 | `usbotg1` | `dr_mode = "peripheral"` (USB-C is a device port) |
 | `usbotg2` | host; USB2422 reset (GPIO4_IO26) hogged released |
 | `usdhc2` | carrier eMMC: 4-bit, `non-removable`, `no-1-8-v` (VCCQ is 3.3 V), no card-detect, no VSD regulator; reset on `SD2_RESET_B` |
@@ -243,7 +243,7 @@ SoM to R1. On R1 it detects R1, boots the R1 DTB and rejoins WiFi.
 | 4 | RS-485 | G0B1 on the RJ45 harness: telemetry in `latest.json`, a write command works |
 | 5 | RTC | time kept across a power-off on the coin cell |
 | 6 | EEPROM | read/write through the at24 nvmem file |
-| 7 | Ethernet | link + DHCP (may fail per finding 3; report) |
+| 7 | Ethernet | off on R1 until finding 3 is fixed: `gpioinfo` shows ETH_dReset held low, no `eth0` |
 | 8 | USB | both USB-A ports through the hub; a USB-C UDC is listed |
 | 9 | Storage | carrier eMMC as `mmcblk1`; NVMe if fitted |
 | 10 | On/off | press: power off / on; hold 5 s: force off |

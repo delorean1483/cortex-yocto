@@ -167,7 +167,13 @@
 
 /* KSZ9031 on the carrier over RGMII. No PHY node: the driver resets the PHY
  * through ETH_dReset and takes the first PHY it finds on MDIO, so the strap
- * address does not need to be known. */
+ * address does not need to be known.
+ *
+ * OFF on R1: NVCC_ENET is 1.8 V but the PHY's DVDDH is 3.3 V (R1 hardware
+ * finding 3), so its RGMII outputs would drive 3.3 V into 1.8 V SoC pads. The
+ * PHY is held in reset instead (eth-rst-hog), where its strap pins are inputs.
+ * To turn Ethernet on once the hardware is fixed: status = "okay" here and
+ * delete eth-rst-hog (phy-reset-gpios needs that line). */
 &fec1 {
 	phy-mode = "rgmii-id";
 	/delete-property/ phy-handle;
@@ -175,6 +181,7 @@
 	phy-reset-gpios = <&gpio4 31 GPIO_ACTIVE_LOW>;
 	phy-reset-duration = <10>;
 	phy-reset-post-delay = <1>;
+	status = "disabled";
 	/delete-node/ mdio;
 };
 
@@ -297,6 +304,14 @@
 		gpios = <26 GPIO_ACTIVE_HIGH>;
 		output-high;
 		line-name = "USB_HUB_dRST";
+	};
+
+	/* KSZ9031 held in reset while Ethernet is off on R1 (see &fec1) */
+	eth-rst-hog {
+		gpio-hog;
+		gpios = <31 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "ETH_dReset";
 	};
 };
 

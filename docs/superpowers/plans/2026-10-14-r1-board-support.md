@@ -1421,7 +1421,7 @@ Expected: `check-r1-dts.sh` 27 `ok` + `PASS`; on R1 the other slot is now active
 
 On the panel: tap the four corners of the UI (e.g. rail items top and bottom, a right-side control). If taps land mirrored, add `touchscreen-inverted-x;` and/or `touchscreen-inverted-y;` (or `touchscreen-swapped-x-y;`) to the touch node, re-run Step 6, and repeat until taps land where touched.
 
-- [ ] **Step 7: Ethernet (record only)**
+- [ ] **Step 7: Ethernet (record only)** — superseded 2026-10-14: Ethernet is off on R1 until hardware finding 3 is fixed (fec1 disabled, PHY held in reset); skip this step and check instead that `gpioinfo` shows ETH_dReset as an output held low and that there is no `eth0`.
 
 Plug a cable from R1's RJ45 to the bench switch.
 ```bash
@@ -1478,7 +1478,7 @@ Record pass/fail and evidence for each in `docs/bench/2026-10-14-r1-bringup.md`.
 4. **RS-485** (APU on the RJ45 harness) — `ssh $R1 'readlink -f /dev/ecofleet-rs485; grep -o "\"apu_fw_version\":[0-9]*" /var/lib/ecofleet/latest.json'` → `/dev/ttymxc1` and the APU's version (10106 on the bench APU). Change the climate setpoint on the panel by 1 °F; within 10 s `grep -o '"clmt_setpoint_f":[0-9.]*' /var/lib/ecofleet/latest.json` shows the new value; set it back. After ≥10 min of polling: `ssh $R1 'journalctl -u gobi-agent --since "-10 min" | grep -c -i -E "timed out|timeout|crc|invalid"'` → `0` (Review Focus 3).
 5. **RTC** — `ssh $R1 'timedatectl | grep synchronized; hwclock -w; hwclock -r; date'`; `poweroff`, remove power 2 min (coin cell fitted), power on; `ssh $R1 'dmesg | grep -i "setting system clock"'` shows the right date/time (±2 s).
 6. **EEPROM** — `ssh $R1 'E=/sys/bus/i2c/devices/2-0050/eeprom; printf R1TEST | dd of=$E bs=1 seek=500 conv=notrunc 2>/dev/null; dd if=$E bs=1 skip=500 count=6 2>/dev/null; echo; printf "\377\377\377\377\377\377" | dd of=$E bs=1 seek=500 conv=notrunc 2>/dev/null'` → `R1TEST`.
-7. **Ethernet** — result from Task 8 Step 7 (and repeat it now).
+7. **Ethernet** — off on R1 until hardware finding 3 is fixed: `ssh $R1 'gpioinfo | grep ETH_dReset; ls /sys/class/net'` → ETH_dReset output (hog), no `eth0`.
 8. **USB** — a USB stick in each USB-A port: `ssh $R1 'lsusb -t'` shows the hub and the stick; `ssh $R1 'ls /sys/class/udc'` lists a UDC (USB-C device controller).
 9. **Storage** — `ssh $R1 'cat /sys/block/mmcblk1/device/name /sys/block/mmcblk1/size; grep -c mmcblk1 /proc/mounts; lspci; ls /dev/nvme* 2>/dev/null'` → carrier eMMC name and ~4 GB in 512-byte sectors; `0` mounts (Review Focus 4); NVMe listed if a drive is fitted.
 10. **On/off** — short press while on: clean shutdown; short press while off: boots; hold 5 s while on: hard off.

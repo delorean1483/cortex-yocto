@@ -83,6 +83,12 @@ F=$(sym fec1 || true)
 has "$F" phy-handle && bad "fec1 still has the SoM phy-handle" || ok "fec1 scans MDIO"
 [ "$(fdtget -t u "$DTB" "$F" phy-reset-gpios 2>/dev/null | cut -d' ' -f2-)" = "31 1" ] \
     && ok "PHY reset = GPIO4_IO31 active low" || bad "fec1 phy-reset-gpios"
+# Until the R1 Ethernet I/O-voltage finding is settled (KSZ9031 DVDDH 3.3 V vs
+# NVCC_ENET 1.8 V), Ethernet stays off on R1 and the PHY is held in reset, so it
+# never drives 3.3 V RGMII into the SoC. The fec1 setup above is kept for when
+# it's turned back on (then drop the hog: phy-reset-gpios uses the same line).
+[ "$(prop "$F" status)" = disabled ] && ok "fec1 off on R1 (Ethernet I/O voltage finding)" || bad "fec1 must stay disabled until the I/O voltage is fixed"
+has "$(sym gpio4 || true)/eth-rst-hog" output-low && ok "KSZ9031 held in reset (ETH_dReset low)" || bad "eth-rst-hog (GPIO4_IO31 output-low)"
 
 [ "$(prop "$(sym usbotg1)" dr_mode)" = peripheral ] && ok "USB-C device only" || bad "usbotg1 dr_mode"
 [ "$(prop "$(sym usbotg2)" dr_mode)" = host ] && ok "USB hub port host" || bad "usbotg2 dr_mode"
