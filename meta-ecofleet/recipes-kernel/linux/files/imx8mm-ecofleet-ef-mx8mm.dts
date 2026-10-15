@@ -84,7 +84,7 @@
 
 /* ------------------------------------------------------------------ I2C */
 
-/* Panel touch controller (added during bring-up once its address is known) */
+/* Panel touch controller */
 &i2c2 {
 	clock-frequency = <100000>;
 	pinctrl-names = "default", "gpio";
@@ -93,6 +93,15 @@
 	scl-gpios = <&gpio5 16 GPIO_ACTIVE_HIGH>;
 	sda-gpios = <&gpio5 17 GPIO_ACTIVE_HIGH>;
 	status = "okay";
+
+	/* ILI2132A on the Riverdi's 10-pin touch connector (SOK5). Its reset is
+	 * LCD_dRST, shared with the panel and held by lcd-rst-hog. */
+	touchscreen@41 {
+		compatible = "ilitek,ili2132";
+		reg = <0x41>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <10 IRQ_TYPE_LEVEL_LOW>;
+	};
 };
 
 &i2c3 {
@@ -129,26 +138,28 @@
 
 /* -------------------------------------------------------------- Display */
 
-/* Riverdi 5" 800x480 LVDS (SM-RVT50HQLNWC00-B) behind the SoM's SN65DSI84.
- * Timings start from the dev kit's 800x480 panel; replace with the Riverdi
- * datasheet values during bring-up. */
+/* Riverdi 5" 800x480 LVDS (RVT50HQLNWC00-B V2.0A, datasheet rev 1.0) behind
+ * the SoM's SN65DSI84. R1 pulls SELB (pin 28) high and wires all 4 lanes:
+ * 8-bit VESA. The panel takes 23-27 MHz and the bridge driver rejects modes
+ * under 25 MHz; 26 MHz is what the LCDIF makes almost exactly (video PLL
+ * 1039.5 MHz / 40). Porches and syncs are the datasheet's typical values. */
 &panel_lvds {
 	compatible = "panel-lvds";
-	data-mapping = "jeida-24";
+	data-mapping = "vesa-24";
 	width-mm = <108>;
 	height-mm = <65>;
 	backlight = <&backlight>;
 
 	panel-timing {
-		clock-frequency = <33000000>;
+		clock-frequency = <26000000>;
 		hactive = <800>;
 		vactive = <480>;
-		hback-porch = <30>;
-		hfront-porch = <30>;
-		vback-porch = <29>;
-		vfront-porch = <13>;
-		hsync-len = <48>;
-		vsync-len = <3>;
+		hback-porch = <8>;
+		hfront-porch = <8>;
+		vback-porch = <8>;
+		vfront-porch = <8>;
+		hsync-len = <4>;
+		vsync-len = <4>;
 		hsync-active = <0>;
 		vsync-active = <0>;
 		de-active = <1>;
@@ -265,6 +276,23 @@
 		output-high;
 		line-name = "LCD_STB";
 	};
+
+	/* Scan direction: left to right, top to bottom (the datasheet's normal
+	 * picture, connector at the bottom). Flip here if the panel is mounted
+	 * rotated, and invert the touch axes to match. */
+	lcd-flip-lr-hog {
+		gpio-hog;
+		gpios = <6 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "LCD_FLIP_LR";
+	};
+
+	lcd-flip-ud-hog {
+		gpio-hog;
+		gpios = <8 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "LCD_FLIP_UD";
+	};
 };
 
 &gpio2 {
@@ -331,8 +359,8 @@
 		fsl,pins = <
 			MX8MM_IOMUXC_GPIO1_IO03_GPIO1_IO3		0x16	/* LCD_dRST */
 			MX8MM_IOMUXC_GPIO1_IO05_GPIO1_IO5		0x16	/* LCD_STB */
-			MX8MM_IOMUXC_GPIO1_IO06_GPIO1_IO6		0x100	/* LCD_FLIP_LR */
-			MX8MM_IOMUXC_GPIO1_IO08_GPIO1_IO8		0x100	/* LCD_FLIP_UD */
+			MX8MM_IOMUXC_GPIO1_IO06_GPIO1_IO6		0x16	/* LCD_FLIP_LR */
+			MX8MM_IOMUXC_GPIO1_IO08_GPIO1_IO8		0x16	/* LCD_FLIP_UD */
 			MX8MM_IOMUXC_GPIO1_IO10_GPIO1_IO10		0x1c0	/* I2C_IRQ */
 			MX8MM_IOMUXC_GPIO1_IO11_GPIO1_IO11		0x100	/* BT_CTS */
 			MX8MM_IOMUXC_GPIO1_IO12_GPIO1_IO12		0x100	/* BT_RTS */

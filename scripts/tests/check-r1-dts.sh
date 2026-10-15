@@ -99,6 +99,41 @@ G4=$(sym gpio4 || true)
 has "$G4/bt-rst-hog" output-low && ok "Ezurio held in reset" || bad "bt-rst-hog"
 has "$G4/usb-hub-rst-hog" output-high && ok "USB hub out of reset" || bad "usb-hub-rst-hog"
 
+# Riverdi RVT50HQLNWC00-B V2.0A (datasheet rev 1.0, 2026-07-29). R1 pulls SELB
+# (pin 28) high and wires all 4 LVDS lanes: 8-bit VESA (SPWG) mapping.
+P=$(sym panel_lvds || true)
+[ "$(prop "$P" data-mapping)" = vesa-24 ] && ok "panel 8-bit VESA (SELB high)" || bad "panel data-mapping: $(prop "$P" data-mapping)"
+t() { fdtget -t u "$DTB" "$P/panel-timing" "$1" 2>/dev/null || echo 0; }
+clk=$(t clock-frequency)
+# Panel takes 23-27 MHz; the SN65DSI84 driver rejects modes below 25 MHz.
+[ "$clk" -ge 25000000 ] && [ "$clk" -le 27000000 ] && ok "pixel clock $clk in 25-27 MHz" || bad "pixel clock $clk outside 25-27 MHz"
+# LCDIF pixel clock = video PLL (1039.5 MHz, fixed) / integer: keep the LCDIF
+# and DSI clocks within 0.1 % of each other.
+div=$(( (1039500000 + clk / 2) / clk ))
+err=$(( 1039500000 / div - clk )); err=${err#-}
+[ $(( err * 1000 )) -le "$clk" ] && ok "LCDIF can make it (1039.5 MHz / $div)" || bad "LCDIF makes $((1039500000 / div)) Hz for $clk"
+inr() { [ "$2" -ge "$3" ] && [ "$2" -le "$4" ] && ok "$1 = $2 ($3-$4)" || bad "$1 = $2 outside $3-$4"; }
+[ "$(t hactive)" = 800 ] && [ "$(t vactive)" = 480 ] && ok "800x480" || bad "active area $(t hactive)x$(t vactive)"
+inr hfront-porch "$(t hfront-porch)" 4 48
+inr hback-porch "$(t hback-porch)" 4 48
+inr hsync-len "$(t hsync-len)" 2 8
+inr vfront-porch "$(t vfront-porch)" 4 12
+inr vback-porch "$(t vback-porch)" 4 12
+inr vsync-len "$(t vsync-len)" 2 8
+inr "line period" $(( $(t hactive) + $(t hfront-porch) + $(t hback-porch) + $(t hsync-len) )) 808 896
+inr "frame period" $(( $(t vactive) + $(t vfront-porch) + $(t vback-porch) + $(t vsync-len) )) 488 504
+# Scan direction: L/R high = left to right, U/D low = top to bottom.
+G1=$(sym gpio1 || true)
+has "$G1/lcd-flip-lr-hog" output-high && ok "panel scans left to right" || bad "lcd-flip-lr-hog (GPIO1_IO6 output-high)"
+has "$G1/lcd-flip-ud-hog" output-low && ok "panel scans top to bottom" || bad "lcd-flip-ud-hog (GPIO1_IO8 output-low)"
+# ILI2132A touch on I2C2 @0x41, INT active low on GPIO1_IO10. Its reset is the
+# panel's LCD_dRST, held by a hog, so the touch node must not claim it.
+T=$(sym i2c2 || true)/touchscreen@41
+[ "$(prop "$T" compatible)" = ilitek,ili2132 ] && ok "ILI2132A touch @0x41" || bad "touchscreen@41 compatible: $(prop "$T" compatible)"
+[ "$(prop "$T" interrupt-parent)" = "$(fdtget "$DTB" "$G1" phandle 2>/dev/null)" ] \
+    && [ "$(prop "$T" interrupts)" = "10 8" ] && ok "touch IRQ GPIO1_IO10 level low" || bad "touch interrupts: $(prop "$T" interrupts)"
+has "$T" reset-gpios && bad "touch must not own LCD_dRST (shared with the panel)" || ok "touch leaves LCD_dRST to the hog"
+
 grep -q "file://$NAME.dts" "$BBAPPEND" && ok "kernel bbappend ships $NAME.dts" || bad "bbappend SRC_URI"
 grep -q "freescale/$NAME.dtb" "$BBAPPEND" && ok "kernel bbappend builds $NAME.dtb" || bad "bbappend KERNEL_DEVICETREE"
 
