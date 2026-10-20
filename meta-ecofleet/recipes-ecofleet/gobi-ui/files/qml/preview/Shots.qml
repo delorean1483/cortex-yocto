@@ -119,7 +119,8 @@ Item {
         ["12d-cloud-nowifi", function() { wifi.state = "idle"; wifi.ssid = ""; wifi.ip = ""; root.sub(cloudC) }],
         ["13-screenlock",    function() { wifi.state = "connected"; wifi.ssid = "EcoFleet-Staff"; wifi.ip = "192.168.0.206"; root.sub(lockC) }],
         ["14-maintenance",   function() { root.sub(maintC) }],
-        ["14b-swupdate-uptodate", function() { var p = root.sub(swupdC); p.checking = false }],
+        ["14e-maintenance-update", function() { telemetry.otaAvailable = "1.2.74"; root.poke(); root.sub(maintC) }],
+        ["14b-swupdate-uptodate", function() { telemetry.otaAvailable = ""; root.poke(); var p = root.sub(swupdC); p.checking = false }],
         ["14c-swupdate-available", function() { telemetry.otaLatest = "1.2.74"; telemetry.otaAvailable = "1.2.74"
                                                  root.poke(); var p = root.sub(swupdC); p.checking = false }],
         ["14d-swupdate-failed", function() { telemetry.otaAvailable = ""; telemetry.otaCheckState = "failed: network"
