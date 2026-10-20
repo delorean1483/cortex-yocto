@@ -97,6 +97,7 @@ Item {
                                           telemetry.heaterState = "off"; telemetry.heaterFanRpm = 0
                                           telemetry.heaterExchanger = 0; telemetry.heaterExt = false
                                           telemetry.heaterPhase = "off"; root.poke(); shell.selectRail(1) }],
+        ["03b-mode",         function() { telemetry.mode = "climate"; shell.selectRail(0); shell.openMode() }],
         ["04-menu",          function() { shell.selectRail(2) }],
         ["05-diagnostics",   function() { root.sub(diagC) }],
         ["06-usermaint",     function() { root.sub(usermaintC) }],
