@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
+const authState = vi.hoisted(() => ({ canPreview: false }))
+
 vi.mock('../contexts/AuthContext.jsx', () => ({
-  useAuth: () => ({ user: { email: 'tech@ecofleet.io' }, role: 'admin', setRole: vi.fn(), logout: vi.fn() }),
+  useAuth: () => ({ user: { email: 'tech@ecofleet.io' }, role: 'admin', realRole: authState.canPreview ? 'admin' : 'fm', canPreview: authState.canPreview, setRole: vi.fn(), logout: vi.fn() }),
   ROLE_CFG: { admin: { lbl: 'EcoFleet Admin', badge: 'rb-admin', nav: ['/', '/map', '/alerts'] } },
 }))
 
@@ -28,13 +30,33 @@ function renderAt(width, path = '/') {
 const dialog = () => screen.queryByRole('dialog', { name: 'Navigation' })
 
 describe('Layout', () => {
-  beforeEach(() => { window.innerWidth = 1440 })
+  beforeEach(() => { window.innerWidth = 1440; authState.canPreview = false })
 
   it('desktop: full sidebar with text labels, no menu button', () => {
     renderAt(1440)
     expect(screen.getByRole('button', { name: 'Dashboard' }).textContent).toContain('Dashboard')
     expect(screen.getByText('tech@ecofleet.io')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
+    expect(document.querySelector('.rbadge')).toBeNull()
+  })
+
+  it('preview select is hidden unless canPreview', () => {
+    renderAt(1440)
+    expect(screen.queryByRole('combobox', { name: /Preview as/ })).toBeNull()
+  })
+
+  it('preview select shows for canPreview', () => {
+    authState.canPreview = true
+    renderAt(1440)
+    expect(screen.getByRole('combobox', { name: /Preview as/ })).toBeTruthy()
+  })
+
+  it('unit page shows a Dashboard breadcrumb and the unit id', () => {
+    renderAt(1440, '/units/APU-000123')
+    const link = screen.getByRole('link', { name: 'Dashboard' })
+    expect(link.getAttribute('href')).toBe('/')
+    expect(screen.getByText('APU-000123')).toBeTruthy()
   })
 
   it('tablet: icon rail — buttons keep accessible names, labels and email hidden', () => {

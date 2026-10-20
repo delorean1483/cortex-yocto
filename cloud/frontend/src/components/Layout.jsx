@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import {
   IconLayoutDashboard, IconMap2,
   IconTool, IconBell, IconChartBar,
   IconHistory, IconUsers, IconSettings, IconLogout,
-  IconSun, IconMoon, IconMenu2, IconX, IconLayoutSidebarLeftExpand,
+  IconSun, IconMoon, IconChevronRight, IconMenu2, IconX, IconLayoutSidebarLeftExpand,
 } from '@tabler/icons-react'
 import { useAuth, ROLE_CFG } from '../contexts/AuthContext.jsx'
 import { currentTheme, nextTheme, applyTheme } from '../theme.js'
@@ -26,19 +26,14 @@ const SECTIONS = ['Overview', 'Operations', 'Insights', 'Admin']
 
 // Brand, page links and sign-out. `compact` is the 64px icon rail: labels move
 // into aria-label/title so every button keeps its accessible name.
-function SidebarContent({ compact, theme, email, allowed, pathname, onNav, onLogout, firstRef }) {
+function SidebarContent({ compact, theme, email, role, allowed, pathname, onNav, onLogout, firstRef }) {
   let first = true
   return (
     <>
       <div style={{ padding: compact ? '14px 0 10px' : '18px 18px 14px', borderBottom: '0.5px solid var(--color-border-tertiary)', flexShrink: 0, textAlign: compact ? 'center' : 'left' }}>
         {compact
           ? <img src="/favicon.svg" alt="EcoFleet" style={{ width: 36, height: 36 }} />
-          : <>
-              <BrandLogo theme={theme} height={48} />
-              <div style={{ fontSize: 13, color: 'var(--color-text-tertiary)', marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {email}
-              </div>
-            </>}
+          : <BrandLogo theme={theme} height={40} />}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 12 }}>
@@ -63,8 +58,8 @@ function SidebarContent({ compact, theme, email, allowed, pathname, onNav, onLog
                       display: 'flex', alignItems: 'center', justifyContent: compact ? 'center' : 'flex-start', gap: 12,
                       minHeight: compact ? 44 : 40, padding: compact ? 0 : '0 12px', borderRadius: 8, margin: '1px 8px',
                       cursor: 'pointer', fontSize: 15, border: 'none', width: 'calc(100% - 16px)', textAlign: 'left',
-                      background: active ? 'var(--color-background-primary)' : 'none',
-                      color: active ? 'var(--accent)' : 'var(--color-text-secondary)',
+                      background: active ? 'var(--accent-soft)' : 'none',
+                      color: active ? 'var(--accent-text)' : 'var(--color-text-secondary)',
                       fontWeight: active ? 600 : 400,
                       transition: 'background .1s, color .1s',
                     }}>
@@ -78,17 +73,28 @@ function SidebarContent({ compact, theme, email, allowed, pathname, onNav, onLog
         })}
       </div>
 
-      <button onClick={onLogout} aria-label={compact ? 'Sign out' : undefined} title={compact ? 'Sign out' : undefined}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: compact ? 'center' : 'flex-start', minHeight: 44, padding: compact ? 0 : '0 20px', borderTop: '0.5px solid var(--color-border-tertiary)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, gap: 12, color: 'var(--color-text-tertiary)', width: '100%', flexShrink: 0 }}>
-        <IconLogout size={19} aria-hidden="true" />
-        {!compact && 'Sign out'}
-      </button>
+      <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'center', justifyContent: compact ? 'center' : 'flex-start', gap: compact ? 8 : 10, padding: compact ? '10px 0' : '12px 14px', borderTop: '0.5px solid var(--color-border-tertiary)', flexShrink: 0 }}>
+        <div aria-hidden="true" className={ROLE_CFG[role]?.badge}
+          style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
+          {(email || '?').slice(0, 2).toUpperCase()}
+        </div>
+        {!compact && (
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 13, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</span>
+            <span className={ROLE_CFG[role]?.badge} style={{ fontSize: 12, fontWeight: 600, background: 'none' }}>{ROLE_CFG[role]?.lbl}</span>
+          </div>
+        )}
+        <button onClick={onLogout} aria-label="Sign out" title="Sign out"
+          style={{ width: 36, height: 36, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', borderRadius: 8, cursor: 'pointer', color: 'var(--color-text-tertiary)' }}>
+          <IconLogout size={19} aria-hidden="true" />
+        </button>
+      </div>
     </>
   )
 }
 
 export default function Layout({ children }) {
-  const { user, role, setRole, logout } = useAuth()
+  const { user, role, setRole, logout, canPreview } = useAuth()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const cfg = ROLE_CFG[role]
@@ -123,12 +129,13 @@ export default function Layout({ children }) {
   }
 
   const sidebar = (compact, withFirstRef) => (
-    <SidebarContent compact={compact} theme={theme} email={user?.email} allowed={cfg.nav}
+    <SidebarContent compact={compact} theme={theme} email={user?.email} role={role} allowed={cfg.nav}
       pathname={pathname} onNav={handleNav} onLogout={logout} firstRef={withFirstRef ? firstLinkRef : undefined} />
   )
 
-  const title = pathname.startsWith('/units/')
-    ? 'Unit'
+  const unitId = pathname.startsWith('/units/') ? decodeURIComponent(pathname.slice('/units/'.length).split('/')[0]) : null
+  const title = unitId
+    ? null
     : NAV.find((n) => n.id === pathname)?.label ?? NAV.find((n) => pathname.startsWith(n.id) && n.id !== '/')?.label ?? 'Dashboard'
 
   return (
@@ -174,7 +181,13 @@ export default function Layout({ children }) {
               </button>
             )}
             <h1 style={{ margin: 0, fontSize: phone ? 18 : 20, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {title}
+              {unitId
+                ? <>
+                    <Link to="/" style={{ fontWeight: 500, color: 'var(--color-text-secondary)', textDecoration: 'none' }}>Dashboard</Link>
+                    <IconChevronRight size={18} aria-hidden="true" style={{ verticalAlign: 'middle', margin: '0 6px', color: 'var(--color-text-tertiary)' }} />
+                    <span>{unitId}</span>
+                  </>
+                : title}
             </h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
@@ -187,19 +200,22 @@ export default function Layout({ children }) {
             >
               {theme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
             </button>
-            {!phone && <span className={`rbadge ${cfg.badge}`}>{cfg.lbl}</span>}
-            <select
-              value={role}
-              onChange={e => setRole(e.target.value)}
-              aria-label="View as role"
-              style={{ fontSize: 14, minHeight: 36, maxWidth: phone ? 150 : undefined, border: '0.5px solid var(--color-border-secondary)', borderRadius: 8, padding: '0 10px', background: 'var(--color-background-secondary)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
-              title="Switch role (demo)"
-            >
-              <option value="admin">View as: Admin</option>
-              <option value="fm">View as: Fleet Manager</option>
-              <option value="maint">View as: Maintenance</option>
-              <option value="eu">View as: End User</option>
-            </select>
+            {canPreview && (
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: 'var(--color-text-secondary)' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', border: '1px solid var(--color-border-secondary)', borderRadius: 4, padding: '1px 5px' }}>DEMO</span>
+                <select
+                  value={role}
+                  onChange={e => setRole(e.target.value)}
+                  aria-label="Preview as role"
+                  style={{ fontSize: 14, minHeight: 36, maxWidth: phone ? 150 : undefined, border: 'none', background: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
+                >
+                  <option value="admin">Preview as Admin ▾</option>
+                  <option value="fm">Preview as Fleet Manager ▾</option>
+                  <option value="maint">Preview as Maintenance ▾</option>
+                  <option value="eu">Preview as End User ▾</option>
+                </select>
+              </label>
+            )}
           </div>
         </div>
 
