@@ -1,0 +1,41 @@
+From 1c4112ecf0ae3735ba6418abc0438e11159e7442 Mon Sep 17 00:00:00 2001
+From: Stephan Gerhold <stephan.gerhold@linaro.org>
+Date: Mon, 7 Apr 2025 16:59:36 +0200
+Subject: [PATCH 2/4] usb: gadget: f_acm: Allow restarting ACM console after
+ stopping it
+
+When using IOMUX, the "usbacm" console can be added/removed dynamically
+from the stdout/stderr/stdin environment variables to allow temporarily
+starting other USB gadgets (e.g. Fastboot).
+
+However, right now acm_stdio_stop() does not completely undo
+acm_stdio_start(): The USB gadget is unregistered, but as long as dev->priv
+stays set acm_stdio_start() will never register the USB gadget again.
+
+Clear dev->priv after we detach to make sure a start operation after a stop
+operation registers the gadget again.
+
+Fixes: fc2b399ac03b ("usb: gadget: Add CDC ACM function")
+Signed-off-by: Stephan Gerhold <stephan.gerhold@linaro.org>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+Link: https://lore.kernel.org/r/20250407-acm-fixes-v1-2-e3dcb592d6d6@linaro.org
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+---
+ drivers/usb/gadget/f_acm.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/usb/gadget/f_acm.c b/drivers/usb/gadget/f_acm.c
+index 78e25d6c..4d106ec4 100644
+--- a/drivers/usb/gadget/f_acm.c
++++ b/drivers/usb/gadget/f_acm.c
+@@ -655,6 +655,7 @@ static int acm_stdio_stop(struct stdio_dev *dev)
+ {
+ 	g_dnl_unregister();
+ 	g_dnl_clear_detach();
++	dev->priv = NULL;
+ 
+ 	return 0;
+ }
+-- 
+2.50.1 (Apple Git-155)
+
