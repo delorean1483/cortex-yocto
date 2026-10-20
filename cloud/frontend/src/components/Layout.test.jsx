@@ -6,7 +6,7 @@ const authState = vi.hoisted(() => ({ canPreview: false }))
 
 vi.mock('../contexts/AuthContext.jsx', () => ({
   useAuth: () => ({ user: { email: 'tech@ecofleet.io' }, role: 'admin', realRole: authState.canPreview ? 'admin' : 'fm', canPreview: authState.canPreview, setRole: vi.fn(), logout: vi.fn() }),
-  ROLE_CFG: { admin: { lbl: 'EcoFleet Admin', badge: 'rb-admin', nav: ['/', '/map', '/alerts'] } },
+  ROLE_CFG: { admin: { lbl: 'EcoFleet Admin', badge: 'rb-admin', nav: ['/', '/map', '/alerts', '/config'] } },
 }))
 
 import Layout from './Layout.jsx'
@@ -45,6 +45,12 @@ describe('Layout', () => {
     renderAt(1440, '/units/%E0%A4%A')
     expect(screen.getByRole('link', { name: 'Dashboard' }).getAttribute('href')).toBe('/')
     expect(screen.getByText('%E0%A4%A')).toBeTruthy()
+  })
+
+  it('config nav entry and topbar title are labelled Unit settings', () => {
+    renderAt(1440, '/config')
+    expect(screen.getByRole('button', { name: 'Unit settings' })).toBeTruthy()
+    expect(screen.queryByText('System config')).toBeNull()
   })
 
   it('preview select is hidden unless canPreview', () => {

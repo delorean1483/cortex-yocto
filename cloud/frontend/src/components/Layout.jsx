@@ -19,7 +19,7 @@ const NAV = [
   { id: '/reports',     label: 'Reports',          Icon: IconChartBar,               section: 'Insights' },
   { id: '/history',     label: 'APU history',      Icon: IconHistory,                section: 'Insights' },
   { id: '/users',       label: 'Users',            Icon: IconUsers,                  section: 'Admin' },
-  { id: '/config',      label: 'System config',    Icon: IconSettings,               section: 'Admin' },
+  { id: '/config',      label: 'Unit settings',     Icon: IconSettings,               section: 'Admin' },
 ]
 
 const SECTIONS = ['Overview', 'Operations', 'Insights', 'Admin']

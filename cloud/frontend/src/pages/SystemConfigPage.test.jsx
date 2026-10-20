@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
-const state = vi.hoisted(() => ({ role: 'admin', unit: 'TRUCK-001', shadow: null, mutate: null }))
+const state = vi.hoisted(() => ({ role: 'admin', unit: 'TRUCK-001', shadow: null, mutate: null, navigate: null }))
+
+vi.mock('react-router-dom', () => ({ useNavigate: () => state.navigate }))
 
 vi.mock('../contexts/AuthContext.jsx', () => ({
   useAuth: () => ({ role: state.role, selectedUnit: state.unit, setSelectedUnit: vi.fn() }),
@@ -20,6 +22,7 @@ describe('SystemConfigPage', () => {
     state.role = 'admin'
     state.unit = 'TRUCK-001'
     state.shadow = { reported: { poll_interval_s: 10, firmware_version: '1.2.57', ota_status: 'idle' } }
+    state.navigate = vi.fn()
     state.mutate = vi.fn((vars, opts) => opts?.onSuccess?.())
   })
 
@@ -38,7 +41,7 @@ describe('SystemConfigPage', () => {
     expect(state.mutate).not.toHaveBeenCalled()
     fireEvent.click(screen.getAllByRole('button', { name: 'Change interval' }).at(-1)) // dialog's confirm
     expect(state.mutate.mock.calls[0][0]).toEqual({ unit: 'TRUCK-001', config: { poll_interval_s: 15 } })
-    expect(screen.getByText(/Pending — waiting for the unit to confirm/)).toBeTruthy()
+    expect(screen.getByText('Pending').className).toContain('t-warn')
   })
 
   it('does not re-send the same interval while it is still pending', () => {
@@ -82,8 +85,24 @@ describe('SystemConfigPage', () => {
     state.shadow = { reported: { poll_interval_s: 10, firmware_version: '1.2.57' } }
     render(<SystemConfigPage />)
     expect(screen.getByRole('button', { name: 'Reboot unit' }).disabled).toBe(true)
-    expect(screen.getByText(/needs system image 1\.2\.62 or newer/)).toBeTruthy()
+    expect(screen.getByText('Needs system image 1.2.62 or newer. TRUCK-001 is on 1.2.57.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to Firmware' }))
+    expect(state.navigate).toHaveBeenCalledWith('/units/TRUCK-001?tab=firmware')
     expect(state.mutate).not.toHaveBeenCalled()
+  })
+
+  it('says settings apply to one unit and hints while the button is disabled', () => {
+    render(<SystemConfigPage />)
+    expect(screen.getByText('Settings apply to one unit at a time.')).toBeTruthy()
+    expect(screen.getByText('Pick a new value to enable')).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: '15 s' }))
+    expect(screen.queryByText('Pick a new value to enable')).toBeNull()
+  })
+
+  it('no go-to-firmware row when the image supports reboot', () => {
+    state.shadow = { reported: { poll_interval_s: 10, firmware_version: '1.2.62' } }
+    render(<SystemConfigPage />)
+    expect(screen.queryByRole('button', { name: 'Go to Firmware' })).toBeNull()
   })
 
   it('maint can change the interval but not reboot; eu can do neither', () => {
