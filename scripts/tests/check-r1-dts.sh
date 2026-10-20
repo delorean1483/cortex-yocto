@@ -89,6 +89,12 @@ has "$F" phy-handle && bad "fec1 still has the SoM phy-handle" || ok "fec1 scans
 # it's turned back on (then drop the hog: phy-reset-gpios uses the same line).
 [ "$(prop "$F" status)" = disabled ] && ok "fec1 off on R1 (Ethernet I/O voltage finding)" || bad "fec1 must stay disabled until the I/O voltage is fixed"
 has "$(sym gpio4 || true)/eth-rst-hog" output-low && ok "KSZ9031 held in reset (ETH_dReset low)" || bad "eth-rst-hog (GPIO4_IO31 output-low)"
+# The boot script's Ethernet opt-in (ecofleet_eth=1, a board reworked so the
+# I/O voltages match) edits these two nodes by path; a path that drifts from
+# the DTB would leave Ethernet silently off.
+BOOT=$REPO/meta-ecofleet/recipes-bsp/ecofleet-bootscript/files/ecofleet-boot.cmd
+grep -q -F "fdt set $F status okay" "$BOOT" && ok "boot script opt-in turns on $F" || bad "boot script opt-in does not name the FEC path $F"
+grep -q -F "fdt rm $(sym gpio4 || true)/eth-rst-hog" "$BOOT" && ok "boot script opt-in removes $(sym gpio4 || true)/eth-rst-hog" || bad "boot script opt-in does not name the eth-rst-hog path"
 
 [ "$(prop "$(sym usbotg1)" dr_mode)" = peripheral ] && ok "USB-C device only" || bad "usbotg1 dr_mode"
 [ "$(prop "$(sym usbotg2)" dr_mode)" = host ] && ok "USB hub port host" || bad "usbotg2 dr_mode"

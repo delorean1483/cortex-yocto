@@ -92,6 +92,19 @@ for try in 1 2; do
         if test "${ecofleet_board}" = "r1"; then
             if ext4load mmc ${devnum}:${_part} ${fdt_addr} /boot/imx8mm-ecofleet-ef-mx8mm.dtb; then
                 setenv fdt_ok 1
+                # Ethernet opt-in for a board reworked so the PHY's and the
+                # SoC's Ethernet I/O voltages match (finding 3: SOK1-31
+                # NVCC_ENET fed 3.3 V). Set with `fw_setenv ecofleet_eth 1`
+                # only after metering it: on an unreworked board the PHY would
+                # drive 3.3 V into the SoC's 1.8 V pads. Turns the FEC on and
+                # drops the reset hog so the FEC driver can release the PHY.
+                if test "${ecofleet_eth}" = "1"; then
+                    echo "==> EcoFleet: Ethernet on (ecofleet_eth=1)"
+                    fdt addr ${fdt_addr}
+                    fdt resize 1024
+                    fdt set /soc@0/bus@30800000/ethernet@30be0000 status okay
+                    fdt rm /soc@0/bus@30000000/gpio@30230000/eth-rst-hog
+                fi
             fi
         fi
         if test "${fdt_ok}" = "0"; then
