@@ -63,5 +63,9 @@ QtObject {
         if (controlStatus === "chillin") return "at target" + (sp ? " " + setpointF + "°" : "")
         return control(controlStatus).toLowerCase()
     }
+    // Status-dot hue for a control_status value (cooling blue, warming orange, at-target teal, ...).
+    function controlHue(s) { return s === "cooling" ? "#2F81F7" : (s === "warming_up" || s === "starting") ? "#F0883E"
+                             : s === "chillin" ? "#39B0C4" : s === "charging" ? Theme.ok
+                             : (s === "running" || s === "defrost") ? Theme.textDim : "transparent" }
     function title(s)          { if (!s) return "—"; var t = String(s).replace(/_/g, " "); return t.charAt(0).toUpperCase() + t.slice(1) }
 }

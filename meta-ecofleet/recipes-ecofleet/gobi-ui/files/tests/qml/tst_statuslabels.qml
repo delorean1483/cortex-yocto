@@ -32,6 +32,8 @@ TestCase {
                                 compare(StatusLabels.activeFor(1e12 - 20000, 1e12), "Active for under a minute") }
     function test_faultSnapshot() { compare(StatusLabels.faultSnapshot(ev()[0]), "At fault: Climate · Cooling · 2,440 rpm · 13.9 V · coolant 188°F")
                                     compare(StatusLabels.faultSnapshot(null), "") }
+    function test_controlHue() { verify(Qt.colorEqual(StatusLabels.controlHue("cooling"), "#2F81F7"))
+                                 verify(Qt.colorEqual(StatusLabels.controlHue("off"), "transparent")) }
     function test_battHealth() { compare(StatusLabels.battHealth(12.4).key, "healthy"); compare(StatusLabels.battHealth(12.39).key, "ok")
                                  compare(StatusLabels.battHealth(11.8).key, "ok"); compare(StatusLabels.battHealth(11.79).key, "low")
                                  compare(StatusLabels.battHealth(13.9).label, "Healthy") }
