@@ -80,13 +80,13 @@ export default function APUHistoryPage() {
         <div className="sec-hd">
           <span className="sec-title">
             {faults && events.length > 0
-              ? `Fault events \u00B7 ${events.length} in the ${rangeLabel(range).toLowerCase()}`
+              ? `Fault events · ${events.length} in the ${rangeLabel(range).toLowerCase()}`
               : 'Fault events'}
           </span>
-          <span className="sec-sub">{selectedUnit || '\u2014'} \u00B7 {rangeLabel(range)}</span>
+          <span className="sec-sub">{selectedUnit || '—'} · {rangeLabel(range)}</span>
         </div>
 
-        {error && <div className="notice" style={{ color: 'var(--err)' }}>\u26A0 {error}</div>}
+        {error && <div className="notice" style={{ color: 'var(--err)' }}>⚠ {error}</div>}
 
         {!faults && !error && (
           <>{[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 36, marginBottom: 5 }} />)}</>
@@ -136,11 +136,11 @@ export default function APUHistoryPage() {
               {tele.slice(0, 20).map((t, i) => (
                 <tr key={i}>
                   <td style={{ whiteSpace: 'nowrap' }}>{shortWhen(t.ts)}</td>
-                  <td className="num">{t.batt_v == null ? '\u2014' : `${t.batt_v.toFixed(2)} V`}</td>
-                  <td className="num">{t.rpm ?? '\u2014'}</td>
-                  <td className="num">{t.cabin_temp_f == null ? '\u2014' : `${t.cabin_temp_f.toFixed(0)}\u00B0F`}</td>
-                  <td className="num">{t.oil_ok == null ? '\u2014' : (t.oil_ok ? 'OK' : 'Low')}</td>
-                  <td className="num">{t.engine_hrs == null ? '\u2014' : `${t.engine_hrs.toFixed(0)} h`}</td>
+                  <td className="num">{t.batt_v == null ? '—' : `${t.batt_v.toFixed(2)} V`}</td>
+                  <td className="num">{t.rpm ?? '—'}</td>
+                  <td className="num">{t.cabin_temp_f == null ? '—' : `${t.cabin_temp_f.toFixed(0)}°F`}</td>
+                  <td className="num">{t.oil_ok == null ? '—' : (t.oil_ok ? 'OK' : 'Low')}</td>
+                  <td className="num">{t.engine_hrs == null ? '—' : `${t.engine_hrs.toFixed(0)} h`}</td>
                 </tr>
               ))}
             </tbody>

@@ -51,4 +51,8 @@ describe('APUHistoryPage', () => {
     expect(screen.getByText('Oct 20, 9:37 PM')).toBeTruthy()
     globalThis.__faults = []
   })
+  it('renders the subtitle with a real separator and range label', async () => {
+    render(<MemoryRouter><APUHistoryPage /></MemoryRouter>)
+    expect(await screen.findByText('TRUCK-001 · Last 24 h')).toBeTruthy()
+  })
 })

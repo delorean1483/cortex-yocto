@@ -338,7 +338,7 @@ export function rangeLabel(range) {
 
 // "Oct 20, 9:37 PM" for an epoch-ms timestamp.
 export function shortWhen(ts) {
-  if (ts == null) return '\u2014'
+  if (ts == null) return '—'
   return new Date(Number(ts)).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
@@ -348,5 +348,5 @@ export function faultStateView(f, info) {
   const state = f?.state
   if (state === 'cleared') return { label: 'Cleared', tone: 'ok' }
   if (state === 'active') return { label: 'Active', tone: info.tone }
-  return { label: state || '\u2014', tone: 'off' }
+  return { label: state || '—', tone: 'off' }
 }
