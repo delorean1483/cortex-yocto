@@ -80,7 +80,8 @@ Item {
                     width: 56; height: 40
                     Text { anchors.centerIn: parent; text: show.checked ? "Hide" : "Show"; color: Theme.accent
                         font.pixelSize: 15; font.weight: Font.DemiBold }
-                    MouseArea { anchors.fill: parent; onClicked: show.checked = !show.checked } } }
+                    MouseArea { anchors.fill: parent; anchors.topMargin: -4; anchors.bottomMargin: -4   // 48px tap area, inside the 52px field
+                        onClicked: show.checked = !show.checked } } }
             Rectangle { Layout.preferredWidth: 140; Layout.preferredHeight: 52; radius: 10
                 color: page.valid && !page.busy ? Theme.accent : Theme.surface2
                 Text { anchors.centerIn: parent; textFormat: Text.PlainText; text: page.busy ? "Connecting…" : "Connect"
