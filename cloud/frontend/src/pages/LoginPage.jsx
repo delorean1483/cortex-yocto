@@ -33,7 +33,7 @@ export default function LoginPage() {
       <div style={{ width: 400, maxWidth: 'calc(100vw - 32px)', background: 'var(--color-background-primary)', border: '1px solid var(--color-border-secondary)', borderRadius: 14, padding: '36px 36px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           <BrandLogo height={60} />
-          <div style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>Fleet management dashboard</div>
+          <div style={{ fontSize: 15, color: 'var(--color-text-secondary)' }}>Fleet management dashboard</div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -57,7 +57,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--err)', padding: '10px 12px', background: 'var(--err-soft)', borderRadius: 8 }}>
+            <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--err)', padding: '10px 12px', background: 'var(--err-soft)', borderRadius: 8 }}>
               <IconAlertCircle size={18} stroke={1.75} style={{ flexShrink: 0 }} />
               <span>{error}</span>
             </div>
