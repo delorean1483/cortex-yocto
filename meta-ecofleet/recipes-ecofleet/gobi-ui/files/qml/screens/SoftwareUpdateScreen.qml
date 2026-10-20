@@ -94,7 +94,7 @@ Item {
                         visible: page.available && !page.busy && !page.checking
                         label: "Install " + telemetry.otaAvailable
                         confirmLabel: "Tap again to install"
-                        tone: Theme.accent; filled: true; radius: 12; fontSize: 18
+                        tone: Theme.accent; filled: true; radius: 12; fontSize: 18; fontWeight: Font.Bold
                         Layout.fillWidth: true; Layout.preferredWidth: -1; Layout.preferredHeight: 56
                         onConfirmed: telemetry.installUpdate(telemetry.otaAvailable)
                     }

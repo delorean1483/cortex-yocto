@@ -13,6 +13,7 @@ Rectangle {
     property bool armed: false
     property bool filled: false        // solid tone fill when idle, text on accent
     property int fontSize: Theme.fsLabel + 1
+    property int fontWeight: Font.DemiBold
     signal confirmed()
 
     Layout.preferredWidth: armed ? 168 : 96
@@ -26,7 +27,7 @@ Rectangle {
 
     Text { anchors.centerIn: parent; text: cb.armed ? cb.confirmLabel : cb.label
         color: cb.filled ? Theme.textOnAccent : (cb.armed ? Theme.text : cb.tone)
-        font.pixelSize: cb.fontSize; font.weight: Font.DemiBold }
+        font.pixelSize: cb.fontSize; font.weight: cb.fontWeight }
 
     Timer { id: disarm; interval: cb.armMs; onTriggered: cb.armed = false }
     MouseArea { id: ma; anchors.fill: parent
