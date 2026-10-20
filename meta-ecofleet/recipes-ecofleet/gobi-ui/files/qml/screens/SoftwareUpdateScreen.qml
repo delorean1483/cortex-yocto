@@ -28,6 +28,9 @@ Item {
     }
     Component.onCompleted: check()
 
+    property double now: Date.now()
+    Timer { interval: 30000; running: true; repeat: true; onTriggered: page.now = Date.now() }
+    onVisibleChanged: if (visible) now = Date.now()
     readonly property bool busy: telemetry.updateKind === "busy"
     readonly property bool available: telemetry.otaAvailable !== ""
 
@@ -60,45 +63,58 @@ Item {
             onBack: if (page.StackView.view) page.StackView.view.pop() }
 
         Rectangle {
-            Layout.fillWidth: true; Layout.preferredHeight: 150
+            Layout.fillWidth: true; Layout.preferredHeight: cardCol.implicitHeight + 40
             radius: Theme.radius; color: Theme.surface
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: Theme.pad; spacing: 8
-                RowLayout { spacing: 10
-                    Text { text: "INSTALLED"; color: Theme.textMute; font.pixelSize: Theme.fsCaption
-                        font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold }
-                    Text { text: telemetry.otaRunning || "—"; color: Theme.text
-                        font.pixelSize: Theme.fsBody + 6; font.weight: Font.DemiBold }
+                id: cardCol
+                anchors.fill: parent; anchors.margins: 20; spacing: 18
+                RowLayout { Layout.fillWidth: true; spacing: 0
+                    ColumnLayout { Layout.preferredWidth: 240; spacing: 2
+                        Text { text: "INSTALLED"; color: Theme.textMute; font.pixelSize: Theme.fsCaption
+                            font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold }
+                        Text { text: telemetry.otaRunning || "—"; color: Theme.text
+                            font.pixelSize: 30; font.weight: Font.DemiBold }
+                    }
+                    ColumnLayout { Layout.fillWidth: !page.available; Layout.alignment: Qt.AlignTop; spacing: 2
+                        Text { visible: page.available; text: "AVAILABLE"; color: Theme.textMute
+                            font.pixelSize: Theme.fsCaption; font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold }
+                        Text { visible: page.available; text: telemetry.otaAvailable; color: Theme.accent
+                            font.pixelSize: 30; font.weight: Font.DemiBold }
+                        Text { Layout.fillWidth: true; visible: !page.available; text: page.statusText()
+                            color: page.statusColor(); font.pixelSize: Theme.fsBody + 1
+                            font.weight: Font.DemiBold; wrapMode: Text.WordWrap }
+                    }
+                    Item { Layout.fillWidth: true; visible: page.available; implicitHeight: 1 }
+                    Text { Layout.alignment: Qt.AlignBottom; visible: page.available && telemetry.otaCheckTs > 0
+                        text: "Checked " + StatusLabels.ago(telemetry.otaCheckTs, page.now)
+                        color: Theme.textDim; font.pixelSize: 14 }
                 }
-                Text { Layout.fillWidth: true; text: page.statusText(); color: page.statusColor()
-                    font.pixelSize: Theme.fsBody + 1; font.weight: Font.DemiBold; elide: Text.ElideRight }
-                Item { Layout.fillHeight: true }
-                RowLayout { spacing: 12
-                    Rectangle { Layout.preferredWidth: 190; Layout.preferredHeight: 44; radius: Theme.radiusSm
-                        color: cka.pressed ? Theme.surface2 : Theme.bg; border.color: Theme.border
-                        opacity: page.checking ? 0.5 : 1
-                        Text { anchors.centerIn: parent; text: "Check for updates"
-                            color: Theme.accent; font.pixelSize: Theme.fsLabel + 1; font.weight: Font.DemiBold }
-                        MouseArea { id: cka; anchors.fill: parent; enabled: !page.checking; onClicked: page.check() } }
+                RowLayout { Layout.fillWidth: true; spacing: 12
                     ConfirmButton {
                         visible: page.available && !page.busy && !page.checking
                         label: "Install " + telemetry.otaAvailable
                         confirmLabel: "Tap again to install"
-                        Layout.preferredWidth: armed ? 190 : 170; Layout.preferredHeight: 44
-                        tone: Theme.accent
+                        tone: Theme.accent; filled: true; radius: 12; fontSize: 18
+                        Layout.fillWidth: true; Layout.preferredWidth: -1; Layout.preferredHeight: 56
                         onConfirmed: telemetry.installUpdate(telemetry.otaAvailable)
                     }
+                    Rectangle { Layout.preferredWidth: 180; Layout.preferredHeight: 56; radius: 12
+                        color: cka.pressed ? Theme.border : Theme.surface2
+                        opacity: page.checking ? 0.5 : 1
+                        Text { anchors.centerIn: parent; text: "Check again"
+                            color: Theme.text; font.pixelSize: 16; font.weight: Font.DemiBold }
+                        MouseArea { id: cka; anchors.fill: parent; enabled: !page.checking; onClicked: page.check() } }
+                }
+                Text {
+                    Layout.fillWidth: true; wrapMode: Text.WordWrap
+                    visible: page.available || page.busy
+                    text: page.busy ? "An update is in progress — keep the unit powered."
+                                    : "The unit restarts after installing (about 3 minutes). The APU and heater keep running."
+                    color: Theme.textDim; font.pixelSize: 15
                 }
             }
         }
 
-        Text {
-            Layout.fillWidth: true; wrapMode: Text.WordWrap
-            visible: page.available || page.busy
-            text: page.busy ? "An update is in progress — keep the unit powered."
-                            : "The unit restarts after installing (about 3 minutes). The APU and heater keep running."
-            color: Theme.textMute; font.pixelSize: Theme.fsLabel
-        }
         Item { Layout.fillHeight: true }
     }
 }
