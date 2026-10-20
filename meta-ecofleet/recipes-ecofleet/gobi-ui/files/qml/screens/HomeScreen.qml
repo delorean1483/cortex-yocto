@@ -4,6 +4,7 @@ import ".."
 import "../atoms"
 Item {
     id: home
+    property var appShell
     // optimistic mode (climate/off) + setpoint, mirroring the old HomeScreen
     property string uiMode: ""
     readonly property string effMode: uiMode !== "" ? uiMode : telemetry.mode

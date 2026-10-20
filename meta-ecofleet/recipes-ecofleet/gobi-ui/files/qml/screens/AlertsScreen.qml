@@ -5,6 +5,7 @@ import ".."
 import "../atoms"
 Item {
     id: page
+    readonly property bool isAlertsScreen: true
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 14; spacing: Theme.gap
         ScreenHeader { title: "Alerts"; onBack: if (page.StackView.view) page.StackView.view.pop() }

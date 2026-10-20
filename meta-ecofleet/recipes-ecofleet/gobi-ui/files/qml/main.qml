@@ -31,8 +31,7 @@ ApplicationWindow {
     Binding { target: display; property: "keepAwake"
               value: telemetry.hasError || telemetry.diagActive || telemetry.updateKind === "busy" }
 
-    Component { id: homeC; HomeScreen {} }
-    Component { id: modeC; ModeScreen {} }
+    Component { id: homeC; HomeScreen { appShell: shell } }
     Component { id: battC; BatteryScreen {} }
     Component { id: menuC; MenuScreen { appShell: shell } }
 

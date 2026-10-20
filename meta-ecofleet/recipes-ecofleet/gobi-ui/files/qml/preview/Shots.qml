@@ -18,7 +18,7 @@ Item {
     LockOverlay { anchors.fill: parent }
     UpdateOverlay { anchors.fill: parent }
 
-    Component { id: homeC; HomeScreen {} }
+    Component { id: homeC; HomeScreen { appShell: shell } }
     Component { id: battC; BatteryScreen {} }
     Component { id: menuC; MenuScreen { appShell: shell } }
     Component { id: diagC;      DiagnosticsScreen {} }
@@ -66,7 +66,13 @@ Item {
 
     property var steps: [
         ["01-home",          function() { telemetry.load() }],
-        ["02-home-cooling",  function() { telemetry.mode = "climate"; telemetry.controlStatus = "cooling"
+        ["01b-home-fault",   function() { telemetry.mode = "climate"; telemetry.controlStatus = "cooling"
+                                          telemetry.hasError = true; telemetry.error = "low_oil"
+                                          eventlog.sample(); root.poke() }],
+        ["01e-header-stale-fault", function() { telemetry.stale = true; root.poke() }],
+        ["02-home-cooling",  function() { telemetry.stale = false; telemetry.hasError = false; telemetry.error = "none"
+                                          eventlog.events = []; eventlog.activeCount = 0
+                                          telemetry.mode = "climate"; telemetry.controlStatus = "cooling"
                                           telemetry.fanAuto = true; telemetry.heaterCommsOk = true
                                           telemetry.heaterState = "running"; telemetry.heaterFanRpm = 2600
                                           telemetry.heaterExchanger = 180; root.poke() }],
