@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconMapPin, IconMapPinOff } from '@tabler/icons-react'
+import { IconInfoCircle, IconMapPin, IconMapPinOff } from '@tabler/icons-react'
 import {
   useUnits, useLocations, useSetLocation, useClearLocation, useFleetLatest,
 } from '../data/hooks.js'
@@ -114,11 +114,6 @@ export default function FleetMapPage() {
 
   return (
     <>
-      <p className="map-note">
-        <IconMapPin size={16} aria-hidden="true" />
-        Assigned locations — units don't report GPS yet.
-      </p>
-
       {syncWarn && (
         <div className="notice" role="status" style={{ color: 'var(--warn)' }}>
           {syncWarn}
@@ -174,19 +169,32 @@ export default function FleetMapPage() {
             </section>
           )}
 
-          {placed.length > 0 && (
-            <section className="panel" aria-label="On the map">
-              <h2 className="map-side-h">On the map</h2>
-              {placed.map((r) => (
-                <UnitRow key={r.u.unit} r={r} canEdit={canEdit} onShow={focusUnit} onEdit={startEdit} onRemove={setRemoving} />
-              ))}
+          {unplaced.length > 0 && (
+            <section className="panel map-unplaced" aria-labelledby="unplaced-h">
+              <h2 id="unplaced-h" className="map-unplaced-h">
+                <IconMapPinOff size={20} style={{ color: 'var(--warn)' }} aria-hidden="true" />
+                {unplaced.length} {unplaced.length === 1 ? 'unit' : 'units'} not placed
+              </h2>
+              {unplaced.map((r) => {
+                const demo = r.u.demo
+                return (
+                  <div key={r.u.unit} className="map-unplaced-item">
+                    <p>{r.u.unit} has no location, so it's missing from the map and gets no local weather or time zone.</p>
+                    {canEdit && !demo && (
+                      <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => startEdit(r)}>
+                        <IconMapPin size={16} aria-hidden="true" />Set location for {r.u.unit}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </section>
           )}
 
-          {unplaced.length > 0 && (
-            <section className="panel" aria-label="Not placed yet">
-              <h2 className="map-side-h"><IconMapPinOff size={16} aria-hidden="true" /> Not placed yet</h2>
-              {unplaced.map((r) => (
+          {placed.length > 0 && (
+            <section className="panel" aria-label="On the map">
+              <h2 className="map-side-h">On the map <span className="map-side-sub">· by status</span></h2>
+              {placed.map((r) => (
                 <UnitRow key={r.u.unit} r={r} canEdit={canEdit} onShow={focusUnit} onEdit={startEdit} onRemove={setRemoving} />
               ))}
             </section>
@@ -215,6 +223,11 @@ export default function FleetMapPage() {
           )}
 
           {!unitsLoading && list.length === 0 && <div className="notice">No units yet.</div>}
+
+          <p className="map-note">
+            <IconInfoCircle size={16} aria-hidden="true" />
+            Assigned locations — units don't report GPS yet.
+          </p>
         </aside>
       </div>
 

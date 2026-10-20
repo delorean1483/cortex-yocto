@@ -62,9 +62,9 @@ describe('FleetMapPage', () => {
   it('lists placed units on the map and the rest under "Not placed yet"', () => {
     renderPage()
     const placed = screen.getByRole('region', { name: 'On the map' })
-    const unplaced = screen.getByRole('region', { name: 'Not placed yet' })
+    const unplaced = screen.getByRole('region', { name: '1 unit not placed' })
     expect(within(placed).getByText('APU-DEMO-01')).toBeTruthy()
-    expect(within(unplaced).getByText('TRUCK-001')).toBeTruthy()
+    expect(within(unplaced).getByText(/TRUCK-001 has no location, so it's missing from the map and gets no local weather or time zone\./)).toBeTruthy()
     expect(screen.getAllByTestId('pin').map((p) => p.textContent)).toEqual(['APU-DEMO-01'])
     expect(state.mapProps.pins[0]).toMatchObject({ unit: 'APU-DEMO-01', tone: 'err', source: 'demo' })
   })
@@ -74,9 +74,33 @@ describe('FleetMapPage', () => {
     renderPage()
     expect(state.mapProps.pins).toEqual([])
     expect(screen.queryByRole('region', { name: 'On the map' })).toBeNull()
-    const unplaced = screen.getByRole('region', { name: 'Not placed yet' })
-    expect(within(unplaced).getByText('TRUCK-001')).toBeTruthy()
-    expect(within(unplaced).getByText('APU-DEMO-01')).toBeTruthy()
+    const unplaced = screen.getByRole('region', { name: '2 units not placed' })
+    expect(within(unplaced).getByText(/TRUCK-001 has no location/)).toBeTruthy()
+    expect(within(unplaced).getByText(/APU-DEMO-01 has no location/)).toBeTruthy()
+  })
+
+  it('puts the not-placed call to action before "On the map"', () => {
+    renderPage()
+    const h1 = screen.getByText('1 unit not placed')
+    const h2 = screen.getByText('On the map')
+    expect(h1.compareDocumentPosition(h2) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set location for TRUCK-001' }).textContent).toBe('Set location for TRUCK-001')
+  })
+
+  it('orders "On the map" by attention: fault before healthy', () => {
+    state.locations = [
+      { unit: 'TRUCK-001', lat: 37.72, lon: -88.87, label: 'Shop', source: 'assigned' }, DEMO_LOC,
+    ]
+    renderPage()
+    const names = within(screen.getByRole('region', { name: 'On the map' })).getAllByText(/^(TRUCK-001|APU-DEMO-01)$/).map((e) => e.textContent)
+    expect(names).toEqual(['APU-DEMO-01', 'TRUCK-001'])
+  })
+
+  it('read-only roles keep the not-placed copy but get no button', () => {
+    state.role = 'eu'
+    renderPage()
+    expect(screen.getByText(/TRUCK-001 has no location/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Set location for/ })).toBeNull()
   })
 
   it('sets a location from typed coordinates', () => {

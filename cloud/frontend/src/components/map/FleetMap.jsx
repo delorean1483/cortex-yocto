@@ -10,10 +10,15 @@ const US_ZOOM = 4
 // A glyph as well as a color, so status isn't conveyed by color alone.
 const TONE_GLYPH = { err: '!', warn: '!', ok: '✓', off: '–' }
 
-function pinIcon(tone, extra = '') {
+const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+
+const LEGEND = [['err', 'Fault'], ['warn', 'Warning'], ['ok', 'Healthy'], ['off', 'Offline']]
+
+function pinIcon(tone, extra = '', label = '') {
+  const chip = label ? `<span class="map-pin-label">${esc(label)}</span>` : ''
   return L.divIcon({
     className: '',
-    html: `<span class="map-pin t-${tone} ${extra}" aria-hidden="true">${TONE_GLYPH[tone] || ''}</span>`,
+    html: `<span class="map-pin-wrap"><span class="map-pin t-${tone} ${extra}" aria-hidden="true">${TONE_GLYPH[tone] || ''}</span>${chip}</span>`,
     iconSize: [26, 26],
     iconAnchor: [13, 13],
     popupAnchor: [0, -14],
@@ -70,7 +75,7 @@ export default function FleetMap({ pins, selected, focus, placing, onPick, onOpe
       <Viewport pins={pins} focus={focus} />
       <ClickToPlace active={!!placing} onPick={onPick} />
       {pins.filter((p) => !(placing && p.unit === placing.unit)).map((p) => (
-        <Marker key={p.unit} position={[p.lat, p.lon]} icon={pinIcon(p.tone)} title={`${p.unit}: ${p.status}`}>
+        <Marker key={p.unit} position={[p.lat, p.lon]} icon={pinIcon(p.tone, '', `${p.unit} · ${p.status}`)} title={`${p.unit}: ${p.status}`}>
           <Popup>
             <div className="map-pop">
               <div className="map-pop-unit">{p.unit}</div>
@@ -92,6 +97,11 @@ export default function FleetMap({ pins, selected, focus, placing, onPick, onOpe
           title={`New location for ${placing.unit}`}
         />
       )}
+      <div className="map-legend" role="group" aria-label="Map legend">
+        {LEGEND.map(([tone, name]) => (
+          <span key={tone} className="map-legend-item"><span className={`map-legend-dot t-${tone}`} aria-hidden="true" />{name}</span>
+        ))}
+      </div>
     </MapContainer>
   )
 }
