@@ -51,13 +51,6 @@ Item {
         telemetry.updateKind = kind; telemetry.updateTitle = title
         telemetry.updateDetail = detail; telemetry.updateKey = key; root.poke()
     }
-    // Swipe the Menu tile grid to its second page (find the SwipeView by walking the item tree).
-    function findSwipe(it) {
-        if (it.currentIndex !== undefined && it.incrementCurrentIndex) return it
-        for (var i = 0; i < it.children.length; i++) { var r = findSwipe(it.children[i]); if (r) return r }
-        return null
-    }
-    function menuPage2() { var sv = findSwipe(shell); if (sv) sv.setCurrentIndex(1) }
     property var netsAll: []
     property var page: null
     // Mock list with nothing in use (for steps where the unit is not connected).
@@ -105,6 +98,8 @@ Item {
                                           telemetry.controlStatus = "off"; root.poke() }],
         ["03b-mode",         function() { telemetry.mode = "climate"; shell.selectRail(0); shell.openMode() }],
         ["04-menu",          function() { shell.selectRail(2) }],
+        ["04b-menu-fault",   function() { telemetry.hasError = true; telemetry.error = "low_oil"; eventlog.sample(); shell.selectRail(2); root.poke() }],
+        ["04c-menu-restore", function() { telemetry.hasError = false; telemetry.error = "none"; eventlog.events = []; eventlog.activeCount = 0; root.poke() }],
         ["05-diagnostics",   function() { root.sub(diagC) }],
         ["06-usermaint",     function() { root.sub(usermaintC) }],
         ["07-unitinfo",      function() { root.sub(unitC) }],
@@ -157,9 +152,7 @@ Item {
         // Saved network whose password changed: wrong password → the password screen opens.
         ["21j-wifi-saved-wrongpw", function() { wifi.state = "idle"; wifi.networks = root.netsIdle()
                                                 root.page = root.sub(wifiC); root.page.savedJoinSsid = "Shop-Guest" }],
-        ["21j2-wifi-saved-wrongpw-join", function() { wifi.lastError = "Wrong password."; wifi.joinFailed("Shop-Guest", "Wrong password.") }],
-        ["21i-menu-p2",        function() { wifi.lastError = ""; wifi.state = "connected"; wifi.networks = root.netsAll
-                                            shell.selectRail(2); root.menuPage2() }]
+        ["21j2-wifi-saved-wrongpw-join", function() { wifi.lastError = "Wrong password."; wifi.joinFailed("Shop-Guest", "Wrong password.") }]
     ]
     property int idx: 0
     Timer { id: act; interval: 300; onTriggered: { root.steps[root.idx][1](); grab.restart() } }
