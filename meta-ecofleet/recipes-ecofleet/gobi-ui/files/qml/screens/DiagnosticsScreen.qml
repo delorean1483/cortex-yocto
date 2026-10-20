@@ -58,7 +58,7 @@ Item {
 
                 // ── Live readings ────────────────────────────────────────────────
                 Repeater { model: page.sections
-                    ColumnLayout { Layout.fillWidth: true; spacing: 3
+                    ColumnLayout { Layout.fillWidth: true; spacing: 5
                         Text { text: modelData.name; color: Theme.textMute; font.pixelSize: Theme.fsCaption; font.letterSpacing: 1.2; font.weight: Font.DemiBold }
                         GridLayout { id: grid; Layout.fillWidth: true; columns: 5; columnSpacing: 8; rowSpacing: 8
                             Repeater { model: modelData.tiles
