@@ -14,7 +14,7 @@ Item {
         InfoCard { Layout.fillWidth: true
             title: "Display"
             RowLayout { Layout.fillWidth: true; Layout.preferredHeight: 60; spacing: 12
-                Text { Layout.preferredWidth: 104; text: "Brightness"; color: Theme.text; font.pixelSize: Theme.fsBody + 2 }
+                Text { Layout.preferredWidth: 104; text: "Brightness"; color: Theme.text; font.pixelSize: Theme.fsBody }
                 StepButton { icon: "minus"; w: 52; h: 52; fill: Theme.surface2; showBorder: false
                     onActivated: display.brightness = Math.max(10, display.brightness - 5) }
                 Slider { id: bright
@@ -35,7 +35,7 @@ Item {
                     text: display.brightness + "%"; color: Theme.text; font.pixelSize: 18; font.weight: Font.DemiBold }
             }
             RowLayout { Layout.fillWidth: true; spacing: 12
-                Text { Layout.preferredWidth: 104; text: "Sleep after"; color: Theme.text; font.pixelSize: Theme.fsBody + 2 }
+                Text { Layout.preferredWidth: 104; text: "Sleep after"; color: Theme.text; font.pixelSize: Theme.fsBody }
                 SegmentedControl { Layout.fillWidth: true; Layout.preferredHeight: 52
                     trackColor: Theme.bg
                     options: [ {label: "Never", value: 0}, {label: "1 min", value: 1}, {label: "5 min", value: 5},
@@ -45,7 +45,7 @@ Item {
             }
             Text { Layout.fillWidth: true; Layout.leftMargin: 116; Layout.bottomMargin: 4; wrapMode: Text.WordWrap
                 text: "Dims 30 s before sleeping. Tap to wake. Stays on while a fault is active."
-                color: Theme.textMute; font.pixelSize: Theme.fsCaption }
+                color: Theme.textDim; font.pixelSize: 14 }
         }
 
         Rectangle { Layout.fillWidth: true; implicitHeight: 2 * 44 + 2 * 4
@@ -57,7 +57,7 @@ Item {
                     Item { Layout.fillWidth: true; Layout.preferredHeight: 44
                         Rectangle { visible: index > 0; width: parent.width; height: 1; color: Theme.border; opacity: 0.6 }
                         Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.k; color: Theme.textMute; font.pixelSize: 15 }
+                            text: modelData.k; color: Theme.textDim; font.pixelSize: 15 }
                         Text { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                             text: modelData.v; color: Theme.text; font.pixelSize: 15; font.weight: Font.Medium }
                     }

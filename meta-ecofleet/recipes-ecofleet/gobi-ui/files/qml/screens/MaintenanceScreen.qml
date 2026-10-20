@@ -30,20 +30,20 @@ Item {
                     Icon { name: modelData.icon; size: 30; color: Theme.accent }
                     ColumnLayout { Layout.fillWidth: true; spacing: 2
                         RowLayout { spacing: 10
-                            Text { text: modelData.title; color: Theme.text; font.pixelSize: Theme.fsBody + 3; font.weight: Font.DemiBold }
+                            Text { text: modelData.title; color: Theme.text; font.pixelSize: 18; font.weight: Font.DemiBold }
                             PinTag { visible: modelData.locked }
                             Text { visible: !modelData.locked && telemetry.otaAvailable !== ""
                                 text: telemetry.otaAvailable + " available"; color: Theme.accent
                                 font.pixelSize: 13; font.weight: Font.DemiBold } }
-                        Text { Layout.fillWidth: true; text: modelData.desc; color: Theme.textMute
-                            font.pixelSize: Theme.fsBody; elide: Text.ElideRight } }
-                    Icon { name: "chevron-right"; size: 22; color: Theme.textMute }
+                        Text { Layout.fillWidth: true; text: modelData.desc; color: Theme.textDim
+                            font.pixelSize: 14; elide: Text.ElideRight } }
+                    Icon { name: "chevron-right"; size: 22; color: Theme.textDim }
                 }
                 MouseArea { id: rma; anchors.fill: parent; onClicked: page.open(modelData.c) }
             }
         }
 
-        Text { Layout.topMargin: 4; text: "ALSO IN MENU"; color: Theme.textMute
+        Text { Layout.topMargin: 6; text: "ALSO IN MENU"; color: Theme.textMute
             font.pixelSize: Theme.fsCaption; font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold }
         RowLayout { Layout.fillWidth: true; spacing: 10
             Repeater {
@@ -58,8 +58,8 @@ Item {
                         anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 14; spacing: 14
                         Icon { name: modelData.icon; size: 24; color: Theme.accent }
                         Text { Layout.fillWidth: true; text: modelData.title; color: Theme.text
-                            font.pixelSize: Theme.fsBody + 2; font.weight: Font.DemiBold; elide: Text.ElideRight }
-                        Icon { name: "chevron-right"; size: 20; color: Theme.textMute }
+                            font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                        Icon { name: "chevron-right"; size: 20; color: Theme.textDim }
                     }
                     MouseArea { id: cma; anchors.fill: parent; onClicked: page.open(modelData.c) }
                 }
