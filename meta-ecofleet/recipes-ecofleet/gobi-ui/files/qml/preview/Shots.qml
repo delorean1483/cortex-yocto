@@ -97,6 +97,12 @@ Item {
                                           telemetry.heaterState = "off"; telemetry.heaterFanRpm = 0
                                           telemetry.heaterExchanger = 0; telemetry.heaterExt = false
                                           telemetry.heaterPhase = "off"; root.poke(); shell.selectRail(1) }],
+        ["03c-battery-charging", function() { telemetry.mode = "battery"; telemetry.controlStatus = "charging"
+                                          telemetry.battV = 13.9; root.poke() }],
+        ["03d-battery-low",  function() { telemetry.battV = 11.6; telemetry.controlStatus = "off"
+                                          telemetry.mode = "off"; root.poke() }],
+        ["03e-battery-restore", function() { telemetry.battV = 12.2; telemetry.mode = "off"
+                                          telemetry.controlStatus = "off"; root.poke() }],
         ["03b-mode",         function() { telemetry.mode = "climate"; shell.selectRail(0); shell.openMode() }],
         ["04-menu",          function() { shell.selectRail(2) }],
         ["05-diagnostics",   function() { root.sub(diagC) }],
