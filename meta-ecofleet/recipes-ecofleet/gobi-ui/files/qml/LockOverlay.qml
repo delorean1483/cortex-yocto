@@ -14,7 +14,7 @@ Rectangle {
 
     property date now: new Date()
     // "h" is only 12-hour when the format also has AP, so format once and split.
-    readonly property var clock12: Qt.formatDateTime(now, "h:mm AP").split(" ")
+    readonly property var clock12: Qt.formatDateTime(now, "h:mm AP").split(/\s+/)
     Timer { interval: 10000; repeat: true; running: overlay.visible; triggeredOnStart: true
         onTriggered: overlay.now = new Date() }
 
@@ -26,24 +26,24 @@ Rectangle {
 
         Row {
             x: 44; y: 40; spacing: 10
-            Icon { name: "lock"; size: 20; color: Theme.textDim; anchors.verticalCenter: parent.verticalCenter }
-            Text { text: "Screen locked"; color: Theme.textDim; font.pixelSize: 17; font.weight: Font.DemiBold
+            Icon { name: "lock"; size: 22; color: Theme.textDim; anchors.verticalCenter: parent.verticalCenter }
+            Text { text: "Screen locked"; color: Theme.textDim; font.pixelSize: 16; font.weight: Font.DemiBold
                 anchors.verticalCenter: parent.verticalCenter }
         }
         Column {
-            x: 44; y: 84; spacing: 4
+            x: 44; y: 84; spacing: 6
             Row {
                 spacing: 8
-                Text { id: clock; text: overlay.clock12[0]; color: Theme.text
-                    font.pixelSize: 72; font.weight: Font.DemiBold }
-                Text { text: overlay.clock12[1]; color: Theme.textDim
+                Text { id: clock; text: (overlay.clock12[0] || ""); color: Theme.text
+                    font.pixelSize: 72; font.weight: Font.DemiBold; font.letterSpacing: -2 }
+                Text { text: (overlay.clock12[1] || ""); color: Theme.textDim
                     font.pixelSize: 28; font.weight: Font.Medium
                     anchors.baseline: clock.baseline }
             }
             Text { text: Qt.formatDateTime(overlay.now, "ddd MMM d"); color: Theme.textDim; font.pixelSize: 16 }
         }
         Column {
-            x: 44; anchors.bottom: parent.bottom; anchors.bottomMargin: 40; spacing: 12
+            x: 44; anchors.bottom: parent.bottom; anchors.bottomMargin: 40; spacing: 10
             width: left.width - 88
             Row {
                 spacing: 10
@@ -78,7 +78,7 @@ Rectangle {
         width: parent.width - left.width
         color: Theme.lockPanel
         Column {
-            anchors.centerIn: parent; spacing: 14
+            anchors.centerIn: parent; spacing: 20
             Text { id: hint; anchors.horizontalCenter: parent.horizontalCenter; text: "Enter PIN"
                 color: Theme.textDim; font.pixelSize: 16 }
             Keypad {

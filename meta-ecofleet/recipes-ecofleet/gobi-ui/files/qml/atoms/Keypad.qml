@@ -60,7 +60,7 @@ ColumnLayout {
                 // the blank key keeps its grid cell (invisible items are dropped
                 // from layouts, which would shift 0 and ⌫ one column left)
                 opacity: modelData === "" ? 0 : 1
-                color: kma.pressed ? Theme.surface2 : (modelData === "back" ? kp.backFill : kp.keyFill)
+                color: kma.pressed ? (Qt.colorEqual(kp.keyFill, Theme.surface2) ? Theme.border : Theme.surface2) : (modelData === "back" ? kp.backFill : kp.keyFill)
                 border.color: Theme.border; border.width: kp.showBorder ? 1 : 0
                 Text { visible: modelData !== "back"; anchors.centerIn: parent
                     text: modelData; color: Theme.text; font.pixelSize: kp.digitSize; font.weight: Font.Medium }
