@@ -70,6 +70,11 @@ Item {
                                           telemetry.hasError = true; telemetry.error = "low_oil"
                                           eventlog.sample(); root.poke() }],
         ["01e-header-stale-fault", function() { telemetry.stale = true; root.poke() }],
+        ["01c-home-fault-noevents", function() { telemetry.hasError = true; telemetry.error = "low_oil"
+                                          eventlog.events = []; eventlog.activeCount = 0; shell.selectRail(0); root.poke() }],
+        ["01d-home-cleared", function() { telemetry.hasError = false; telemetry.error = "none"; shell.selectRail(0); root.poke() }],
+        ["01f-home-longcode", function() { telemetry.hasError = true; telemetry.error = "compressor_overcurrent_lockout"
+                                          shell.selectRail(0); root.poke() }],
         ["02-home-cooling",  function() { telemetry.stale = false; telemetry.hasError = false; telemetry.error = "none"
                                           eventlog.events = []; eventlog.activeCount = 0
                                           telemetry.mode = "climate"; telemetry.controlStatus = "cooling"
