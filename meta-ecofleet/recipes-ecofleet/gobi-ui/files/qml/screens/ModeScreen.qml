@@ -6,6 +6,7 @@ import "../atoms"
 import "../templates"
 Item {
     id: page
+    readonly property bool isModeScreen: true
     // Optimistic: a tap highlights instantly; telemetry echoes back within ~1s and
     // we defer to it. Without this the selection lags a full agent round-trip.
     property string uiMode: ""

@@ -41,7 +41,7 @@ Item {
         RowLayout { Layout.fillWidth: true; spacing: 8
             ScreenHeader { title: "Live Diagnostics"; onBack: if (page.StackView.view) page.StackView.view.pop() }
             RowLayout { visible: page.freshness !== ""; spacing: 8
-                Rectangle { Layout.preferredWidth: 8; Layout.preferredHeight: 8; radius: 4; color: Theme.ok }
+                Rectangle { Layout.preferredWidth: 8; Layout.preferredHeight: 8; radius: 4; color: telemetry.stale ? Theme.fault : Theme.ok }
                 Text { text: "Updated " + page.freshness; color: Theme.textDim; font.pixelSize: 14 } }
         }
 

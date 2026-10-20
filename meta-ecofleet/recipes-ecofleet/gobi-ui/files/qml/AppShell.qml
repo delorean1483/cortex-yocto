@@ -28,7 +28,10 @@ Item {
         if (stack.currentItem && stack.currentItem.isAlertsScreen === true) return
         selectRail(2); stack.push(alertsC)
     }
-    function openMode() { stack.push(modeC) }
+    function openMode() {
+        if (stack.currentItem && stack.currentItem.isModeScreen === true) return
+        stack.push(modeC)
+    }
     Rail {
         id: rail
         anchors.top: hdr.bottom; anchors.bottom: parent.bottom; anchors.left: parent.left

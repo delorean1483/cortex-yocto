@@ -33,6 +33,8 @@ Item {
     onVisibleChanged: if (visible) now = Date.now()
     readonly property bool busy: telemetry.updateKind === "busy"
     readonly property bool available: telemetry.otaAvailable !== ""
+    // A checking/failed state must stay visible even when an update is on offer.
+    readonly property bool showStatus: available && (checking || telemetry.otaCheckState.indexOf("failed") === 0)
 
     function ago(ts) {
         if (!ts) return ""
@@ -69,10 +71,11 @@ Item {
                 id: cardCol
                 anchors.fill: parent; anchors.margins: 20; spacing: 18
                 RowLayout { Layout.fillWidth: true; spacing: 0
-                    ColumnLayout { Layout.preferredWidth: 240; spacing: 2
+                    ColumnLayout { Layout.preferredWidth: 240; Layout.maximumWidth: 240; Layout.rightMargin: 24; spacing: 2
                         Text { text: "INSTALLED"; color: Theme.textMute; font.pixelSize: Theme.fsCaption
                             font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold }
-                        Text { text: telemetry.otaRunning || "—"; color: Theme.text
+                        Text { Layout.fillWidth: true; elide: Text.ElideRight; textFormat: Text.PlainText
+                            text: telemetry.otaRunning || "—"; color: Theme.text
                             font.pixelSize: 30; font.weight: Font.DemiBold }
                     }
                     ColumnLayout { Layout.fillWidth: !page.available; Layout.alignment: Qt.AlignTop; spacing: 2
@@ -84,10 +87,15 @@ Item {
                             color: page.statusColor(); font.pixelSize: Theme.fsBody + 1
                             font.weight: Font.DemiBold; wrapMode: Text.WordWrap }
                     }
-                    Item { Layout.fillWidth: true; visible: page.available; implicitHeight: 1 }
-                    Text { Layout.alignment: Qt.AlignBottom; visible: page.available && telemetry.otaCheckTs > 0
-                        text: "Checked " + StatusLabels.ago(telemetry.otaCheckTs, page.now)
-                        color: Theme.textDim; font.pixelSize: 14 }
+                    Item { Layout.fillWidth: true; visible: page.available && !page.showStatus; implicitHeight: 1 }
+                    Text { Layout.alignment: Qt.AlignBottom; Layout.fillWidth: page.showStatus; Layout.leftMargin: page.showStatus ? 16 : 0
+                        visible: page.available && (page.showStatus || telemetry.otaCheckTs > 0)
+                        text: page.showStatus ? page.statusText()
+                                              : "Checked " + StatusLabels.ago(telemetry.otaCheckTs, page.now)
+                        color: page.showStatus ? page.statusColor() : Theme.textDim
+                        font.pixelSize: page.showStatus ? Theme.fsBody : 14
+                        font.weight: page.showStatus ? Font.DemiBold : Font.Normal
+                        wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignRight }
                 }
                 RowLayout { Layout.fillWidth: true; spacing: 12
                     ConfirmButton {

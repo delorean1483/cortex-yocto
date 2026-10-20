@@ -32,7 +32,7 @@ Item {
         function onJoinFailed(s, e) { if (s === (page.hidden ? nameField.text : page.ssid)) page.error = e } }
 
     ColumnLayout {
-        anchors.fill: parent; anchors.margins: 14; spacing: 8
+        anchors.fill: parent; anchors.margins: 14; spacing: page.hidden ? 4 : 8
         ScreenHeader { title: page.hidden ? "Add hidden network" : page.ssid
             // Error/hint live in the subtitle slot so they cost no layout height (keyboard stays on screen).
             subtitle: page.error

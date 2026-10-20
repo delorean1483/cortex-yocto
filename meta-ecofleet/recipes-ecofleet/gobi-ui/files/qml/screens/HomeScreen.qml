@@ -33,7 +33,7 @@ Item {
     function activeFan() { return telemetry.fanAuto ? "AUTO" : (function(){ for (var i=0;i<home.presets.length;i++) if (home.presets[i].v===telemetry.fanSpeed) return home.presets[i].k; return "" })() }
     // fault strip: elapsed time refreshes every 10 s while a fault is active
     property real now: Date.now()
-    Timer { interval: 10000; repeat: true; running: telemetry.hasError; onTriggered: home.now = Date.now() }
+    Timer { interval: 10000; repeat: true; triggeredOnStart: true; running: telemetry.hasError; onTriggered: home.now = Date.now() }
     Connections {
         target: telemetry
         function onDataChanged() {

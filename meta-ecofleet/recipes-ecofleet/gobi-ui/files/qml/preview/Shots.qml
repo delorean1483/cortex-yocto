@@ -124,6 +124,8 @@ Item {
         ["14b-swupdate-uptodate", function() { telemetry.otaAvailable = ""; root.poke(); var p = root.sub(swupdC); p.checking = false }],
         ["14c-swupdate-available", function() { telemetry.otaLatest = "1.2.74"; telemetry.otaAvailable = "1.2.74"
                                                  root.poke(); var p = root.sub(swupdC); p.checking = false }],
+        ["14f-swupdate-available-failed", function() { telemetry.otaAvailable = "1.2.74"; telemetry.otaCheckState = "failed: network"
+                                              root.poke(); var p = root.sub(swupdC); p.checking = false }],
         ["14d-swupdate-failed", function() { telemetry.otaAvailable = ""; telemetry.otaCheckState = "failed: network"
                                               root.poke(); var p = root.sub(swupdC); p.checking = false }],
         ["15-comptest-lock", function() { root.sub(comptestC) }],

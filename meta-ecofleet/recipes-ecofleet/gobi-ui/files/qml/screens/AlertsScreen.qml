@@ -8,7 +8,9 @@ Item {
     readonly property bool isAlertsScreen: true
     property real now: Date.now()
     readonly property int n: StatusLabels.faultCount(telemetry.hasError, eventlog.activeCount)
-    readonly property var ev: StatusLabels.activeEvent(eventlog.events)
+    readonly property var rawEv: StatusLabels.activeEvent(eventlog.events)
+    // Ignore a stale active event until the log catches up with the current code.
+    readonly property var ev: (rawEv && rawEv.error === telemetry.error) ? rawEv : null
     readonly property var recent: StatusLabels.recentCleared(eventlog.events, 2)
     Timer { interval: 10000; repeat: true; running: true; onTriggered: page.now = Date.now() }
     Component { id: logC; ErrorLogScreen {} }
@@ -32,19 +34,22 @@ Item {
                 anchors.topMargin: 18; anchors.bottomMargin: 18; spacing: 18
                 Icon { name: telemetry.hasError ? "alert" : "check-circle"
                     size: 36; stroke: 2.2; color: card.hue; Layout.alignment: Qt.AlignTop }
-                ColumnLayout { Layout.fillWidth: true; spacing: 4
+                ColumnLayout { Layout.fillWidth: true; spacing: 6
+                    TextMetrics { id: titleMetrics; font.pixelSize: 24; font.weight: Font.Bold
+                        text: telemetry.hasError ? StatusLabels.error(telemetry.error) : "No active alerts" }
                     RowLayout { Layout.fillWidth: true; spacing: 14
-                        Text { elide: Text.ElideRight; textFormat: Text.PlainText
+                        Text { Layout.preferredWidth: Math.min(titleMetrics.advanceWidth, Math.max(0, (card.width - 94) - (startedTxt.visible ? startedTxt.contentWidth + 14 : 0)))
+                            elide: Text.ElideRight; textFormat: Text.PlainText
                             text: telemetry.hasError ? StatusLabels.error(telemetry.error) : "No active alerts"
                             color: telemetry.hasError ? Theme.faultText : Theme.okText
                             font.pixelSize: 24; font.weight: Font.Bold }
-                        Text { visible: telemetry.hasError && page.ev !== null
+                        Text { id: startedTxt; visible: telemetry.hasError && page.ev !== null
                             text: page.ev ? "Started " + StatusLabels.ago(page.ev.startMs, page.now) : ""
                             color: Theme.textDim; font.pixelSize: 15; Layout.alignment: Qt.AlignBaseline }
                         Item { Layout.fillWidth: true }
                     }
                     Text { Layout.fillWidth: true; wrapMode: Text.WordWrap
-                        color: Theme.textDim; font.pixelSize: 15
+                        color: Theme.text; font.pixelSize: 15
                         text: telemetry.hasError
                               ? "The APU reported an active fault. Resolve it before running the unit."
                               : "The APU is operating normally. Active faults are shown here as they occur." }
