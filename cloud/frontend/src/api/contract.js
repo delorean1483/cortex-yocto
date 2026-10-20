@@ -329,3 +329,24 @@ export function assignableRoles(myRole) {
   if (i < 0 || i > 1) return []
   return ASSIGNABLE_ORDER.slice(i).map(value => ({ value, label: ASSIGNABLE_LABELS[value] }))
 }
+
+// Range value ('-1d' | '-7d' | '-30d') -> display label.
+const RANGE_LABELS = { '-1d': 'Last 24 h', '-7d': 'Last 7 days', '-30d': 'Last 30 days' }
+export function rangeLabel(range) {
+  return RANGE_LABELS[range] || range
+}
+
+// "Oct 20, 9:37 PM" for an epoch-ms timestamp.
+export function shortWhen(ts) {
+  if (ts == null) return '\u2014'
+  return new Date(Number(ts)).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+// Fault-event state -> badge label + tone. `info` is faultInfo(f); an active
+// event takes its severity tone.
+export function faultStateView(f, info) {
+  const state = f?.state
+  if (state === 'cleared') return { label: 'Cleared', tone: 'ok' }
+  if (state === 'active') return { label: 'Active', tone: info.tone }
+  return { label: state || '\u2014', tone: 'off' }
+}

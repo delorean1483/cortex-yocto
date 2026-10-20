@@ -4,7 +4,7 @@ import {
 } from '@tabler/icons-react'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
-import { activeFaults, faultInfo, ageText } from '../api/contract.js'
+import { activeFaults, faultInfo, ageText, faultStateView } from '../api/contract.js'
 import UnitPicker from '../components/UnitPicker.jsx'
 
 const WINDOW_LABEL = 'last 7 days'
@@ -113,6 +113,7 @@ export default function AlertsPage() {
                 {faults.slice(0, 50).map((f, i) => {
                   const cleared = f.state === 'cleared'
                   const info = faultInfo(f)
+                  const sv = faultStateView(f, info)
                   return (
                     <tr key={i}>
                       <td style={{ whiteSpace: 'nowrap' }}>{whenText(f.ts)}</td>
@@ -121,9 +122,7 @@ export default function AlertsPage() {
                         <span style={{ marginLeft: 8, fontSize: 12.5, color: 'var(--color-text-tertiary)' }}>{info.code}</span>
                       </td>
                       <td>
-                        <span className={`badge badge-sm ${cleared ? 't-ok' : f.state === 'active' ? `t-${info.tone}` : 't-off'}`}>
-                          {cleared ? 'Cleared' : f.state === 'active' ? 'Active' : (f.state || '—')}
-                        </span>
+                        <span className={`badge badge-sm t-${sv.tone}`}>{sv.label}</span>
                       </td>
                     </tr>
                   )

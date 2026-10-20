@@ -28,9 +28,9 @@ vi.mock('../contexts/AuthContext.jsx', () => ({ useAuth: () => ({ role: 'admin' 
 
 import UnitDetailPage from './UnitDetailPage.jsx'
 
-function renderPage() {
+function renderPage(entry = '/units/APU-1') {
   return render(
-    <MemoryRouter initialEntries={['/units/APU-1']}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes><Route path="/units/:id" element={<UnitDetailPage />} /></Routes>
     </MemoryRouter>,
   )
@@ -53,5 +53,13 @@ describe('UnitDetailPage', () => {
     renderPage()
     fireEvent.click(screen.getByRole('tab', { name: 'Heater' }))
     expect(screen.getByText(/VEVOR diesel heater/i)).toBeTruthy()
+  })
+  it('opens the tab named by ?tab=', () => {
+    renderPage('/units/APU-1?tab=firmware')
+    expect(screen.getByRole('tab', { name: 'Firmware' }).getAttribute('aria-selected')).toBe('true')
+  })
+  it('falls back to Overview for an unknown ?tab=', () => {
+    renderPage('/units/APU-1?tab=bogus')
+    expect(screen.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected')).toBe('true')
   })
 })

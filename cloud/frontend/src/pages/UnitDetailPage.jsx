@@ -1,5 +1,5 @@
-import { Suspense, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { Suspense } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { IconArrowLeft } from '@tabler/icons-react'
 import { useUnitLatest } from '../data/hooks.js'
 import OverviewTab from '../components/unit/OverviewTab.jsx'
@@ -26,7 +26,14 @@ const TABS = [
 export default function UnitDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [tab, setTab] = useState('overview')
+  const [params, setParams] = useSearchParams()
+  const wanted = params.get('tab')
+  const tab = TABS.some((t) => t.id === wanted) ? wanted : 'overview'
+  const setTab = (next) => {
+    const p = new URLSearchParams(params)
+    if (next === 'overview') p.delete('tab'); else p.set('tab', next)
+    setParams(p, { replace: true })
+  }
   const { data: tele } = useUnitLatest(id)
   const isDemo = (id || '').startsWith('APU-DEMO-')
 

@@ -3,7 +3,7 @@ import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
   heaterExt, heaterPhaseLabel, heaterTypeLabel,
          heaterFlags, diagOutputs, connLabel, otaStatusView,
          chronological, ageText, modeLabel, unitView, byAttention,
-         activeFaults, faultInfo, reportView, userStatusView, assignableRoles } from './contract.js'
+         activeFaults, faultInfo, reportView, userStatusView, assignableRoles, rangeLabel, shortWhen, faultStateView } from './contract.js'
 
 describe('otaStatusView', () => {
   it('hidden when idle/empty/null', () => {
@@ -364,5 +364,29 @@ describe('assignableRoles', () => {
     expect(assignableRoles('admin').map(r => r.value)).toEqual(['admin', 'fm', 'maint', 'eu'])
     expect(assignableRoles('eu')).toEqual([])
     expect(assignableRoles('admin')[1].label).toBe('Fleet Manager')
+  })
+})
+
+describe('rangeLabel / shortWhen', () => {
+  it('labels ranges', () => {
+    expect(rangeLabel('-1d')).toBe('Last 24 h')
+    expect(rangeLabel('-7d')).toBe('Last 7 days')
+    expect(rangeLabel('-30d')).toBe('Last 30 days')
+    expect(rangeLabel('-5d')).toBe('-5d')
+  })
+  it('formats a short timestamp', () => {
+    expect(shortWhen(new Date(2026, 9, 20, 21, 37).getTime())).toBe('Oct 20, 9:37 PM')
+    expect(shortWhen(null)).toBe('—')
+    expect(shortWhen(undefined)).toBe('—')
+  })
+})
+
+describe('faultStateView', () => {
+  it('maps event state to label and tone', () => {
+    expect(faultStateView({ state: 'cleared' }, { tone: 'err' })).toEqual({ label: 'Cleared', tone: 'ok' })
+    expect(faultStateView({ state: 'active' }, { tone: 'err' })).toEqual({ label: 'Active', tone: 'err' })
+    expect(faultStateView({ state: 'active' }, { tone: 'warn' })).toEqual({ label: 'Active', tone: 'warn' })
+    expect(faultStateView({ state: 'x' }, { tone: 'err' })).toEqual({ label: 'x', tone: 'off' })
+    expect(faultStateView({}, { tone: 'err' })).toEqual({ label: '—', tone: 'off' })
   })
 })
