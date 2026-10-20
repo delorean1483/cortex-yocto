@@ -79,9 +79,49 @@ static void ifaddrs_tests(void) {
     CHECK(n.wifi_ip[0] == '\0' && n.eth_ip[0] == '\0');
 }
 
+static const char *ROUTE_HDR =
+    "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n";
+
+static void primary_tests(void) {
+    char buf[1024];
+
+    /* .86 today: both up, Ethernet metric 10, WiFi 2048 (WiFi listed first) */
+    snprintf(buf, sizeof buf, "%s"
+        "wlan0\t00000000\t0100A8C0\t0003\t0\t0\t2048\t00000000\t0\t0\t0\n"
+        "eth0\t00000000\t0100A8C0\t0003\t0\t0\t10\t00000000\t0\t0\t0\n"
+        "eth0\t0000A8C0\t00000000\t0001\t0\t0\t10\t00FFFFFF\t0\t0\t0\n", ROUTE_HDR);
+    CHECK(net_primary(buf) == NET_PRIMARY_ETH);
+
+    /* WiFi only (R1 today) */
+    snprintf(buf, sizeof buf, "%s"
+        "wlan0\t00000000\t0100A8C0\t0003\t0\t0\t2048\t00000000\t0\t0\t0\n", ROUTE_HDR);
+    CHECK(net_primary(buf) == NET_PRIMARY_WIFI);
+
+    /* a lower-metric default on another interface (e.g. a future modem) */
+    snprintf(buf, sizeof buf, "%s"
+        "eth0\t00000000\t0100A8C0\t0003\t0\t0\t10\t00000000\t0\t0\t0\n"
+        "wwan0\t00000000\t0101A8C0\t0003\t0\t0\t5\t00000000\t0\t0\t0\n", ROUTE_HDR);
+    CHECK(net_primary(buf) == NET_PRIMARY_OTHER);
+
+    /* a default route that isn't up (flags without RTF_UP) doesn't count */
+    snprintf(buf, sizeof buf, "%s"
+        "eth0\t00000000\t0100A8C0\t0002\t0\t0\t10\t00000000\t0\t0\t0\n"
+        "wlan0\t00000000\t0100A8C0\t0003\t0\t0\t2048\t00000000\t0\t0\t0\n", ROUTE_HDR);
+    CHECK(net_primary(buf) == NET_PRIMARY_WIFI);
+
+    /* no default route, empty, NULL */
+    snprintf(buf, sizeof buf, "%s"
+        "eth0\t0000A8C0\t00000000\t0001\t0\t0\t10\t00FFFFFF\t0\t0\t0\n", ROUTE_HDR);
+    CHECK(net_primary(buf) == NET_PRIMARY_NONE);
+    CHECK(net_primary(ROUTE_HDR) == NET_PRIMARY_NONE);
+    CHECK(net_primary("") == NET_PRIMARY_NONE);
+    CHECK(net_primary(NULL) == NET_PRIMARY_NONE);
+}
+
 int main(void) {
     signal_tests();
     ifaddrs_tests();
+    primary_tests();
     printf(fails ? "test_net_info FAILED (%d)\n" : "test_net_info ok\n", fails);
     return fails ? 1 : 0;
 }

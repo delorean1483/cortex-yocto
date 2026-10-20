@@ -112,9 +112,12 @@ bumped when a heater desired is accepted). The agent nulls `desired.heater` once
 applied — **compare-and-clear**. The UI tracks pending → applied off this.
 
 `reported.network` (every report): the unit's LAN addresses, for finding it on
-its network. `{wifi: {ip, ssid, signal_dbm} | null, eth: {ip} | null}`; any
-part that is down is `null`, never omitted, because the shadow merges reported
-updates key by key. Absent on firmware older than the network report.
+its network. `{wifi: {ip, ssid, signal_dbm} | null, eth: {ip} | null,
+primary: "eth" | "wifi" | "other" | null}`; `primary` is the interface holding
+the default route (lowest metric), so the one the unit's traffic uses. Any part
+that is down is `null`, never omitted, because the shadow merges reported
+updates key by key. Absent on firmware older than the network report
+(`primary` from the release after 1.2.79).
 
 ---
 
