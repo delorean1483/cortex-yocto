@@ -322,21 +322,36 @@ describe('networkView (shadow reported.network)', () => {
   const WIFI = { ip: '192.168.0.211', ssid: 'HomeNet', signal_dbm: -58 }
   it('lists WiFi then Ethernet addresses, and the WiFi network with its signal', () => {
     const v = networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' } })
-    expect(v.addresses).toEqual([{ ip: '192.168.0.211', via: 'WiFi' }, { ip: '192.168.0.94', via: 'Ethernet' }])
+    expect(v.addresses).toEqual([{ ip: '192.168.0.211', via: 'WiFi', primary: false }, { ip: '192.168.0.94', via: 'Ethernet', primary: false }])
     expect(v.wifi).toBe('HomeNet, −58 dBm')
   })
   it('WiFi only (eth null)', () => {
     const v = networkView({ wifi: WIFI, eth: null })
-    expect(v.addresses).toEqual([{ ip: '192.168.0.211', via: 'WiFi' }])
+    expect(v.addresses).toEqual([{ ip: '192.168.0.211', via: 'WiFi', primary: false }])
   })
   it('Ethernet only (wifi null): no WiFi line', () => {
     const v = networkView({ wifi: null, eth: { ip: '192.168.0.94' } })
-    expect(v.addresses).toEqual([{ ip: '192.168.0.94', via: 'Ethernet' }])
+    expect(v.addresses).toEqual([{ ip: '192.168.0.94', via: 'Ethernet', primary: false }])
     expect(v.wifi).toBe(null)
   })
   it('WiFi joined but no address yet, or no signal reading', () => {
     expect(networkView({ wifi: { ip: null, ssid: 'HomeNet', signal_dbm: null }, eth: null }))
       .toEqual({ addresses: [], wifi: 'HomeNet' })
+  })
+  it('puts the primary interface (default route) first and marks it', () => {
+    const v = networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' }, primary: 'eth' })
+    expect(v.addresses).toEqual([
+      { ip: '192.168.0.94', via: 'Ethernet', primary: true },
+      { ip: '192.168.0.211', via: 'WiFi', primary: false },
+    ])
+    expect(networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' }, primary: 'wifi' }).addresses[0])
+      .toEqual({ ip: '192.168.0.211', via: 'WiFi', primary: true })
+  })
+  it('no mark when primary is unknown, null, or another interface', () => {
+    for (const primary of [undefined, null, 'other']) {
+      const v = networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' }, primary })
+      expect(v.addresses.map((a) => [a.via, a.primary])).toEqual([['WiFi', false], ['Ethernet', false]])
+    }
   })
   it('older firmware (no network block) or nothing up', () => {
     expect(networkView(undefined)).toEqual({ addresses: [], wifi: null })
