@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   IconAlertTriangle, IconAlertCircle, IconCircleCheck, IconWifiOff, IconChevronRight,
 } from '@tabler/icons-react'
+import StatusBadge from '../components/StatusBadge.jsx'
 import SearchInput from '../components/SearchInput.jsx'
 import { useUnits, useUnitLatest } from '../data/hooks.js'
 import { unitView, byAttention, fmt, apuVersionLabel, toneCounts, filterRows } from '../api/contract.js'
@@ -20,16 +21,6 @@ function UnitProbe({ unit, onData }) {
   const { data, isLoading } = useUnitLatest(unit)
   useEffect(() => { onData(unit, data, isLoading) }, [unit, data, isLoading, onData])
   return null
-}
-
-function StatusBadge({ view, size = 16 }) {
-  const Icon = TONE_ICON[view.tone]
-  return (
-    <span className={`badge t-${view.tone}`}>
-      <Icon size={size} stroke={2.2} aria-hidden="true" />
-      {view.status}
-    </span>
-  )
 }
 
 // Number at full size, unit small, so "1,920 rpm" never wraps in a card column.

@@ -49,7 +49,8 @@ describe('OverviewTab', () => {
 
   it('leads with a fault banner naming the fault', () => {
     renderTab({ ...BASE, error: 'Low oil pressure', error_n: 1, oil_ok: false })
-    expect(screen.getByRole('heading', { name: /Fault: Low oil pressure/ })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Low oil pressure' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: /Fault:/ })).toBeNull()
   })
 
   it('groups readings by system', () => {
@@ -107,5 +108,12 @@ describe('OverviewTab', () => {
   it('demo units cannot be controlled', () => {
     renderTab(BASE, { unit: 'APU-DEMO-01', isDemo: true })
     expect(screen.getByRole('button', { name: /stop apu/i }).disabled).toBe(true)
+  })
+
+  it('demo units: the reason renders before the action buttons', () => {
+    renderTab(BASE, { unit: 'APU-DEMO-01', isDemo: true })
+    const note = screen.getByText(/can.t be controlled|cannot be controlled/i, { selector: '.actions-note' })
+    const first = screen.getByRole('button', { name: /start climate/i })
+    expect(note.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
