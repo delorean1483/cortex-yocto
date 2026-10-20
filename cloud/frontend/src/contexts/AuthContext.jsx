@@ -19,6 +19,7 @@ export const ROLE_CFG = {
 export function AuthProvider({ children }) {
   const [user, setUser]               = useState(null)
   const [role, setRoleState]          = useState('admin')
+  const [realRole, setRealRole]       = useState(null)
   const [selectedUnit, setSelectedUnit] = useState(null)
   const [loading, setLoading]         = useState(true)
 
@@ -30,8 +31,12 @@ export function AuthProvider({ children }) {
         try { setUser(JSON.parse(stored)) } catch { /* ignore */ }
       }
     }
+    const savedReal = localStorage.getItem('eco_real_role')
+    const real = savedReal && ROLE_CFG[savedReal] ? savedReal : null
+    setRealRole(real)
     const savedRole = localStorage.getItem('eco_role')
-    if (savedRole && ROLE_CFG[savedRole]) setRoleState(savedRole)
+    if (real && real !== 'admin') setRoleState(real)
+    else if (savedRole && ROLE_CFG[savedRole]) setRoleState(savedRole)
     setLoading(false)
   }, [])
 
@@ -50,17 +55,27 @@ export function AuthProvider({ children }) {
     localStorage.setItem('eco_user', JSON.stringify(u))
     if (jwtRole && ROLE_CFG[jwtRole]) {
       setRoleState(jwtRole)
+      setRealRole(jwtRole)
       localStorage.setItem('eco_role', jwtRole)
+      localStorage.setItem('eco_real_role', jwtRole)
+    } else {
+      // Unknown or missing role: least privilege, never the 'admin' default.
+      setRoleState('eu')
+      setRealRole(null)
+      localStorage.setItem('eco_role', 'eu')
+      localStorage.removeItem('eco_real_role')
     }
   }
 
   function logout() {
     clearTokens()
+    localStorage.removeItem('eco_real_role')
+    setRealRole(null)
     setUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, role, setRole, selectedUnit, setSelectedUnit, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, role, realRole, canPreview: realRole === 'admin', setRole, selectedUnit, setSelectedUnit, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   )

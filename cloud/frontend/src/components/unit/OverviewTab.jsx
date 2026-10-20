@@ -27,7 +27,7 @@ function bannerCopy(tele, view) {
   const context = `Mode ${modeLabel(tele).toLowerCase()} · ${engine}`
   if (view.status === 'No data') return { title: 'No data yet', sub: 'This unit has not reported telemetry.', tab: null }
   if (view.stale) return { title: 'Offline: not reporting', sub: 'Values below are the last ones received.', tab: ['history', 'View history'] }
-  if (view.tone === 'err') return { title: `Fault: ${view.headline}`, sub: context, tab: ['history', 'View fault history'] }
+  if (view.tone === 'err') return { title: view.headline, sub: context, tab: ['history', 'View fault history'] }
   if (view.tone === 'warn') return { title: `Warning: ${view.headline}`, sub: context, tab: ['telemetry', 'View telemetry'] }
   // Healthy: the title already names the mode.
   const doing = modeLabel(tele) === 'Off' && !running ? 'APU off' : modeLabel(tele)
@@ -103,19 +103,14 @@ export default function OverviewTab({ tele, unit, isDemo, onOpenTab }) {
   return (
     <>
       <section aria-label="Unit status" className={`banner b-${view.tone}`}>
-        <span className={`badge badge-icon t-${view.tone}`} style={{ width: 52, height: 52 }}>
-          <Icon size={28} aria-hidden="true" />
-        </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <Icon size={24} aria-hidden="true" style={{ color: TONE_TEXT[view.tone] || 'var(--color-text-secondary)', flexShrink: 0 }} />
+        <div className="banner-body">
           <h2 className="banner-title" style={{ margin: 0, color: TONE_TEXT[view.tone] || 'var(--color-text-primary)' }}>{copy.title}</h2>
-          <div className="banner-sub">{copy.sub}</div>
+          <span className="banner-sub">{copy.sub}</span>
         </div>
-        <div className="banner-meta">
-          <span style={{ fontSize: 14, color: 'var(--color-text-tertiary)' }}>{view.seen}</span>
-          {copy.tab && onOpenTab && (
-            <button className="btn btn-sm" onClick={() => onOpenTab(copy.tab[0])}>{copy.tab[1]}</button>
-          )}
-        </div>
+        {copy.tab && onOpenTab && (
+          <button className="btn" onClick={() => onOpenTab(copy.tab[0])}>{copy.tab[1]}</button>
+        )}
       </section>
 
       <div className="ov-layout">

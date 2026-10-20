@@ -1,20 +1,19 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
+import { useNavigate } from 'react-router-dom'
 import UnitPicker from '../components/UnitPicker.jsx'
+import { faultInfo, faultStateView, rangeLabel, shortWhen } from '../api/contract.js'
 
-function eventType(f) {
-  if (!f.fault || f.fault === '0x0000' || f.fault === 0) {
-    if (f.state === 'cleared') return { label: 'Cleared', cls: 'p-g' }
-    return { label: 'Normal', cls: 'p-n' }
-  }
-  if (f.state === 'active')  return { label: 'Fault',   cls: 'p-r' }
-  if (f.state === 'cleared') return { label: 'Cleared',  cls: 'p-g' }
-  return { label: 'Fault', cls: 'p-r' }
-}
+const RANGES = [
+  { value: '-1d', label: '24 h' },
+  { value: '-7d', label: '7 days' },
+  { value: '-30d', label: '30 days' },
+]
 
 export default function APUHistoryPage() {
   const { selectedUnit, setSelectedUnit } = useAuth()
+  const navigate = useNavigate()
   const [units, setUnits]   = useState([])
   const [faults, setFaults] = useState(null)
   const [tele, setTele]     = useState(null)
@@ -60,23 +59,28 @@ export default function APUHistoryPage() {
     <>
       <div className="toolbar">
         <UnitPicker units={units} value={selectedUnit} onChange={setSelectedUnit} />
-        <div className="field field-inline">
-          <label htmlFor="history-range">Period</label>
-          <select id="history-range" className="control" value={range} onChange={e => setRange(e.target.value)}>
-          <option value="-1d">Last 24 h</option>
-          <option value="-7d">Last 7 days</option>
-          <option value="-30d">Last 30 days</option>
-          </select>
+        <div className="seg" role="radiogroup" aria-label="Period">
+          {RANGES.map((r) => (
+            <label key={r.value}>
+              <input type="radio" name="history-range" value={r.value}
+                checked={range === r.value} onChange={() => setRange(r.value)} />
+              {r.label}
+            </label>
+          ))}
         </div>
       </div>
 
       <div>
         <div className="sec-hd">
-          <span className="sec-title">Event log</span>
-          <span className="sec-sub">{selectedUnit || '—'} · {range.replace('-','last ')}</span>
+          <span className="sec-title">
+            {faults && events.length > 0
+              ? `Fault events · ${events.length} in the ${rangeLabel(range).toLowerCase()}`
+              : 'Fault events'}
+          </span>
+          <span className="sec-sub">{selectedUnit || '—'} · {rangeLabel(range)}</span>
         </div>
 
-        {error && <div className="notice" style={{ color: '#E24B4A' }}>⚠ {error}</div>}
+        {error && <div className="notice" style={{ color: 'var(--err)' }}>⚠ {error}</div>}
 
         {!faults && !error && (
           <>{[1,2,3].map(i => <div key={i} className="skeleton" style={{ height: 36, marginBottom: 5 }} />)}</>
@@ -89,19 +93,20 @@ export default function APUHistoryPage() {
         {events.length > 0 && (
           <table className="dtbl">
             <thead>
-              <tr><th>Timestamp</th><th>Unit</th><th>Event</th><th>Detail</th></tr>
+              <tr><th className="w-190">When</th><th>Event</th><th>State</th></tr>
             </thead>
             <tbody>
               {events.slice(0, 100).map((ev, i) => {
-                const et = eventType(ev)
+                const info = faultInfo(ev)
+                const sv = faultStateView(ev, info)
                 return (
                   <tr key={i}>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, whiteSpace: 'nowrap' }}>
-                      {new Date(ev.ts).toLocaleString()}
+                    <td className="nowrap">{shortWhen(ev.ts)}</td>
+                    <td>
+                      {sv.label === 'Cleared' && info.code === '0x0000' ? 'All faults cleared' : info.name}
+                      <span className="code">{info.code}</span>
                     </td>
-                    <td>{selectedUnit}</td>
-                    <td><span className={`pill ${et.cls}`}>{et.label}</span></td>
-                    <td style={{ fontSize: 11.5, color: 'var(--color-text-secondary)' }}>{ev.detail}</td>
+                    <td><span className={`badge badge-sm t-${sv.tone}`}>{sv.label}</span></td>
                   </tr>
                 )
               })}
@@ -116,20 +121,24 @@ export default function APUHistoryPage() {
           <div className="sec-hd">
             <span className="sec-title">Telemetry samples</span>
             <span className="sec-sub">{tele.length} points</span>
+            <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto' }}
+              onClick={() => navigate('/units/' + encodeURIComponent(selectedUnit) + '?tab=telemetry')}>
+              Open Telemetry tab
+            </button>
           </div>
           <table className="dtbl">
             <thead>
-              <tr><th>Time</th><th>Batt V</th><th>RPM</th><th>Cabin °F</th><th>Oil</th><th>Engine h</th></tr>
+              <tr><th>Time</th><th className="num">Battery</th><th className="num">RPM</th><th className="num">Cabin</th><th className="num">Oil</th><th className="num">Engine hours</th></tr>
             </thead>
             <tbody>
               {tele.slice(0, 20).map((t, i) => (
                 <tr key={i}>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11, whiteSpace: 'nowrap' }}>{new Date(t.ts).toLocaleString()}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.batt_v?.toFixed(1) ?? '—'}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.rpm ?? '—'}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.cabin_temp_f?.toFixed(0) ?? '—'}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.oil_ok == null ? '—' : (t.oil_ok ? 'OK' : 'Low')}</td>
-                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.engine_hrs?.toFixed(0) ?? '—'}</td>
+                  <td className="nowrap">{shortWhen(t.ts)}</td>
+                  <td className="num">{t.batt_v == null ? '—' : `${t.batt_v.toFixed(2)} V`}</td>
+                  <td className="num">{t.rpm ?? '—'}</td>
+                  <td className="num">{t.cabin_temp_f == null ? '—' : `${t.cabin_temp_f.toFixed(0)}°F`}</td>
+                  <td className="num">{t.oil_ok == null ? '—' : (t.oil_ok ? 'OK' : 'Low')}</td>
+                  <td className="num">{t.engine_hrs == null ? '—' : `${t.engine_hrs.toFixed(0)} h`}</td>
                 </tr>
               ))}
             </tbody>

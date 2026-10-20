@@ -16,8 +16,9 @@ const SNAP = {
   diag_active: false, diag_outputs: 0,
 }
 
+const live = vi.hoisted(() => ({ over: {} }))
 vi.mock('../data/hooks.js', () => ({
-  useUnitLatest: () => ({ data: SNAP }),
+  useUnitLatest: () => ({ data: { ...SNAP, ...live.over } }),
   useTelemetrySeries: () => ({ data: [], isLoading: false }),
   useFaults: () => ({ data: [], isLoading: false }),
   useCommand: () => ({ mutate: vi.fn(), isPending: false }),
@@ -28,9 +29,9 @@ vi.mock('../contexts/AuthContext.jsx', () => ({ useAuth: () => ({ role: 'admin' 
 
 import UnitDetailPage from './UnitDetailPage.jsx'
 
-function renderPage() {
+function renderPage(entry = '/units/APU-1') {
   return render(
-    <MemoryRouter initialEntries={['/units/APU-1']}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes><Route path="/units/:id" element={<UnitDetailPage />} /></Routes>
     </MemoryRouter>,
   )
@@ -39,9 +40,22 @@ function renderPage() {
 describe('UnitDetailPage', () => {
   it('renders the unit id and a status banner', () => {
     renderPage()
-    expect(screen.getByRole('heading', { name: 'APU-1' })).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Unit status' })).toBeTruthy()
     expect(screen.getByText('Reported just now')).toBeTruthy()
+  })
+  it('has no Fleet back button and no h1 (the topbar breadcrumb carries it)', () => {
+    renderPage()
+    expect(screen.queryByRole('button', { name: /Fleet/ })).toBeNull()
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+  })
+  it('header row shows the id, a status badge and the seen text', () => {
+    live.over = { error: 'Low oil pressure', error_n: 1, oil_ok: false }
+    const { container } = renderPage()
+    live.over = {}
+    const head = container.querySelector('.unit-head')
+    expect(head.textContent).toContain('APU-1')
+    expect(head.querySelector('.badge.t-err').textContent).toBe('Fault')
+    expect(head.textContent).toContain('Reported just now')
   })
   it('renders all tab buttons', () => {
     renderPage()
@@ -53,5 +67,13 @@ describe('UnitDetailPage', () => {
     renderPage()
     fireEvent.click(screen.getByRole('tab', { name: 'Heater' }))
     expect(screen.getByText(/VEVOR diesel heater/i)).toBeTruthy()
+  })
+  it('opens the tab named by ?tab=', () => {
+    renderPage('/units/APU-1?tab=firmware')
+    expect(screen.getByRole('tab', { name: 'Firmware' }).getAttribute('aria-selected')).toBe('true')
+  })
+  it('falls back to Overview for an unknown ?tab=', () => {
+    renderPage('/units/APU-1?tab=bogus')
+    expect(screen.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected')).toBe('true')
   })
 })

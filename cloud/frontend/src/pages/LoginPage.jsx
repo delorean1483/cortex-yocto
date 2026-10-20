@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
+import { IconAlertCircle } from '@tabler/icons-react'
 import BrandLogo from '../components/BrandLogo.jsx'
 
 export default function LoginPage() {
@@ -29,51 +30,44 @@ export default function LoginPage() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-secondary)' }}>
-      <div style={{ width: 340, background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 12, padding: '28px 28px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {/* Logo */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-          <BrandLogo height={72} />
-          <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>Fleet management dashboard</div>
+      <div style={{ width: 400, maxWidth: 'calc(100vw - 32px)', background: 'var(--color-background-primary)', border: '1px solid var(--color-border-secondary)', borderRadius: 14, padding: '36px 36px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <BrandLogo height={60} />
+          <div style={{ fontSize: 15, color: 'var(--color-text-secondary)' }}>Fleet management dashboard</div>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--color-text-secondary)' }}>Email</label>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="field">
+            <label htmlFor="login-email">Email</label>
             <input
+              id="login-email" className="control" style={{ minHeight: 44 }}
               type="email" required autoFocus
               value={email} onChange={e => setEmail(e.target.value)}
               placeholder="you@example.com"
-              style={inputStyle}
             />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--color-text-secondary)' }}>Password</label>
+          <div className="field">
+            <label htmlFor="login-password">Password</label>
             <input
+              id="login-password" className="control" style={{ minHeight: 44 }}
               type="password" required
               value={password} onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
-              style={inputStyle}
             />
           </div>
 
           {error && (
-            <div style={{ fontSize: 12, color: '#E24B4A', padding: '7px 10px', background: 'var(--color-background-danger)', borderRadius: 6, border: '0.5px solid var(--color-border-danger)' }}>
-              {error}
+            <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--err)', padding: '10px 12px', background: 'var(--err-soft)', borderRadius: 8 }}>
+              <IconAlertCircle size={18} stroke={1.75} style={{ flexShrink: 0 }} />
+              <span>{error}</span>
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="btn btn-primary" style={{ marginTop: 4, justifyContent: 'center', padding: '8px 0', fontSize: 13 }}>
+          <button type="submit" disabled={loading} className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center' }}>
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
       </div>
     </div>
   )
-}
-
-const inputStyle = {
-  fontSize: 13, padding: '7px 10px',
-  border: '0.5px solid var(--color-border-secondary)',
-  borderRadius: 6, background: 'var(--color-background-primary)',
-  color: 'var(--color-text-primary)', outline: 'none', width: '100%',
 }

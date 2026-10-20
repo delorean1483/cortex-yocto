@@ -1,7 +1,8 @@
-import { Suspense, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { IconArrowLeft } from '@tabler/icons-react'
+import { Suspense, useState, useEffect } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useUnitLatest } from '../data/hooks.js'
+import { unitView } from '../api/contract.js'
+import StatusBadge from '../components/StatusBadge.jsx'
 import OverviewTab from '../components/unit/OverviewTab.jsx'
 import HeaterTab from '../components/unit/HeaterTab.jsx'
 import ComponentTestTab from '../components/unit/ComponentTestTab.jsx'
@@ -25,20 +26,36 @@ const TABS = [
 
 export default function UnitDetailPage() {
   const { id } = useParams()
-  const navigate = useNavigate()
-  const [tab, setTab] = useState('overview')
+  const [params, setParams] = useSearchParams()
+  const wanted = params.get('tab')
+  const tab = TABS.some((t) => t.id === wanted) ? wanted : 'overview'
+  const setTab = (next) => {
+    const p = new URLSearchParams(params)
+    if (next === 'overview') p.delete('tab'); else p.set('tab', next)
+    setParams(p, { replace: true })
+  }
   const { data: tele } = useUnitLatest(id)
   const isDemo = (id || '').startsWith('APU-DEMO-')
+  const [now, setNow] = useState(() => Date.now())
+  // "Reported 6s ago" and the offline cut-over need a moving clock.
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 5000)
+    return () => clearInterval(t)
+  }, [])
+  const view = tele ? unitView(tele, now) : null
 
   return (
     <>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <button className="btn" onClick={() => navigate('/')}>
-          <IconArrowLeft size={16} /> Fleet
-        </button>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>{id}</h1>
+      <div className="unit-head">
+        <span className="unit-id">{id}</span>
+        {view && <StatusBadge view={view} />}
         {isDemo && <span className="badge badge-sm t-off">demo</span>}
+        {view && (
+          <span className="unit-seen">
+            {tele.fleet_id ? `${tele.fleet_id} · ` : ''}{view.seen}
+          </span>
+        )}
       </div>
 
       {/* Tab bar */}

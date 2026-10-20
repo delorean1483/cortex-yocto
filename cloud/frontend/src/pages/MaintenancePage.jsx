@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
-import { IconPlus, IconTool, IconRefresh, IconLoader2 } from '@tabler/icons-react'
+import { IconPlus, IconTool, IconLoader2 } from '@tabler/icons-react'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import UnitPicker from '../components/UnitPicker.jsx'
 import EmptyState from '../components/EmptyState.jsx'
+import FilterChips from '../components/FilterChips.jsx'
+import { useUnitLatest } from '../data/hooks.js'
 
 const TYPE_LABELS = {
   oil_change:  'Oil change',
@@ -12,6 +14,18 @@ const TYPE_LABELS = {
   repair:      'Repair',
   firmware:    'Firmware update',
   other:       'Other',
+}
+
+const TYPE_CHIPS = [
+  { value: 'all', label: 'All types' },
+  { value: 'oil_change', label: 'Oil change' },
+  { value: 'inspection', label: 'Inspection' },
+  { value: 'repair', label: 'Repair' },
+  { value: 'firmware', label: 'Firmware' },
+]
+
+function hrs(v) {
+  return typeof v === 'number' && Number.isFinite(v) ? `${v.toLocaleString('en-US')} h` : '—'
 }
 
 function dateParts(r) {
@@ -31,6 +45,8 @@ export default function MaintenancePage() {
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [msg, setMsg]         = useState(null) // { ok, text }
+  const [typeFilter, setTypeFilter] = useState('all')
+  const { data: latest } = useUnitLatest(selectedUnit)
 
   // Form state
   const [fType, setFType]         = useState('inspection')
@@ -83,6 +99,7 @@ export default function MaintenancePage() {
     }
   }
 
+  const shown = typeFilter === 'all' ? records : records.filter(r => r.type === typeFilter)
   const showEmpty = !!selectedUnit && !loading && records.length === 0
 
   const addButton = canAdd && !showForm && (
@@ -95,10 +112,7 @@ export default function MaintenancePage() {
     <>
       <div className="toolbar">
         <UnitPicker units={units} value={selectedUnit} onChange={setSelectedUnit} />
-        <button className="btn" onClick={fetchRecords} disabled={loading || !selectedUnit}>
-          <IconRefresh size={16} className={loading ? 'spin' : undefined} aria-hidden="true" />
-          Refresh
-        </button>
+        <FilterChips label="Type" options={TYPE_CHIPS} value={typeFilter} onChange={setTypeFilter} />
         <span style={{ flex: 1 }} />
         {/* The empty state carries its own Add button; don't show two. */}
         {!showEmpty && addButton}
@@ -151,26 +165,60 @@ export default function MaintenancePage() {
         </EmptyState>
       )}
 
+      {selectedUnit && (
+        <section aria-labelledby="svc-counters-h">
+          <div className="sec-hd">
+            <h2 id="svc-counters-h" className="sec-title svc-title">Service counters</h2>
+            <span className="sec-sub svc-sub">{selectedUnit} · from latest telemetry</span>
+          </div>
+          <div className="svc-grid">
+            <div className="scard svc-card">
+              <div className="scard-lbl">Oil hours</div>
+              <div className="scard-val">{hrs(latest?.oil_hrs)}</div>
+              <div className="scard-sub">since last oil change</div>
+            </div>
+            <div className="scard svc-card">
+              <div className="scard-lbl">Engine hours</div>
+              <div className="scard-val">{hrs(latest?.engine_hrs)}</div>
+              <div className="scard-sub">engine counter</div>
+            </div>
+            <div className="scard svc-card">
+              <div className="scard-lbl">Machine hours</div>
+              <div className="scard-val">{hrs(latest?.machine_hrs)}</div>
+              <div className="scard-sub">unit powered</div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {selectedUnit && records.length > 0 && (
-        <section aria-label="Maintenance history" className="panel">
-          {records.map((r, i) => {
-            const { day, time } = dateParts(r)
-            return (
-              <article key={r.id || i} className="mrow">
-                <div>
-                  <div className="mdate">{day}</div>
-                  {time && <div className="mtime">{time}</div>}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <span className="badge badge-sm t-off">{TYPE_LABELS[r.type] || r.type}</span>
-                    <span style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>{r.technician || r.tech || 'Technician not recorded'}</span>
-                  </div>
-                  {r.notes && <div className="mnotes">{r.notes}</div>}
-                </div>
-              </article>
-            )
-          })}
+        <section aria-labelledby="svc-history-h">
+          <div className="sec-hd">
+            <h2 id="svc-history-h" className="sec-title svc-title">Service history</h2>
+            <span className="sec-sub svc-sub">{shown.length} {shown.length === 1 ? 'record' : 'records'}</span>
+          </div>
+          <div className="panel panel-x">
+            <table className="dtbl roomy" aria-labelledby="svc-history-h">
+              <thead>
+                <tr>
+                  <th className="w-150">Date</th>
+                  <th className="w-150">Type</th>
+                  <th className="w-180">Technician</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((r, i) => (
+                  <tr key={r.id || i}>
+                    <td className="strong nowrap">{dateParts(r).day}</td>
+                    <td><span className="badge badge-sm t-off">{TYPE_LABELS[r.type] || r.type}</span></td>
+                    <td>{r.technician || r.tech || '—'}</td>
+                    <td>{r.notes || <span className="subline">No notes</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </>

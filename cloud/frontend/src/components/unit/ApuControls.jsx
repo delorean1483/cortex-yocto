@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { IconInfoCircle } from '@tabler/icons-react'
 import { useCommand } from '../../data/hooks.js'
 import { useCan } from '../../components/RoleGate.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
@@ -14,7 +15,7 @@ export default function ApuControls({ tele, unit, isDemo, offline = false, stack
   const [confirm, setConfirm] = useState(null)
 
   const disabled = !allowed || isDemo
-  const disabledReason = isDemo ? 'Demo units cannot be controlled.' : reason
+  const disabledReason = isDemo ? 'Demo units can’t be controlled. Actions are shown for reference.' : reason
   // The remote command sets the APU op-state (firmware mode reg): climate /
   // battery / stop. A button that wouldn't change state is disabled — but
   // switching between climate and battery while running is allowed, so the
@@ -28,8 +29,19 @@ export default function ApuControls({ tele, unit, isDemo, offline = false, stack
     : offline ? 'Unit is offline — starting is unavailable until it reports again. Stop can still be queued.'
     : 'Every action asks you to confirm before it is sent to the unit.'
 
+  // Why the buttons are dead leads the block, so it is read before them.
+  const noteAbove = stacked && (disabled || offline)
+  const noteEl = (
+    <div className={noteAbove ? 'actions-note notice' : 'actions-note'}
+      style={noteAbove ? { marginBottom: 10, alignItems: 'flex-start' } : { marginTop: 10, fontSize: 13, lineHeight: 1.45, color: 'var(--color-text-tertiary)' }}>
+      {noteAbove && <IconInfoCircle size={18} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />}
+      {note}
+    </div>
+  )
+
   return (
     <>
+      {noteAbove && noteEl}
       <div className={stacked ? 'actions' : 'bbar'} title={disabled ? disabledReason : undefined}
         style={stacked ? { display: 'flex', flexDirection: 'column', gap: 8 } : undefined}>
         <button className={`btn btn-primary${stacked ? ' btn-lg' : ''}`} disabled={disabled || offline || mode === 'climate'}
@@ -53,7 +65,7 @@ export default function ApuControls({ tele, unit, isDemo, offline = false, stack
         </button>
         {extra}
       </div>
-      <div className="actions-note" style={{ marginTop: 10, fontSize: 13, lineHeight: 1.45, color: 'var(--color-text-tertiary)' }}>{note}</div>
+      {!noteAbove && noteEl}
 
       <ConfirmDialog
         open={!!confirm}

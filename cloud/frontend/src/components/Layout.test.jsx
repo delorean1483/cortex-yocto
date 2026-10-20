@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 
+const authState = vi.hoisted(() => ({ canPreview: false }))
+
 vi.mock('../contexts/AuthContext.jsx', () => ({
-  useAuth: () => ({ user: { email: 'tech@ecofleet.io' }, role: 'admin', setRole: vi.fn(), logout: vi.fn() }),
-  ROLE_CFG: { admin: { lbl: 'EcoFleet Admin', badge: 'rb-admin', nav: ['/', '/map', '/alerts'] } },
+  useAuth: () => ({ user: { email: 'tech@ecofleet.io' }, role: 'admin', realRole: authState.canPreview ? 'admin' : 'fm', canPreview: authState.canPreview, setRole: vi.fn(), logout: vi.fn() }),
+  ROLE_CFG: { admin: { lbl: 'EcoFleet Admin', badge: 'rb-admin', nav: ['/', '/map', '/alerts', '/config'] } },
 }))
 
 import Layout from './Layout.jsx'
@@ -28,13 +30,58 @@ function renderAt(width, path = '/') {
 const dialog = () => screen.queryByRole('dialog', { name: 'Navigation' })
 
 describe('Layout', () => {
-  beforeEach(() => { window.innerWidth = 1440 })
+  beforeEach(() => { window.innerWidth = 1440; authState.canPreview = false })
 
   it('desktop: full sidebar with text labels, no menu button', () => {
     renderAt(1440)
     expect(screen.getByRole('button', { name: 'Dashboard' }).textContent).toContain('Dashboard')
     expect(screen.getByText('tech@ecofleet.io')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
+    expect(document.querySelector('.rbadge')).toBeNull()
+  })
+
+  it('a malformed unit id in the URL does not crash the shell', () => {
+    renderAt(1440, '/units/%E0%A4%A')
+    expect(screen.getByRole('link', { name: 'Dashboard' }).getAttribute('href')).toBe('/')
+    expect(screen.getByText('%E0%A4%A')).toBeTruthy()
+  })
+
+  it('config nav entry and topbar title are labelled Unit settings', () => {
+    renderAt(1440, '/config')
+    expect(screen.getByRole('button', { name: 'Unit settings' })).toBeTruthy()
+    expect(screen.queryByText('System config')).toBeNull()
+  })
+
+  it('preview select is hidden unless canPreview', () => {
+    renderAt(1440)
+    expect(screen.queryByRole('combobox', { name: /Preview as/ })).toBeNull()
+  })
+
+  it('preview select shows for canPreview', () => {
+    authState.canPreview = true
+    renderAt(1440)
+    expect(screen.getByRole('combobox', { name: /Preview as/ })).toBeTruthy()
+  })
+
+  it('unit page shows a Dashboard breadcrumb and the unit id', () => {
+    renderAt(1440, '/units/APU-000123')
+    const link = screen.getByRole('link', { name: 'Dashboard' })
+    expect(link.getAttribute('href')).toBe('/')
+    expect(screen.getByText('APU-000123')).toBeTruthy()
+  })
+
+  it('phone: unit page shows the unit id without the Dashboard breadcrumb', () => {
+    renderAt(390, '/units/APU-000123')
+    expect(screen.getByText('APU-000123')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Dashboard' })).toBeNull()
+  })
+
+  it('phone: the DEMO tag is hidden but the preview select stays', () => {
+    authState.canPreview = true
+    renderAt(390)
+    expect(screen.queryByText('DEMO')).toBeNull()
+    expect(screen.getByRole('combobox', { name: 'Preview as role' })).toBeTruthy()
   })
 
   it('tablet: icon rail — buttons keep accessible names, labels and email hidden', () => {

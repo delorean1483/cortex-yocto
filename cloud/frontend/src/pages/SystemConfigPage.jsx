@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { IconClockHour4, IconPower, IconInfoCircle } from '@tabler/icons-react'
+import { useNavigate } from 'react-router-dom'
+import { IconClockHour4, IconPower, IconInfoCircle, IconAlertTriangle } from '@tabler/icons-react'
 import { useUnits, useShadow, useUnitLatest, useSetConfig } from '../data/hooks.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
 import { useCan } from '../components/RoleGate.jsx'
@@ -8,10 +9,10 @@ import { INTERVAL_CHOICES, intervalStatus, supportsRemoteReboot, REBOOT_MIN_FW }
 import UnitPicker from '../components/UnitPicker.jsx'
 import ConfirmDialog from '../components/ConfirmDialog.jsx'
 
-const STATUS_TEXT = {
-  pending: 'Pending — waiting for the unit to confirm',
-  unconfirmed: 'Not confirmed yet — the unit may be offline',
-  confirmed: 'Confirmed by the unit',
+const STATUS_BADGE = {
+  pending: { text: 'Pending', cls: 't-warn' },
+  unconfirmed: { text: 'Not confirmed', cls: 't-err' },
+  confirmed: { text: 'Confirmed by unit', cls: 't-ok' },
 }
 
 function Row({ label, children }) {
@@ -25,6 +26,7 @@ function Row({ label, children }) {
 
 export default function SystemConfigPage() {
   const { selectedUnit, setSelectedUnit } = useAuth()
+  const navigate = useNavigate()
   const { data: units } = useUnits()
   const list = units || []
   const unit = selectedUnit || list[0]?.unit || null
@@ -51,6 +53,9 @@ export default function SystemConfigPage() {
   const selectedChoice = choice ?? (INTERVAL_CHOICES.includes(Number(reported)) ? Number(reported) : null)
   const outside = reported != null && !INTERVAL_CHOICES.includes(Number(reported))
 
+  const intervalDisabled = choice == null || choice === Number(reported) || setConfig.isPending
+    || (status === 'pending' && choice === request?.value)
+
   const sendInterval = () => {
     const value = choice
     setConfirmInterval(false)
@@ -74,6 +79,7 @@ export default function SystemConfigPage() {
     <>
       <div className="toolbar">
         <UnitPicker units={list} value={unit} onChange={setSelectedUnit} />
+        <span style={{ fontSize: 14, color: 'var(--color-text-tertiary)' }}>Settings apply to one unit at a time.</span>
       </div>
 
       {isDemo && <div className="notice">Demo units can't be configured.</div>}
@@ -86,11 +92,16 @@ export default function SystemConfigPage() {
               <h2 id="int-h" className="group-hd" style={{ margin: 0 }}>
                 <IconClockHour4 size={18} aria-hidden="true" /> Reporting interval
               </h2>
-              <div style={{ fontSize: 22, fontWeight: 500 }}>
-                {reported != null ? `Every ${reported} seconds` : 'Not reported yet'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 22, fontWeight: 500 }}>
+                  {reported != null ? `Every ${reported} seconds` : 'Not reported yet'}
+                </span>
+                {status !== 'idle' && (
+                  <span role="status" className={`badge badge-sm ${STATUS_BADGE[status].cls}`}>{STATUS_BADGE[status].text}</span>
+                )}
               </div>
               {outside && <div className="stat-cap">This interval was set outside this page.</div>}
-              <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)' }}>
+              <p style={{ margin: 0, fontSize: 15, color: 'var(--color-text-secondary)' }}>
                 How often the unit reads the APU and sends telemetry. Shorter intervals give fresher data but add database load.
               </p>
 
@@ -106,15 +117,10 @@ export default function SystemConfigPage() {
                     ))}
                   </div>
                   <button className="btn btn-primary" onClick={() => setConfirmInterval(true)}
-                    disabled={choice == null || choice === Number(reported) || setConfig.isPending
-                      || (status === 'pending' && choice === request?.value)}>
+                    disabled={intervalDisabled}>
                     Change interval
                   </button>
-                </div>
-              )}
-              {status !== 'idle' && (
-                <div role="status" className={status === 'unconfirmed' ? 'msg-err' : status === 'confirmed' ? 'msg-ok' : 'stat-cap'}>
-                  {STATUS_TEXT[status]}
+                  {intervalDisabled && <span className="stat-cap">Pick a new value to enable</span>}
                 </div>
               )}
             </section>
@@ -127,15 +133,17 @@ export default function SystemConfigPage() {
                 <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)' }}>
                   Restarts the unit's computer. The APU controller keeps running.
                 </p>
+                {!rebootOk && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: 'var(--warn-soft)', color: 'var(--warn)', borderRadius: 8, padding: '12px 14px', fontSize: 14 }}>
+                    <IconAlertTriangle size={18} aria-hidden="true" />
+                    <span style={{ flex: 1 }}>Needs system image {REBOOT_MIN_FW} or newer. {unit} is on {imageFw || 'an unknown version'}.</span>
+                    <button className="btn btn-sm" onClick={() => navigate(`/units/${encodeURIComponent(unit)}?tab=firmware`)}>Go to Firmware</button>
+                  </div>
+                )}
                 <div>
                   <button className="btn btn-red" onClick={() => setConfirmReboot(true)}
                     disabled={!rebootOk || setConfig.isPending}>Reboot unit</button>
                 </div>
-                {!rebootOk && (
-                  <div className="stat-cap">
-                    Remote reboot needs system image {REBOOT_MIN_FW} or newer ({unit} is on {imageFw || 'an unknown version'}). Update the unit first.
-                  </div>
-                )}
               </section>
             )}
           </div>

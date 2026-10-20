@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { IconRefresh, IconClockPause } from '@tabler/icons-react'
 import { api } from '../api/client.js'
-import { reportView } from '../api/contract.js'
+import { reportView, reportRangeText } from '../api/contract.js'
 import EmptyState from '../components/EmptyState.jsx'
 
 const RANGES = [
@@ -28,6 +28,7 @@ export default function ReportsPage() {
   const totals = data?.totals
   const operators = data?.operators || []
   const view = reportView(totals)
+  const sum = (k) => operators.reduce((n, o) => n + (Number(o[k]) || 0), 0)
   const range = RANGES.find((r) => r.value === start)
 
   return (
@@ -42,6 +43,9 @@ export default function ReportsPage() {
             </label>
           ))}
         </div>
+        <span style={{ marginLeft: 'auto', fontSize: 14, color: 'var(--color-text-tertiary)' }}>
+          {reportRangeText(start, new Date())}
+        </span>
         <button className="btn" onClick={fetchReport} disabled={loading}>
           <IconRefresh size={16} className={loading ? 'spin' : undefined} aria-hidden="true" />
           Refresh
@@ -66,7 +70,7 @@ export default function ReportsPage() {
           {view.cards.map((c) => (
             <div key={c.key} className="stat">
               <div className="stat-lbl">{c.label}</div>
-              <div className="stat-val" style={c.tone === 'ok' && !view.zeroRuntime ? { color: 'var(--ok)' } : undefined}>
+              <div className="stat-val">
                 {c.value}{c.unit && <span className="stat-unit">{c.unit}</span>}
               </div>
               <div className="stat-cap">{c.caption}</div>
@@ -79,18 +83,22 @@ export default function ReportsPage() {
         <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div className="sec-hd">
             <h2 id="ops-h" className="sec-title" style={{ margin: 0 }}>Operator activity</h2>
-            <span className="sec-sub">{range.long}</span>
+            <span className="sec-sub">{operators.length} {operators.length === 1 ? 'operator' : 'operators'}</span>
           </div>
-          <div className="panel" style={{ overflowX: 'auto' }}>
+          <div className="panel panel-x">
             <table className="dtbl" aria-labelledby="ops-h">
-              <thead><tr><th>Operator</th><th>Fleet</th><th>Starts</th><th>Stops</th><th>FW updates</th></tr></thead>
+              <thead><tr><th>Operator</th><th>Fleet</th><th className="num">Starts</th><th className="num">Stops</th><th className="num">FW updates</th></tr></thead>
               <tbody>
                 {operators.map((o, i) => (
                   <tr key={i}>
-                    <td>{o.operator}</td><td>{o.fleet}</td>
-                    <td>{o.starts}</td><td>{o.stops}</td><td>{o.fw_updates}</td>
+                    <td className="strong">{o.operator}</td><td>{o.fleet}</td>
+                    <td className="num">{o.starts}</td><td className="num">{o.stops}</td><td className="num">{o.fw_updates}</td>
                   </tr>
                 ))}
+                <tr>
+                  <td className="strong">Total</td><td />
+                  <td className="num strong">{sum('starts')}</td><td className="num strong">{sum('stops')}</td><td className="num strong">{sum('fw_updates')}</td>
+                </tr>
               </tbody>
             </table>
           </div>

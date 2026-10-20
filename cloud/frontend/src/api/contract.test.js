@@ -3,7 +3,7 @@ import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
   heaterExt, heaterPhaseLabel, heaterTypeLabel,
          heaterFlags, diagOutputs, connLabel, otaStatusView,
          chronological, ageText, modeLabel, unitView, byAttention,
-         activeFaults, faultInfo, reportView } from './contract.js'
+         activeFaults, faultInfo, reportView, userStatusView, assignableRoles, rangeLabel, shortWhen, faultStateView, toneCounts, filterRows, fleetFaultRows, severityCounts, reportRangeText } from './contract.js'
 
 describe('otaStatusView', () => {
   it('hidden when idle/empty/null', () => {
@@ -342,5 +342,121 @@ describe('networkView (shadow reported.network)', () => {
     expect(networkView(undefined)).toEqual({ addresses: [], wifi: null })
     expect(networkView(null)).toEqual({ addresses: [], wifi: null })
     expect(networkView({ wifi: null, eth: null })).toEqual({ addresses: [], wifi: null })
+  })
+})
+
+describe('userStatusView', () => {
+  it('maps Cognito and mock statuses', () => {
+    expect(userStatusView('CONFIRMED')).toEqual({ label: 'Active', tone: 'ok' })
+    expect(userStatusView('active')).toEqual({ label: 'Active', tone: 'ok' })
+    expect(userStatusView('FORCE_CHANGE_PASSWORD')).toEqual({ label: 'Pending', tone: 'warn' })
+    expect(userStatusView('invited')).toEqual({ label: 'Pending', tone: 'warn' })
+    expect(userStatusView('DISABLED')).toEqual({ label: 'Disabled', tone: 'off' })
+    expect(userStatusView('RESET_REQUIRED')).toEqual({ label: 'Reset required', tone: 'off' })
+    expect(userStatusView('')).toEqual({ label: '—', tone: 'off' })
+    expect(userStatusView(undefined)).toEqual({ label: '—', tone: 'off' })
+  })
+})
+
+describe('assignableRoles', () => {
+  it('lists roles the caller may assign', () => {
+    expect(assignableRoles('fm').map(r => r.value)).toEqual(['fm', 'maint', 'eu'])
+    expect(assignableRoles('admin').map(r => r.value)).toEqual(['admin', 'fm', 'maint', 'eu'])
+    expect(assignableRoles('eu')).toEqual([])
+    expect(assignableRoles('admin')[1].label).toBe('Fleet Manager')
+  })
+})
+
+describe('rangeLabel / shortWhen', () => {
+  it('labels ranges', () => {
+    expect(rangeLabel('-1d')).toBe('Last 24 h')
+    expect(rangeLabel('-7d')).toBe('Last 7 days')
+    expect(rangeLabel('-30d')).toBe('Last 30 days')
+    expect(rangeLabel('-5d')).toBe('-5d')
+  })
+  it('formats a short timestamp', () => {
+    expect(shortWhen(new Date(2026, 9, 20, 21, 37).getTime())).toBe('Oct 20, 9:37 PM')
+    expect(shortWhen(null)).toBe('—')
+    expect(shortWhen(undefined)).toBe('—')
+  })
+})
+
+describe('faultStateView', () => {
+  it('maps event state to label and tone', () => {
+    expect(faultStateView({ state: 'cleared' }, { tone: 'err' })).toEqual({ label: 'Cleared', tone: 'ok' })
+    expect(faultStateView({ state: 'active' }, { tone: 'err' })).toEqual({ label: 'Active', tone: 'err' })
+    expect(faultStateView({ state: 'active' }, { tone: 'warn' })).toEqual({ label: 'Active', tone: 'warn' })
+    expect(faultStateView({ state: 'x' }, { tone: 'err' })).toEqual({ label: 'x', tone: 'off' })
+    expect(faultStateView({}, { tone: 'err' })).toEqual({ label: '—', tone: 'off' })
+  })
+})
+
+describe('toneCounts / filterRows', () => {
+  const rows = [
+    { u: { unit: 'TRUCK-001' }, view: { tone: 'err' } },
+    { u: { unit: 'TRUCK-002', fleet_id: 'FLEET-001' }, view: { tone: 'ok' } },
+    { u: { unit: 'APU-9' }, view: { tone: 'ok' } },
+    { u: { unit: 'LOADING' }, view: undefined },
+  ]
+  it('counts by tone and skips rows without a view', () => {
+    expect(toneCounts(rows)).toEqual({ err: 1, warn: 0, off: 0, ok: 2 })
+  })
+  it('filters by tone', () => {
+    expect(filterRows(rows, { tone: 'ok', q: '' }).map(r => r.u.unit)).toEqual(['TRUCK-002', 'APU-9'])
+  })
+  it('matches unit text ignoring case, and keeps view-less rows when tone is null', () => {
+    expect(filterRows(rows, { tone: null, q: ' truck-00 ' }).map(r => r.u.unit)).toEqual(['TRUCK-001', 'TRUCK-002'])
+    expect(filterRows(rows, { tone: null, q: '' })).toHaveLength(4)
+  })
+  it('matches fleet_id', () => {
+    expect(filterRows(rows, { tone: null, q: 'fleet-001' }).map(r => r.u.unit)).toEqual(['TRUCK-002'])
+  })
+})
+
+describe('fleetFaultRows', () => {
+  const results = [
+    { unit: 'A', faults: [
+      { ts: 3000, fault: '0x0020', state: 'active' },
+      { ts: 1000, fault: '0x0004', state: 'active' },
+      { ts: 2000, fault: '0x0004', state: 'cleared' },
+    ] },
+    { unit: 'B', error: new Error('boom') },
+    { unit: 'C', faults: [{ ts: 2500, fault: '0x0004', state: 'active' }] },
+  ]
+  it('collects active faults per unit, newest first, and the failed units', () => {
+    const r = fleetFaultRows(results)
+    expect(r.active.map((x) => x.unit)).toEqual(['A', 'C'])
+    expect(r.active[0].fault).toBe('0x0020')
+    expect(r.failed).toEqual(['B'])
+  })
+  it('merges the log across units, newest first', () => {
+    const r = fleetFaultRows(results)
+    expect(r.log.map((x) => x.ts)).toEqual([3000, 2500, 2000, 1000])
+    expect(r.log[1].unit).toBe('C')
+  })
+  it('a single failure with one critical active gives one active row', () => {
+    const r = fleetFaultRows([{ unit: 'A', faults: [{ ts: 1, fault: '0x0020', state: 'active' }] }, { unit: 'B', error: 'x' }])
+    expect(r.active).toHaveLength(1)
+    expect(r.active[0].unit).toBe('A')
+    expect(r.failed).toEqual(['B'])
+  })
+})
+
+describe('severityCounts', () => {
+  it('counts all, critical and warning rows', () => {
+    expect(severityCounts([{ fault: '0x0020' }, { fault: '0x0004' }])).toEqual({ all: 2, err: 1, warn: 1 })
+  })
+})
+
+describe('reportRangeText', () => {
+  it('shows the year once at the end', () => {
+    expect(reportRangeText('-7d', new Date(2026, 9, 20, 12))).toBe('Oct 13 – Oct 20, 2026 · real units only')
+  })
+  it('carries both years across a year boundary', () => {
+    expect(reportRangeText('-7d', new Date(2026, 0, 4, 12))).toBe('Dec 28, 2025 – Jan 4, 2026 · real units only')
+  })
+  it('handles 24 h and 30 days', () => {
+    expect(reportRangeText('-1d', new Date(2026, 9, 20, 12))).toBe('Oct 19 – Oct 20, 2026 · real units only')
+    expect(reportRangeText('-30d', new Date(2026, 9, 20, 12))).toBe('Sep 20 – Oct 20, 2026 · real units only')
   })
 })

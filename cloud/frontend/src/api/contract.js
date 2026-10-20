@@ -298,7 +298,7 @@ export function reportView(totals) {
       { key: 'runtime', label: 'APU runtime', value: has(t.runtime_hrs) ? count(t.runtime_hrs) : '—', unit: has(t.runtime_hrs) ? 'h' : '',
         caption: 'From engine-hours counters, real units only' },
       { key: 'savings', label: 'Estimated fuel savings', value: has(t.fuel_saved_usd) ? `$${count(t.fuel_saved_usd)}` : '—', unit: '',
-        caption: APU_SAVINGS_CAPTION, tone: 'ok' },
+        caption: APU_SAVINGS_CAPTION },
       { key: 'mtbf', label: 'Mean time between faults',
         value: noFaults ? 'No faults' : has(t.mtbf_hrs) ? count(t.mtbf_hrs) : '—', unit: !noFaults && has(t.mtbf_hrs) ? 'h' : '',
         caption: 'APU runtime per fault event' },
@@ -306,4 +306,109 @@ export function reportView(totals) {
         caption: 'Fault onsets in this period' },
     ],
   }
+}
+
+// User-list status chip. Cognito reports CONFIRMED / FORCE_CHANGE_PASSWORD;
+// the mock uses active / invited.
+export function userStatusView(raw) {
+  const r = String(raw || '')
+  if (!r) return { label: '—', tone: 'off' }
+  if (r === 'CONFIRMED' || r === 'active') return { label: 'Active', tone: 'ok' }
+  if (r === 'FORCE_CHANGE_PASSWORD' || r === 'invited') return { label: 'Pending', tone: 'warn' }
+  if (r === 'DISABLED') return { label: 'Disabled', tone: 'off' }
+  const t = r.toLowerCase().replace(/_/g, ' ')
+  return { label: t.charAt(0).toUpperCase() + t.slice(1), tone: 'off' }
+}
+
+// Mirrors ROLE_CFG labels (contract.js must not import React/AuthContext).
+const ASSIGNABLE_LABELS = { admin: 'EcoFleet Admin', fm: 'Fleet Manager', maint: 'Maintenance', eu: 'End User' }
+const ASSIGNABLE_ORDER = ['admin', 'fm', 'maint', 'eu']
+
+export function assignableRoles(myRole) {
+  const i = ASSIGNABLE_ORDER.indexOf(myRole)
+  if (i < 0 || i > 1) return []
+  return ASSIGNABLE_ORDER.slice(i).map(value => ({ value, label: ASSIGNABLE_LABELS[value] }))
+}
+
+// Range value ('-1d' | '-7d' | '-30d') -> display label.
+const RANGE_LABELS = { '-1d': 'Last 24 h', '-7d': 'Last 7 days', '-30d': 'Last 30 days' }
+export function rangeLabel(range) {
+  return RANGE_LABELS[range] || range
+}
+
+// "Oct 20, 9:37 PM" for an epoch-ms timestamp.
+export function shortWhen(ts) {
+  if (ts == null) return '—'
+  return new Date(Number(ts)).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+// Fault-event state -> badge label + tone. `info` is faultInfo(f); an active
+// event takes its severity tone.
+export function faultStateView(f, info) {
+  const state = f?.state
+  if (state === 'cleared') return { label: 'Cleared', tone: 'ok' }
+  if (state === 'active') return { label: 'Active', tone: info.tone }
+  return { label: state || '—', tone: 'off' }
+}
+
+// Dashboard rows are { u, tele, view? }. Counts by view.tone; rows whose
+// telemetry hasn't loaded (no view) are not counted.
+export function toneCounts(rows) {
+  const out = { err: 0, warn: 0, off: 0, ok: 0 }
+  for (const r of rows) {
+    const t = r.view?.tone
+    if (t in out) out[t] += 1
+  }
+  return out
+}
+
+// tone null = any. q is a trimmed, case-insensitive substring of unit or
+// fleet_id. Rows without a view pass only when no tone is selected.
+export function filterRows(rows, { tone, q }) {
+  const needle = String(q || '').trim().toLowerCase()
+  return rows.filter((r) => {
+    if (tone && r.view?.tone !== tone) return false
+    if (!needle) return true
+    return [r.u.unit, r.u.fleet_id].some((s) => s != null && String(s).toLowerCase().includes(needle))
+  })
+}
+
+// Fleet-wide fault view. `results` is [{ unit, faults } | { unit, error }].
+// Active faults and the full event log carry their unit, newest first;
+// `failed` lists the units whose fetch errored.
+export function fleetFaultRows(results) {
+  const active = []
+  const log = []
+  const failed = []
+  for (const r of results || []) {
+    if (r.error || !r.faults) { failed.push(r.unit); continue }
+    for (const f of activeFaults(r.faults)) active.push({ unit: r.unit, ...f })
+    for (const f of r.faults) log.push({ unit: r.unit, ...f })
+  }
+  const newest = (a, b) => Number(b.ts) - Number(a.ts)
+  return { active: active.sort(newest), log: log.sort(newest), failed }
+}
+
+// Severity totals over fault rows, by faultInfo(row).tone.
+export function severityCounts(rows) {
+  const out = { all: 0, err: 0, warn: 0 }
+  for (const r of rows || []) {
+    out.all += 1
+    const t = faultInfo(r).tone
+    if (t in out) out[t] += 1
+  }
+  return out
+}
+
+// Explicit date range under the Reports period picker, e.g.
+// "Oct 13 – Oct 20, 2026 · real units only". Year shown once unless the range
+// crosses a year boundary. Uses local dates.
+export function reportRangeText(start, now) {
+  const days = { '-1d': 1, '-7d': 7, '-30d': 30 }[start] ?? 7
+  const to = now instanceof Date ? now : new Date()
+  const from = new Date(to.getFullYear(), to.getMonth(), to.getDate() - days)
+  const md = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const mdy = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const left = from.getFullYear() === to.getFullYear() ? md(from) : mdy(from)
+  return `${left} – ${mdy(to)} · real units only`
 }
