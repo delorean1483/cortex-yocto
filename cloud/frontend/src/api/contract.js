@@ -350,3 +350,25 @@ export function faultStateView(f, info) {
   if (state === 'active') return { label: 'Active', tone: info.tone }
   return { label: state || '—', tone: 'off' }
 }
+
+// Dashboard rows are { u, tele, view? }. Counts by view.tone; rows whose
+// telemetry hasn't loaded (no view) are not counted.
+export function toneCounts(rows) {
+  const out = { err: 0, warn: 0, off: 0, ok: 0 }
+  for (const r of rows) {
+    const t = r.view?.tone
+    if (t in out) out[t] += 1
+  }
+  return out
+}
+
+// tone null = any. q is a trimmed, case-insensitive substring of unit or
+// fleet_id. Rows without a view pass only when no tone is selected.
+export function filterRows(rows, { tone, q }) {
+  const needle = String(q || '').trim().toLowerCase()
+  return rows.filter((r) => {
+    if (tone && r.view?.tone !== tone) return false
+    if (!needle) return true
+    return [r.u.unit, r.u.fleet_id].some((s) => s != null && String(s).toLowerCase().includes(needle))
+  })
+}

@@ -3,7 +3,7 @@ import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
   heaterExt, heaterPhaseLabel, heaterTypeLabel,
          heaterFlags, diagOutputs, connLabel, otaStatusView,
          chronological, ageText, modeLabel, unitView, byAttention,
-         activeFaults, faultInfo, reportView, userStatusView, assignableRoles, rangeLabel, shortWhen, faultStateView } from './contract.js'
+         activeFaults, faultInfo, reportView, userStatusView, assignableRoles, rangeLabel, shortWhen, faultStateView, toneCounts, filterRows } from './contract.js'
 
 describe('otaStatusView', () => {
   it('hidden when idle/empty/null', () => {
@@ -388,5 +388,27 @@ describe('faultStateView', () => {
     expect(faultStateView({ state: 'active' }, { tone: 'warn' })).toEqual({ label: 'Active', tone: 'warn' })
     expect(faultStateView({ state: 'x' }, { tone: 'err' })).toEqual({ label: 'x', tone: 'off' })
     expect(faultStateView({}, { tone: 'err' })).toEqual({ label: '—', tone: 'off' })
+  })
+})
+
+describe('toneCounts / filterRows', () => {
+  const rows = [
+    { u: { unit: 'TRUCK-001' }, view: { tone: 'err' } },
+    { u: { unit: 'TRUCK-002', fleet_id: 'FLEET-001' }, view: { tone: 'ok' } },
+    { u: { unit: 'APU-9' }, view: { tone: 'ok' } },
+    { u: { unit: 'LOADING' }, view: undefined },
+  ]
+  it('counts by tone and skips rows without a view', () => {
+    expect(toneCounts(rows)).toEqual({ err: 1, warn: 0, off: 0, ok: 2 })
+  })
+  it('filters by tone', () => {
+    expect(filterRows(rows, { tone: 'ok', q: '' }).map(r => r.u.unit)).toEqual(['TRUCK-002', 'APU-9'])
+  })
+  it('matches unit text ignoring case, and keeps view-less rows when tone is null', () => {
+    expect(filterRows(rows, { tone: null, q: ' truck-00 ' }).map(r => r.u.unit)).toEqual(['TRUCK-001', 'TRUCK-002'])
+    expect(filterRows(rows, { tone: null, q: '' })).toHaveLength(4)
+  })
+  it('matches fleet_id', () => {
+    expect(filterRows(rows, { tone: null, q: 'fleet-001' }).map(r => r.u.unit)).toEqual(['TRUCK-002'])
   })
 })

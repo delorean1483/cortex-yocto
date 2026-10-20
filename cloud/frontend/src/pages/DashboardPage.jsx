@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import {
   IconAlertTriangle, IconAlertCircle, IconCircleCheck, IconWifiOff, IconChevronRight,
 } from '@tabler/icons-react'
+import SearchInput from '../components/SearchInput.jsx'
 import { useUnits, useUnitLatest } from '../data/hooks.js'
-import { unitView, byAttention, fmt, apuVersionLabel } from '../api/contract.js'
+import { unitView, byAttention, fmt, apuVersionLabel, toneCounts, filterRows } from '../api/contract.js'
 
 const TONE_ICON = { err: IconAlertTriangle, warn: IconAlertCircle, ok: IconCircleCheck, off: IconWifiOff }
 const TONE_TEXT = { err: 'var(--err)', warn: 'var(--warn)' }
@@ -46,6 +47,7 @@ function UnitCard({ u, tele, view }) {
       style={{ textDecoration: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span className="ucard-name">{u.unit}</span>
+        {u.fleet_id && <span style={{ fontSize: 14, color: 'var(--color-text-tertiary)' }}>{u.fleet_id}</span>}
         {u.demo && <span className="badge badge-sm t-off">demo</span>}
         <span style={{ flex: 1 }} />
         <StatusBadge view={view} />
@@ -63,47 +65,60 @@ function UnitCard({ u, tele, view }) {
         <span>{view.seen}</span>
         {tele?.apu_fw_version != null && <><span aria-hidden="true">·</span><span>APU fw {apuVersionLabel(tele.apu_fw_version)}</span></>}
         <span style={{ flex: 1 }} />
-        <span style={{ color: 'var(--accent)', fontWeight: 600 }}>View unit</span>
-        <IconChevronRight size={16} color="var(--accent)" aria-hidden="true" />
+        <span style={{ color: 'var(--accent-text)', fontWeight: 600 }}>View unit</span>
+        <IconChevronRight size={16} color="var(--accent-text)" aria-hidden="true" />
       </div>
     </Link>
   )
 }
 
-function AttentionPanel({ rows, settled, total }) {
-  if (!settled) return <div className="skeleton" style={{ height: 64 }} />
-  if (rows.length === 0) {
-    return (
-      <div className="panel">
-        <div className="attn-row">
-          <span className="badge badge-icon t-ok"><IconCircleCheck size={20} aria-hidden="true" /></span>
-          <div className="attn-title">All {total} units healthy</div>
-        </div>
-      </div>
-    )
-  }
+const TILES = [
+  { tone: 'err', label: 'Fault' },
+  { tone: 'warn', label: 'Warning' },
+  { tone: 'off', label: 'Offline' },
+  { tone: 'ok', label: 'Healthy' },
+]
+
+function CountTile({ tone, label, count, active, onClick }) {
+  const Icon = TONE_ICON[tone]
+  const hot = count != null && count > 0 && tone !== 'ok'
   return (
-    <div className="panel">
-      {rows.map(({ u, view }) => {
-        const Icon = TONE_ICON[view.tone]
-        return (
-          <div key={u.unit} className="attn-row">
-            <span className={`badge badge-icon t-${view.tone}`}><Icon size={20} aria-hidden="true" /></span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="attn-title">{u.unit} · {view.stale ? 'Not reporting' : view.headline}</div>
-              <div className="attn-sub">{view.seen}</div>
-            </div>
-            <Link className="btn" to={unitHref(u.unit)} style={{ textDecoration: 'none' }}>Open unit</Link>
-          </div>
-        )
-      })}
-    </div>
+    <button type="button" aria-pressed={active} onClick={onClick}
+      style={{
+        flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+        font: 'inherit', textAlign: 'left', cursor: 'pointer', borderRadius: 12,
+        color: 'var(--color-text-primary)',
+        background: hot ? `var(--${tone}-soft)` : 'var(--color-background-primary)',
+        border: active ? `2px solid var(--${tone})` : '1px solid var(--color-border-secondary)',
+      }}>
+      <Icon size={20} color={`var(--${tone})`} aria-hidden="true" />
+      <span style={{ flex: 1, fontSize: 15, color: 'var(--color-text-secondary)' }}>{label}</span>
+      <span style={{ fontSize: 24, fontWeight: 600, color: hot ? `var(--${tone})` : 'var(--color-text-primary)' }}>
+        {count == null ? '—' : count}
+      </span>
+    </button>
+  )
+}
+
+function Section({ id, title, sub, rows }) {
+  return (
+    <section aria-labelledby={id} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+        <h2 id={id} className="sec-title" style={{ fontSize: 17, fontWeight: 600 }}>{title} · {rows.length}</h2>
+        <span className="sec-sub" style={{ fontSize: 14, color: 'var(--color-text-tertiary)' }}>{sub}</span>
+      </div>
+      <div className="ugrid">
+        {rows.map(({ u, tele, view }) => <UnitCard key={u.unit} u={u} tele={tele} view={view} />)}
+      </div>
+    </section>
   )
 }
 
 export default function DashboardPage() {
   const { data: units, isLoading, error } = useUnits()
   const [latest, setLatest] = useState({}) // unit -> { tele, pending }
+  const [tone, setTone] = useState(null)
+  const [q, setQ] = useState('')
   const [now, setNow] = useState(() => Date.now())
 
   // "Reported 6s ago" and the offline cut-over need a moving clock.
@@ -129,56 +144,55 @@ export default function DashboardPage() {
       return { u, tele: entry?.tele, view }
     })
     .sort(byAttention)
-  const count = (tone) => rows.filter((r) => r.view?.tone === tone).length
-  const attention = rows.filter((r) => r.view?.attention)
+  const counts = toneCounts(rows)
+  const shown = filterRows(rows, { tone, q })
+  const needs = shown.filter((r) => r.view?.attention)
+  const normal = shown.filter((r) => r.view && !r.view.attention)
+  const pending = shown.filter((r) => !r.view)
+  const clearFilter = () => { setTone(null); setQ('') }
 
   return (
     <>
       {list.map((u) => <UnitProbe key={u.unit} unit={u.unit} onData={onData} />)}
 
-      <section aria-labelledby="attn-h" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <h2 id="attn-h" className="sec-title" style={{ fontSize: 17 }}>Needs attention</h2>
-          {settled && attention.length > 0 && (
-            <span className="sec-sub" style={{ fontSize: 14 }}>{attention.length} of {list.length} units</span>
-          )}
-        </div>
-        <AttentionPanel rows={attention} settled={settled} total={list.length} />
-      </section>
-
-      <section aria-labelledby="units-h" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <h2 id="units-h" className="sec-title" style={{ fontSize: 17 }}>Units</h2>
-          {settled && (
-            <>
-              {count('ok') > 0 && <span className="badge badge-sm t-ok">{count('ok')} running normally</span>}
-              {count('err') > 0 && <span className="badge badge-sm t-err">{count('err')} fault</span>}
-              {count('warn') > 0 && <span className="badge badge-sm t-warn">{count('warn')} warning</span>}
-              {count('off') > 0 && <span className="badge badge-sm t-off">{count('off')} offline</span>}
-            </>
-          )}
-          <span style={{ flex: 1 }} />
-          {list.length > 1 && <span className="sec-sub" style={{ fontSize: 14 }}>Sorted by: needs attention</span>}
-        </div>
-
-        {isLoading && (
-          <div className="ugrid">
-            {[1, 2].map((i) => <div key={i} className="skeleton" style={{ height: 210, borderRadius: 12 }} />)}
+      {(isLoading || list.length > 0) && (
+        <>
+          <div style={{ display: 'flex', gap: 12 }}>
+            {TILES.map((t) => (
+              <CountTile key={t.tone} tone={t.tone} label={t.label} count={settled ? counts[t.tone] : null}
+                active={tone === t.tone} onClick={() => setTone(tone === t.tone ? null : t.tone)} />
+            ))}
           </div>
-        )}
-
-        {!isLoading && list.length === 0 && (
-          <div className="notice">No units found. Fleet data appears once a device connects to IoT Core and sends telemetry.</div>
-        )}
-
-        {!isLoading && list.length > 0 && (
-          <div className="ugrid">
-            {rows.map(({ u, tele, view }) => (view
-              ? <UnitCard key={u.unit} u={u} tele={tele} view={view} />
-              : <div key={u.unit} className="skeleton" style={{ height: 210, borderRadius: 12 }} />))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <SearchInput value={q} onChange={setQ} placeholder="Filter by unit or fleet" width={300} />
           </div>
-        )}
-      </section>
+        </>
+      )}
+
+      {isLoading && (
+        <div className="ugrid">
+          {[1, 2].map((i) => <div key={i} className="skeleton" style={{ height: 210, borderRadius: 12 }} />)}
+        </div>
+      )}
+
+      {!isLoading && list.length === 0 && (
+        <div className="notice">No units found. Fleet data appears once a device connects to IoT Core and sends telemetry.</div>
+      )}
+
+      {!isLoading && list.length > 0 && shown.length === 0 && (
+        <div className="notice" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span>No units match this filter</span>
+          <button type="button" className="btn" onClick={clearFilter}>Clear filter</button>
+        </div>
+      )}
+
+      {needs.length > 0 && <Section id="attn-h" title="Needs attention" sub="Faults, warnings and offline units" rows={needs} />}
+      {normal.length > 0 && <Section id="ok-h" title="Running normally" sub="No action needed" rows={normal} />}
+      {pending.length > 0 && (
+        <div className="ugrid">
+          {pending.map(({ u }) => <div key={u.unit} className="skeleton" style={{ height: 210, borderRadius: 12 }} />)}
+        </div>
+      )}
     </>
   )
 }

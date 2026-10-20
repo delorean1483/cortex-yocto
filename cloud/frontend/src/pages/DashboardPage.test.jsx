@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, within, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 const FRESH = () => Date.now()
@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({ loading: false, latestPending: false, latest: 
 vi.mock('../data/hooks.js', () => ({
   useUnits: () => (state.loading
     ? { data: undefined, isLoading: true, error: null }
-    : { data: [{ unit: 'APU-1', demo: false }, { unit: 'APU-DEMO-01', demo: true }],
+    : { data: [{ unit: 'APU-1', demo: false, fleet_id: 'NORTH-FLEET' }, { unit: 'APU-DEMO-01', demo: true }],
         isLoading: false, error: null }),
   useUnitLatest: (unit) => (state.latestPending
     ? { data: undefined, isLoading: true }
@@ -42,10 +42,52 @@ describe('DashboardPage', () => {
 
   it('lists a faulted unit under Needs attention with its fault', () => {
     renderPage()
-    const attn = screen.getByRole('region', { name: /needs attention/i })
+    const attn = screen.getByRole('region', { name: /needs attention · 1/i })
     expect(within(attn).getByText(/APU-1/)).toBeTruthy()
     expect(within(attn).getByText(/Low oil pressure/)).toBeTruthy()
     expect(within(attn).queryByText(/APU-DEMO-01/)).toBeNull()
+    const normal = screen.getByRole('region', { name: /running normally · 1/i })
+    expect(within(normal).getByText(/APU-DEMO-01/)).toBeTruthy()
+  })
+
+  it('has no separate Needs attention panel heading', () => {
+    renderPage()
+    expect(screen.queryByRole('heading', { name: 'Needs attention' })).toBeNull()
+  })
+
+  it('shows four count tiles', () => {
+    renderPage()
+    expect(screen.getByRole('button', { name: /^Fault\s*1/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Warning\s*0/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Offline\s*0/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Healthy\s*1/ })).toBeTruthy()
+  })
+
+  it('filters by tile and clears on a second click', () => {
+    renderPage()
+    const tile = screen.getByRole('button', { name: /^Fault/ })
+    fireEvent.click(tile)
+    expect(tile.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.queryByRole('link', { name: 'Open APU-DEMO-01' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Open APU-1' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: /running normally/i })).toBeNull()
+    fireEvent.click(tile)
+    expect(tile.getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('link', { name: 'Open APU-DEMO-01' })).toBeTruthy()
+  })
+
+  it('shows an empty state with Clear filter when nothing matches', () => {
+    renderPage()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter by unit or fleet' }), { target: { value: 'zzz' } })
+    expect(screen.getByText('No units match this filter')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filter' }))
+    expect(screen.getByRole('link', { name: 'Open APU-1' })).toBeTruthy()
+  })
+
+  it('shows the fleet after the unit name only when present', () => {
+    renderPage()
+    expect(within(screen.getByRole('link', { name: 'Open APU-1' })).getByText('NORTH-FLEET')).toBeTruthy()
+    expect(screen.getAllByText('NORTH-FLEET')).toHaveLength(1)
   })
 
   it('sorts the faulted unit first and labels it Fault', () => {
@@ -62,8 +104,9 @@ describe('DashboardPage', () => {
   it('treats a unit that stopped reporting as offline and needing attention', () => {
     state.latest['APU-1'] = { ...OK, ts: Date.now() - 2 * 3600000 }
     renderPage()
-    const attn = screen.getByRole('region', { name: /needs attention/i })
-    expect(within(attn).getByText(/Not reporting/)).toBeTruthy()
+    const attn = screen.getByRole('region', { name: /needs attention · 1/i })
+    expect(within(attn).getByText('APU-1')).toBeTruthy()
+    expect(within(attn).getByText('Offline')).toBeTruthy()
   })
 
   it('shows engine speeds of 1,000 rpm and up (thousands separator must not break the value)', () => {
@@ -72,22 +115,23 @@ describe('DashboardPage', () => {
     const card = screen.getByRole('link', { name: 'Open APU-DEMO-01' })
     expect(within(card).getByText('1,850')).toBeTruthy()
   })
-  it('says the fleet is healthy only once every unit has reported', () => {
+  it('counts every unit healthy only once every unit has reported', () => {
     state.latest['APU-1'] = { ...OK, ts: FRESH() }
     renderPage()
-    expect(screen.getByText(/All 2 units healthy/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Healthy\s*2/ })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: /needs attention/i })).toBeNull()
   })
 
   it('shows no counts or all-clear while the fleet is loading', () => {
     state.loading = true
     renderPage()
-    expect(screen.queryByText(/healthy/)).toBeNull()
+    expect(screen.getByRole('button', { name: /^Healthy\s*—/ })).toBeTruthy()
     expect(screen.queryByText(/^0/)).toBeNull()
   })
 
   it('shows no all-clear while unit telemetry is still loading', () => {
     state.latestPending = true
     renderPage()
-    expect(screen.queryByText(/healthy/)).toBeNull()
+    expect(screen.getByRole('button', { name: /^Healthy\s*—/ })).toBeTruthy()
   })
 })
