@@ -100,7 +100,7 @@ export default function UsersPage() {
     (!needle || u.email.toLowerCase().includes(needle)))
   const roleOptions = [
     { value: 'all', label: `All roles · ${users.length}` },
-    ...ROLE_ORDER.map(r => ({ value: r, label: ROLE_CFG[r]?.lbl || r })),
+    ...ROLE_ORDER.map(r => ({ value: r, label: r === 'admin' ? 'Admin' : (ROLE_CFG[r]?.lbl || r) })),
   ]
   const th = { textAlign: 'left' }
 

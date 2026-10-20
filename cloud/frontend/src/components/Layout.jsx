@@ -203,13 +203,13 @@ export default function Layout({ children }) {
               {theme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
             </button>
             {canPreview && (
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: 'var(--color-text-secondary)' }}>
+              <label style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: 'var(--color-text-secondary)' }}>
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', border: '1px solid var(--color-border-secondary)', borderRadius: 4, padding: '1px 5px' }}>DEMO</span>
                 <select
                   value={role}
                   onChange={e => setRole(e.target.value)}
                   aria-label="Preview as role"
-                  style={{ fontSize: 14, minHeight: 36, maxWidth: phone ? 150 : undefined, border: 'none', background: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
+                  style={{ fontSize: 14, minHeight: 36, width: `${{ admin: 19, fm: 28, maint: 26, eu: 25 }[role] || 28}ch`, maxWidth: phone ? 150 : undefined, border: 'none', background: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
                 >
                   <option value="admin">Preview as Admin</option>
                   <option value="fm">Preview as Fleet Manager</option>
