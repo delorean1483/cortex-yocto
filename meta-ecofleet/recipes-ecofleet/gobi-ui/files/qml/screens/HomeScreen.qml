@@ -102,7 +102,9 @@ Item {
                                     color: StatusLabels.controlHue(telemetry.controlStatus) }
                                 Text { text: home.on ? StatusLabels.control(telemetry.controlStatus) : "Off"
                                     color: home.on ? Theme.text : Theme.textMute; font.pixelSize: 18; font.weight: Font.DemiBold } } }
-                          MouseArea { anchors.fill: parent; onClicked: home.appShell.openMode() } }
+                          // 48px tap area: grows vertically only, so it never reaches the ON/OFF control beside it
+                          MouseArea { anchors.left: parent.left; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                              height: Math.max(48, parent.height); onClicked: home.appShell.openMode() } }
                         SegmentedControl { Layout.preferredWidth: 168; Layout.preferredHeight: 48; trackColor: Theme.bg
                             options: [{label:"ON", value:true}, {label:"OFF", value:false}]
                             current: home.on
