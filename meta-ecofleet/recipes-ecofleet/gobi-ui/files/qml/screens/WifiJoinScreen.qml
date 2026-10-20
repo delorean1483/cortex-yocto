@@ -35,49 +35,57 @@ Item {
         anchors.fill: parent; anchors.margins: 14; spacing: 8
         ScreenHeader { title: page.hidden ? "Add hidden network" : page.ssid
             // Error/hint live in the subtitle slot so they cost no layout height (keyboard stays on screen).
-            subtitle: page.error !== "" ? page.error
-                    : (page.secured && pwField.text.length > 0 && pwField.text.length < 8) ? "Password must be at least 8 characters."
-                    : (page.hidden ? "" : "Enter the WiFi password")
-            subtitleColor: page.error !== "" ? Theme.fault : Theme.textMute
+            subtitle: page.error
+            subtitleColor: Theme.fault
             onBack: if (page.StackView.view) page.StackView.view.pop() }
 
         RowLayout { Layout.fillWidth: true; spacing: 10; visible: page.hidden
-            TextField { id: nameField; Layout.fillWidth: true; Layout.preferredHeight: 44
-                placeholderText: "Network name"; font.pixelSize: Theme.fsBody; color: Theme.text
-                background: Rectangle { radius: Theme.radiusSm; color: Theme.surface
-                    border.color: nameField.activeFocus ? Theme.accent : Theme.border }
+            TextField { id: nameField; Layout.fillWidth: true; Layout.preferredHeight: 52
+                placeholderText: "Network name"; font.pixelSize: 18; color: Theme.text
+                leftPadding: 16; rightPadding: 16
+                background: Rectangle { radius: 10; color: Theme.surface
+                    Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"
+                        border.width: nameField.activeFocus ? 2 : 0; border.color: Theme.accent } }
                 onActiveFocusChanged: if (activeFocus) kb.target = nameField }
             SegmentedControl { Layout.preferredWidth: 220
                 options: [ {label: "WPA2", value: 1}, {label: "None", value: 0} ]
                 current: page.secured ? 1 : 0
                 onPicked: (value) => page.secured = value === 1 }
             // Open hidden network: no password row, so Connect lives here.
-            Rectangle { visible: !page.secured; Layout.preferredWidth: 120; Layout.preferredHeight: 44; radius: Theme.radiusSm
+            Rectangle { visible: !page.secured; Layout.preferredWidth: 140; Layout.preferredHeight: 52; radius: 10
                 color: page.valid && !page.busy ? Theme.accent : Theme.surface2
                 Text { anchors.centerIn: parent; textFormat: Text.PlainText; text: page.busy ? "Connecting…" : "Connect"
                     color: page.valid && !page.busy ? Theme.textOnAccent : Theme.textMute
-                    font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
+                    font.pixelSize: 17; font.weight: Font.DemiBold }
                 MouseArea { anchors.fill: parent; onClicked: page.submit() } } }
 
         RowLayout { Layout.fillWidth: true; spacing: 10; visible: page.secured
-            TextField { id: pwField; Layout.fillWidth: true; Layout.preferredHeight: 44
-                placeholderText: "Password"; font.pixelSize: Theme.fsBody; color: Theme.text
+            TextField { id: pwField; Layout.fillWidth: true; Layout.preferredHeight: 52
+                placeholderText: "Password"; font.pixelSize: 18; font.letterSpacing: 3; color: Theme.text
+                leftPadding: 16; rightPadding: 6 + 56 + (hint.visible ? hint.implicitWidth + 12 : 0)
                 echoMode: show.checked ? TextInput.Normal : TextInput.Password
-                background: Rectangle { radius: Theme.radiusSm; color: Theme.surface
-                    border.color: page.error !== "" ? Theme.fault : (pwField.activeFocus ? Theme.accent : Theme.border) }
+                background: Rectangle { radius: 10; color: Theme.surface
+                    // 2px inset focus ring (drawn inside the field), fault on error.
+                    Rectangle { anchors.fill: parent; radius: parent.radius; color: "transparent"
+                        border.width: (pwField.activeFocus || page.error !== "") ? 2 : 0
+                        border.color: page.error !== "" ? Theme.fault : Theme.accent } }
                 onActiveFocusChanged: if (activeFocus) kb.target = pwField
-                Component.onCompleted: if (!page.hidden) forceActiveFocus() }
-            Rectangle { id: show; property bool checked: false
-                Layout.preferredWidth: 72; Layout.preferredHeight: 44; radius: Theme.radiusSm
-                color: Theme.surface; border.color: Theme.border
-                Text { anchors.centerIn: parent; text: show.checked ? "Hide" : "Show"; color: Theme.accent
-                    font.pixelSize: Theme.fsLabel + 1; font.weight: Font.DemiBold }
-                MouseArea { anchors.fill: parent; onClicked: show.checked = !show.checked } }
-            Rectangle { Layout.preferredWidth: 120; Layout.preferredHeight: 44; radius: Theme.radiusSm
+                Component.onCompleted: if (!page.hidden) forceActiveFocus()
+                Text { id: hint; visible: page.secured && pwField.text.length > 0 && pwField.text.length < 8
+                    anchors.right: show.left; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter
+                    text: pwField.text.length + " / 8 min"; color: Theme.warn
+                    font.pixelSize: 14; font.features: { "tnum": 1 } }
+                Item { id: show; property bool checked: false
+                    anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter
+                    width: 56; height: 40
+                    Text { anchors.centerIn: parent; text: show.checked ? "Hide" : "Show"; color: Theme.accent
+                        font.pixelSize: 15; font.weight: Font.DemiBold }
+                    MouseArea { anchors.fill: parent; onClicked: show.checked = !show.checked } } }
+            Rectangle { Layout.preferredWidth: 140; Layout.preferredHeight: 52; radius: 10
                 color: page.valid && !page.busy ? Theme.accent : Theme.surface2
                 Text { anchors.centerIn: parent; textFormat: Text.PlainText; text: page.busy ? "Connecting…" : "Connect"
                     color: page.valid && !page.busy ? Theme.textOnAccent : Theme.textMute
-                    font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
+                    font.pixelSize: 17; font.weight: Font.DemiBold }
                 MouseArea { anchors.fill: parent; onClicked: page.submit() } } }
 
         Item { Layout.fillHeight: true }

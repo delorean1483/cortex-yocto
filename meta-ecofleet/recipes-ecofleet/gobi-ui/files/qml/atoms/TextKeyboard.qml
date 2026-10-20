@@ -4,7 +4,7 @@ import ".."
 // On-screen text keyboard for passwords and network names. Types into
 // `target` (any item with text/cursorPosition, e.g. TextField). Letters page
 // with Shift (one-shot; double-tap locks), numbers/symbols page, space,
-// backspace (hold to repeat), Done. Keys 58x52 for gloved fingers.
+// backspace (hold to repeat), Done. Keys 60x54 for gloved fingers.
 Rectangle {
     id: kb
     property Item target: null
@@ -13,8 +13,8 @@ Rectangle {
     property bool symbols: false
     signal done()
     color: Theme.bg
-    // Same height on every page: 4 rows of 58x52 keys.
-    implicitHeight: 4 * 52 + 3 * 6 + 12
+    // Same height on every page: 4 rows of 60x54 keys.
+    implicitHeight: 4 * 54 + 3 * 6 + 12
 
     property bool more: false     // second symbols page ("#+=")
     readonly property var letters: [ "qwertyuiop", "asdfghjkl", "zxcvbnm" ]
@@ -44,13 +44,12 @@ Rectangle {
         property bool accent: false
         property bool autoRepeat: false   // hold: fire after 500 ms, then every 80 ms
         signal tapped()
-        Layout.preferredWidth: 58 * units + 6 * (units - 1); Layout.preferredHeight: 52
-        radius: Theme.radiusSm
-        color: ka.pressed ? Theme.surface2 : (accent ? Theme.accent : Theme.surface)
-        border.color: Theme.border; border.width: accent ? 0 : 1
+        Layout.preferredWidth: 60 * units + 6 * (units - 1); Layout.preferredHeight: 54
+        radius: 9
+        color: ka.pressed ? Theme.surface2 : (accent ? Theme.accent : Theme.keyFill)
         Text { visible: parent.glyph === ""; anchors.centerIn: parent; text: parent.label
             color: parent.accent ? Theme.textOnAccent : Theme.text
-            font.pixelSize: parent.label.length > 1 ? Theme.fsLabel + 1 : 22; font.weight: Font.Medium }
+            font.pixelSize: parent.label.length > 1 ? 15 : 23; font.weight: Font.Medium }
         Icon { visible: parent.glyph !== ""; anchors.centerIn: parent; name: parent.glyph; size: 24; color: Theme.textDim }
         MouseArea { id: ka; anchors.fill: parent
             onClicked: if (!key.autoRepeat) key.tapped()
@@ -80,7 +79,7 @@ Rectangle {
         RowLayout { Layout.alignment: Qt.AlignHCenter; spacing: 6
             Key { label: kb.symbols ? "ABC" : "123"; units: 1.5
                   onTapped: { kb.symbols = !kb.symbols; kb.more = false } }
-            Key { label: "space"; units: 5; onTapped: kb.insert(" ") }
+            Key { label: "Space"; units: 5; onTapped: kb.insert(" ") }
             Key { label: "Done"; units: 2; accent: true; onTapped: kb.done() }
         }
     }
