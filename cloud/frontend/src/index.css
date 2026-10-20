@@ -176,6 +176,7 @@ button { font-family: inherit; }
 .dtbl.roomy td { padding: 12px 14px; }
 .dtbl .w-110 { width: 110px; } .dtbl .w-150 { width: 150px; } .dtbl .w-170 { width: 170px; }
 .dtbl tr.row-err td, .dtbl tr.row-err:hover td { background: var(--err-soft); }
+.dtbl .nowrap { white-space: nowrap; }
 .dtbl .strong { font-weight: 600; }
 .dtbl .code { margin-left: 8px; font-size: 13px; color: var(--color-text-tertiary); }
 .dtbl .subline { font-size: 13px; color: var(--color-text-tertiary); }

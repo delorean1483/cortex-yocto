@@ -6,11 +6,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 const state = vi.hoisted(() => ({
   faults: [], role: 'maint', selectedUnit: 'TRUCK-001', setSelectedUnit: null,
   units: [{ unit: 'TRUCK-001', demo: false }],
-  byUnit: {}, latest: {}, getFaults: null,
+  byUnit: {}, latest: {}, getFaults: null, listUnits: null,
 }))
 vi.mock('../api/client.js', () => ({
   api: {
-    listUnits: () => Promise.resolve({ units: state.units }),
+    listUnits: () => state.listUnits(),
     getFaults: (...a) => state.getFaults(...a),
     getLatest: (unit) => Promise.resolve({ latest: state.latest[unit] }),
   },
@@ -34,6 +34,7 @@ describe('AlertsPage single unit (maint / eu)', () => {
   beforeEach(() => {
     state.faults = []; state.role = 'maint'; state.selectedUnit = 'TRUCK-001'
     state.setSelectedUnit = vi.fn()
+    state.listUnits = () => Promise.resolve({ units: state.units })
     state.units = [{ unit: 'TRUCK-001', demo: false }]
     state.latest = {}
     state.getFaults = () => Promise.resolve({ faults: state.faults })
@@ -74,6 +75,7 @@ describe('AlertsPage all units (admin / fm)', () => {
   beforeEach(() => {
     state.role = 'admin'; state.selectedUnit = 'TRUCK-001'
     state.setSelectedUnit = vi.fn()
+    state.listUnits = () => Promise.resolve({ units: state.units })
     state.units = [{ unit: 'A', demo: false }, { unit: 'B', demo: false }]
     state.latest = { A: { ts: NOW }, B: { ts: NOW } }
     state.getFaults = vi.fn((unit) => unit === 'B'
@@ -146,6 +148,13 @@ describe('AlertsPage all units (admin / fm)', () => {
     fireEvent.change(screen.getByLabelText('Unit'), { target: { value: 'A' } })
     expect(state.setSelectedUnit).toHaveBeenCalledWith('A')
     await waitFor(() => expect(screen.getByRole('region', { name: 'Fault status' })).toBeTruthy())
+  })
+
+  it('a failed unit list shows an error, never a false all-clear', async () => {
+    state.listUnits = () => Promise.reject(new Error('nope'))
+    renderPage()
+    expect(await screen.findByText("Couldn't load the unit list: nope")).toBeTruthy()
+    expect(screen.queryByText(/None across/)).toBeNull()
   })
 
   it('the monitored-conditions reference stays for admins', async () => {

@@ -44,6 +44,7 @@ export default function AlertsPage() {
   const [scope, setScope]   = useState(fleetRole ? ALL_UNITS : selectedUnit)
   const [units, setUnits]   = useState([])
   const [ready, setReady]   = useState(false)
+  const [unitsError, setUnitsError] = useState('')
   const [results, setResults] = useState(null)
   const [sev, setSev]       = useState('all')
   const eff = scope === ALL_UNITS ? ALL_UNITS : (scope || selectedUnit)
@@ -54,7 +55,7 @@ export default function AlertsPage() {
       const list = d.units || []
       setUnits(list)
       if (!fleetRole && !selectedUnit && list.length > 0) setSelectedUnit(list[0].unit)
-    }).catch(() => {}).finally(() => setReady(true))
+    }).catch(err => setUnitsError(err?.message || 'request failed')).finally(() => setReady(true))
   }, [])
 
   useEffect(() => {
@@ -107,7 +108,8 @@ export default function AlertsPage() {
       {failed.length > 0 && (
         <div className="notice" style={{ color: 'var(--err)' }}>{`Couldn't load faults for ${failed.join(', ')}`}</div>
       )}
-      {!results && eff && <div className="skeleton" style={{ height: 88, borderRadius: 14 }} />}
+      {unitsError && <div className="notice" style={{ color: 'var(--err)' }}>{`Couldn't load the unit list: ${unitsError}`}</div>}
+      {!results && eff && !(allMode && unitsError) && <div className="skeleton" style={{ height: 88, borderRadius: 14 }} />}
 
       {results && !allMode && failed.length === 0 && (
         <section aria-label="Fault status" className={`banner b-${tone}`}>
@@ -123,7 +125,7 @@ export default function AlertsPage() {
         </section>
       )}
 
-      {results && allMode && (
+      {results && allMode && !unitsError && (
         <div className="sec-hd" style={{ marginBottom: 0 }}>
           <h2 id="active-h" className="sec-title" style={{ margin: 0 }}>Active faults</h2>
           <span className="sec-sub">{active.length === 0 ? 'None across all units' : `${active.length} across ${plural(unitCount, 'unit')}`}</span>
@@ -195,7 +197,7 @@ export default function AlertsPage() {
                   const sv = faultStateView(f, info)
                   return (
                     <tr key={i}>
-                      <td style={{ whiteSpace: 'nowrap' }}>{shortWhen(f.ts)}</td>
+                      <td className="nowrap">{shortWhen(f.ts)}</td>
                       {allMode && <td className="strong">{f.unit}</td>}
                       <td>
                         {cleared && info.code === '0x0000' ? 'All faults cleared' : info.name}
