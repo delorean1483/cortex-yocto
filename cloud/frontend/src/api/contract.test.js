@@ -3,7 +3,7 @@ import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
   heaterExt, heaterPhaseLabel, heaterTypeLabel,
          heaterFlags, diagOutputs, connLabel, otaStatusView,
          chronological, ageText, modeLabel, unitView, byAttention,
-         activeFaults, faultInfo, reportView, userStatusView, assignableRoles, rangeLabel, shortWhen, faultStateView, toneCounts, filterRows, fleetFaultRows, severityCounts } from './contract.js'
+         activeFaults, faultInfo, reportView, userStatusView, assignableRoles, rangeLabel, shortWhen, faultStateView, toneCounts, filterRows, fleetFaultRows, severityCounts, reportRangeText } from './contract.js'
 
 describe('otaStatusView', () => {
   it('hidden when idle/empty/null', () => {
@@ -445,5 +445,18 @@ describe('fleetFaultRows', () => {
 describe('severityCounts', () => {
   it('counts all, critical and warning rows', () => {
     expect(severityCounts([{ fault: '0x0020' }, { fault: '0x0004' }])).toEqual({ all: 2, err: 1, warn: 1 })
+  })
+})
+
+describe('reportRangeText', () => {
+  it('shows the year once at the end', () => {
+    expect(reportRangeText('-7d', new Date(2026, 9, 20, 12))).toBe('Oct 13 – Oct 20, 2026 · real units only')
+  })
+  it('carries both years across a year boundary', () => {
+    expect(reportRangeText('-7d', new Date(2026, 0, 4, 12))).toBe('Dec 28, 2025 – Jan 4, 2026 · real units only')
+  })
+  it('handles 24 h and 30 days', () => {
+    expect(reportRangeText('-1d', new Date(2026, 9, 20, 12))).toBe('Oct 19 – Oct 20, 2026 · real units only')
+    expect(reportRangeText('-30d', new Date(2026, 9, 20, 12))).toBe('Sep 20 – Oct 20, 2026 · real units only')
   })
 })

@@ -298,7 +298,7 @@ export function reportView(totals) {
       { key: 'runtime', label: 'APU runtime', value: has(t.runtime_hrs) ? count(t.runtime_hrs) : '—', unit: has(t.runtime_hrs) ? 'h' : '',
         caption: 'From engine-hours counters, real units only' },
       { key: 'savings', label: 'Estimated fuel savings', value: has(t.fuel_saved_usd) ? `$${count(t.fuel_saved_usd)}` : '—', unit: '',
-        caption: APU_SAVINGS_CAPTION, tone: 'ok' },
+        caption: APU_SAVINGS_CAPTION },
       { key: 'mtbf', label: 'Mean time between faults',
         value: noFaults ? 'No faults' : has(t.mtbf_hrs) ? count(t.mtbf_hrs) : '—', unit: !noFaults && has(t.mtbf_hrs) ? 'h' : '',
         caption: 'APU runtime per fault event' },
@@ -398,4 +398,17 @@ export function severityCounts(rows) {
     if (t in out) out[t] += 1
   }
   return out
+}
+
+// Explicit date range under the Reports period picker, e.g.
+// "Oct 13 – Oct 20, 2026 · real units only". Year shown once unless the range
+// crosses a year boundary. Uses local dates.
+export function reportRangeText(start, now) {
+  const days = { '-1d': 1, '-7d': 7, '-30d': 30 }[start] ?? 7
+  const to = now instanceof Date ? now : new Date()
+  const from = new Date(to.getFullYear(), to.getMonth(), to.getDate() - days)
+  const md = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const mdy = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const left = from.getFullYear() === to.getFullYear() ? md(from) : mdy(from)
+  return `${left} – ${mdy(to)} · real units only`
 }
