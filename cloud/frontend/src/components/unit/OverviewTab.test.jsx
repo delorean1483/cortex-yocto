@@ -105,6 +105,13 @@ describe('OverviewTab', () => {
     expect(screen.getByText(/offline/i, { selector: '.actions-note' })).toBeTruthy()
   })
 
+  it('offline: the reason renders before the action buttons', () => {
+    renderTab({ ...BASE, ts: Date.now() - 2 * 3600000 })
+    const note = screen.getByText(/offline/i, { selector: '.actions-note' })
+    const first = screen.getByRole('button', { name: /start climate/i })
+    expect(note.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('demo units cannot be controlled', () => {
     renderTab(BASE, { unit: 'APU-DEMO-01', isDemo: true })
     expect(screen.getByRole('button', { name: /stop apu/i }).disabled).toBe(true)

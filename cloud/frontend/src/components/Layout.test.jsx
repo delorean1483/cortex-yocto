@@ -71,6 +71,19 @@ describe('Layout', () => {
     expect(screen.getByText('APU-000123')).toBeTruthy()
   })
 
+  it('phone: unit page shows the unit id without the Dashboard breadcrumb', () => {
+    renderAt(390, '/units/APU-000123')
+    expect(screen.getByText('APU-000123')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Dashboard' })).toBeNull()
+  })
+
+  it('phone: the DEMO tag is hidden but the preview select stays', () => {
+    authState.canPreview = true
+    renderAt(390)
+    expect(screen.queryByText('DEMO')).toBeNull()
+    expect(screen.getByRole('combobox', { name: 'Preview as role' })).toBeTruthy()
+  })
+
   it('tablet: icon rail — buttons keep accessible names, labels and email hidden', () => {
     renderAt(1024)
     const dash = screen.getByRole('button', { name: 'Dashboard' })

@@ -55,4 +55,15 @@ describe('AuthContext real role', () => {
     expect(localStorage.getItem('eco_real_role')).toBeNull()
     expect(auth.realRole).toBeNull()
   })
+
+  it('login with an unknown role falls back to end user, no preview', () => {
+    localStorage.setItem('eco_real_role', 'admin')
+    mount()
+    act(() => { auth.login(jwt({ email: 'a@b.c', role: 'superuser' }), 'rt') })
+    expect(auth.role).toBe('eu')
+    expect(auth.realRole).toBeNull()
+    expect(auth.canPreview).toBe(false)
+    expect(localStorage.getItem('eco_role')).toBe('eu')
+    expect(localStorage.getItem('eco_real_role')).toBeNull()
+  })
 })

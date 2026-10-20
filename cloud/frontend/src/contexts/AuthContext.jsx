@@ -58,6 +58,12 @@ export function AuthProvider({ children }) {
       setRealRole(jwtRole)
       localStorage.setItem('eco_role', jwtRole)
       localStorage.setItem('eco_real_role', jwtRole)
+    } else {
+      // Unknown or missing role: least privilege, never the 'admin' default.
+      setRoleState('eu')
+      setRealRole(null)
+      localStorage.setItem('eco_role', 'eu')
+      localStorage.removeItem('eco_real_role')
     }
   }
 

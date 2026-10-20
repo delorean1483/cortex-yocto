@@ -122,7 +122,7 @@ button { font-family: inherit; }
 .btn-lg { min-height: 44px; font-size: 15px; font-weight: 600; }
 
 /* Role badges */
-.rbadge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.rbadge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 20px; font-size: 13px; font-weight: 500; white-space: nowrap; }
 .rb-admin { background: #EEEDFE; color: #534AB7; }
 .rb-fm    { background: #E1F5EE; color: #085041; }
 .rb-maint { background: #FAEEDA; color: #633806; }
@@ -391,3 +391,19 @@ details.ref[open] > summary .chev { transform: rotate(90deg); }
 .svc-card .scard-val { font-size: 26px; font-weight: 600; line-height: 1.15; }
 .svc-card .scard-sub { font-size: 13px; margin-top: 4px; }
 .dtbl .w-180 { width: 180px; }
+
+.dtbl .w-190 { width: 190px; } .dtbl .w-200 { width: 200px; }
+.dtbl .right, .dtbl th.right { text-align: right; }
+
+/* Dashboard count tiles: 4-up on desktop, 2x2 on phones */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tile { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 16px; font: inherit; text-align: left; cursor: pointer; border-radius: 12px; color: var(--color-text-primary); background: var(--color-background-primary); border: 1px solid var(--color-border-secondary); }
+.tile[aria-pressed="true"] { border: 2px solid var(--tone); }
+.tile.hot { background: var(--tone-soft); }
+.tile[data-tone="err"]  { --tone: var(--err);  --tone-soft: var(--err-soft); }
+.tile[data-tone="warn"] { --tone: var(--warn); --tone-soft: var(--warn-soft); }
+.tile[data-tone="off"]  { --tone: var(--off);  --tone-soft: var(--off-soft); }
+.tile[data-tone="ok"]   { --tone: var(--ok);   --tone-soft: var(--ok-soft); }
+.tile-label { flex: 1; min-width: 0; font-size: 15px; color: var(--color-text-secondary); }
+.tile-count { font-size: 24px; font-weight: 600; color: var(--color-text-primary); }
+.tile.hot .tile-count { color: var(--tone); }

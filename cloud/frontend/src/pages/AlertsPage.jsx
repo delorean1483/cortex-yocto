@@ -47,8 +47,10 @@ export default function AlertsPage() {
   const [unitsError, setUnitsError] = useState('')
   const [results, setResults] = useState(null)
   const [sev, setSev]       = useState('all')
-  const eff = scope === ALL_UNITS ? ALL_UNITS : (scope || selectedUnit)
-  const allMode = eff === ALL_UNITS
+  // Derived from the current role every render: a Preview-as switch to a
+  // single-unit role must not leave fleet-wide data under a unit picker.
+  const allMode = fleetRole && scope === ALL_UNITS
+  const eff = allMode ? ALL_UNITS : ((scope !== ALL_UNITS && scope) || selectedUnit || units[0]?.unit)
 
   useEffect(() => {
     api.listUnits().then(d => {
@@ -106,7 +108,11 @@ export default function AlertsPage() {
       </div>
 
       {failed.length > 0 && (
-        <div className="notice" style={{ color: 'var(--err)' }}>{`Couldn't load faults for ${failed.join(', ')}`}</div>
+        <div className="notice" style={{ color: 'var(--err)' }}>
+          {allMode
+            ? `Couldn't load faults for ${failed.join(', ')}`
+            : `Couldn't load faults for ${failed[0]}: ${results?.[0]?.error?.message || 'request failed'}`}
+        </div>
       )}
       {unitsError && <div className="notice" style={{ color: 'var(--err)' }}>{`Couldn't load the unit list: ${unitsError}`}</div>}
       {!results && eff && !(allMode && unitsError) && <div className="skeleton" style={{ height: 88, borderRadius: 14 }} />}

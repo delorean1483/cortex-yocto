@@ -102,7 +102,6 @@ export default function UsersPage() {
     { value: 'all', label: `All roles · ${users.length}` },
     ...ROLE_ORDER.map(r => ({ value: r, label: r === 'admin' ? 'Admin' : (ROLE_CFG[r]?.lbl || r) })),
   ]
-  const th = { textAlign: 'left' }
 
   return (
     <>
@@ -159,7 +158,7 @@ export default function UsersPage() {
         <div style={{ fontSize: 14, color: msg.startsWith('Error') ? 'var(--err)' : 'var(--ok)' }}>{msg}</div>
       )}
 
-      <div className="card" style={{ padding: 0 }}>
+      <div className="panel panel-x">
         {loading && <div className="notice">Loading…</div>}
         {!loading && users.length === 0 && <div className="notice">No users found.</div>}
         {!loading && users.length > 0 && visible.length === 0 && <div className="notice">No users match.</div>}
@@ -167,11 +166,11 @@ export default function UsersPage() {
           <table className="dtbl roomy">
             <thead>
               <tr>
-                <th style={th}>User</th>
-                <th style={th}>Role</th>
-                <th style={th}>Fleet</th>
-                <th style={th}>Status</th>
-                {isAdmin && <th style={{ width: 200, textAlign: 'right' }}>Actions</th>}
+                <th>User</th>
+                <th>Role</th>
+                <th>Fleet</th>
+                <th>Status</th>
+                {isAdmin && <th className="num w-200">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -181,21 +180,21 @@ export default function UsersPage() {
                 const hasFleet = u.fleet && u.fleet !== '—'
                 return (
                   <tr key={u.email}>
-                    <td style={{ fontWeight: 500 }}>
+                    <td className="strong">
                       {u.email}
-                      {isMe && <span style={{ fontWeight: 400, color: 'var(--color-text-tertiary)' }}> (you)</span>}
+                      {isMe && <span className="subline"> (you)</span>}
                     </td>
                     <td>
-                      <span className={`rbadge ${ROLE_CFG[u.role]?.badge || ''}`} style={{ fontSize: 13 }}>
+                      <span className={`rbadge ${ROLE_CFG[u.role]?.badge || ''}`}>
                         {ROLE_CFG[u.role]?.lbl || u.role}
                       </span>
                     </td>
                     <td>
-                      {hasFleet ? u.fleet : <span style={{ color: 'var(--color-text-tertiary)' }}>All fleets</span>}
+                      {hasFleet ? u.fleet : <span className="subline">All fleets</span>}
                     </td>
                     <td><span className={`badge badge-sm t-${st.tone}`}>{st.label}</span></td>
                     {isAdmin && (
-                      <td style={{ textAlign: 'right' }}>
+                      <td className="num">
                         {!isMe && (
                           <span style={{ display: 'inline-flex', gap: 8 }}>
                             <button className="btn btn-sm" aria-label={`Change role for ${u.email}`}

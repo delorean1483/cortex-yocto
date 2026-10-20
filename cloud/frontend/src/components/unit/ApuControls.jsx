@@ -30,7 +30,7 @@ export default function ApuControls({ tele, unit, isDemo, offline = false, stack
     : 'Every action asks you to confirm before it is sent to the unit.'
 
   // Why the buttons are dead leads the block, so it is read before them.
-  const noteAbove = stacked && disabled
+  const noteAbove = stacked && (disabled || offline)
   const noteEl = (
     <div className={noteAbove ? 'actions-note notice' : 'actions-note'}
       style={noteAbove ? { marginBottom: 10, alignItems: 'flex-start' } : { marginTop: 10, fontSize: 13, lineHeight: 1.45, color: 'var(--color-text-tertiary)' }}>

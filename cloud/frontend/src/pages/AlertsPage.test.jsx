@@ -150,6 +150,27 @@ describe('AlertsPage all units (admin / fm)', () => {
     await waitFor(() => expect(screen.getByRole('region', { name: 'Fault status' })).toBeTruthy())
   })
 
+  it('switching Preview-as to a single-unit role leaves a unit picker and one unit\'s faults', async () => {
+    state.getFaults = vi.fn((unit) => Promise.resolve({ faults: [
+      { ts: NOW - 60000, fault: unit === 'A' ? '0x0020' : '0x0004', state: 'active' },
+    ] }))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const ui = () => (
+      <QueryClientProvider client={client}><MemoryRouter><AlertsPage /></MemoryRouter></QueryClientProvider>
+    )
+    const { rerender } = render(ui())
+    await screen.findByRole('table', { name: 'Active faults' })
+    expect(screen.getByLabelText('Unit').value).toBe('__all__')
+    state.role = 'eu'; state.selectedUnit = 'A'
+    rerender(ui())
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Fault status' })).toBeTruthy())
+    expect(screen.getByLabelText('Unit').value).toBe('A')
+    const table = screen.getByRole('table', { name: 'Active faults' })
+    expect(within(table).getByText('Low oil pressure')).toBeTruthy()
+    expect(within(table).queryByText('DC over-voltage')).toBeNull()
+    expect(within(table).queryByRole('columnheader', { name: 'Unit' })).toBeNull()
+  })
+
   it('a failed unit list shows an error, never a false all-clear', async () => {
     state.listUnits = () => Promise.reject(new Error('nope'))
     renderPage()

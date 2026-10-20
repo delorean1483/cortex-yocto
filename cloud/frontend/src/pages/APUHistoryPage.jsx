@@ -68,12 +68,6 @@ export default function APUHistoryPage() {
             </label>
           ))}
         </div>
-        {selectedUnit && (
-          <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto' }}
-            onClick={() => navigate('/units/' + encodeURIComponent(selectedUnit) + '?tab=telemetry')}>
-            Open Telemetry tab
-          </button>
-        )}
       </div>
 
       <div>
@@ -99,7 +93,7 @@ export default function APUHistoryPage() {
         {events.length > 0 && (
           <table className="dtbl">
             <thead>
-              <tr><th style={{ width: 190 }}>When</th><th>Event</th><th>State</th></tr>
+              <tr><th className="w-190">When</th><th>Event</th><th>State</th></tr>
             </thead>
             <tbody>
               {events.slice(0, 100).map((ev, i) => {
@@ -107,10 +101,10 @@ export default function APUHistoryPage() {
                 const sv = faultStateView(ev, info)
                 return (
                   <tr key={i}>
-                    <td style={{ whiteSpace: 'nowrap' }}>{shortWhen(ev.ts)}</td>
+                    <td className="nowrap">{shortWhen(ev.ts)}</td>
                     <td>
                       {sv.label === 'Cleared' && info.code === '0x0000' ? 'All faults cleared' : info.name}
-                      <span style={{ marginLeft: 8, fontSize: 13, color: 'var(--color-text-tertiary)' }}>{info.code}</span>
+                      <span className="code">{info.code}</span>
                     </td>
                     <td><span className={`badge badge-sm t-${sv.tone}`}>{sv.label}</span></td>
                   </tr>
@@ -127,6 +121,10 @@ export default function APUHistoryPage() {
           <div className="sec-hd">
             <span className="sec-title">Telemetry samples</span>
             <span className="sec-sub">{tele.length} points</span>
+            <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto' }}
+              onClick={() => navigate('/units/' + encodeURIComponent(selectedUnit) + '?tab=telemetry')}>
+              Open Telemetry tab
+            </button>
           </div>
           <table className="dtbl">
             <thead>
@@ -135,7 +133,7 @@ export default function APUHistoryPage() {
             <tbody>
               {tele.slice(0, 20).map((t, i) => (
                 <tr key={i}>
-                  <td style={{ whiteSpace: 'nowrap' }}>{shortWhen(t.ts)}</td>
+                  <td className="nowrap">{shortWhen(t.ts)}</td>
                   <td className="num">{t.batt_v == null ? '—' : `${t.batt_v.toFixed(2)} V`}</td>
                   <td className="num">{t.rpm ?? '—'}</td>
                   <td className="num">{t.cabin_temp_f == null ? '—' : `${t.cabin_temp_f.toFixed(0)}°F`}</td>

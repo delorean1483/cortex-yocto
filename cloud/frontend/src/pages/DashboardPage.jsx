@@ -74,19 +74,11 @@ function CountTile({ tone, label, count, active, onClick }) {
   const Icon = TONE_ICON[tone]
   const hot = count != null && count > 0 && tone !== 'ok'
   return (
-    <button type="button" aria-pressed={active} onClick={onClick}
-      style={{
-        flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
-        font: 'inherit', textAlign: 'left', cursor: 'pointer', borderRadius: 12,
-        color: 'var(--color-text-primary)',
-        background: hot ? `var(--${tone}-soft)` : 'var(--color-background-primary)',
-        border: active ? `2px solid var(--${tone})` : '1px solid var(--color-border-secondary)',
-      }}>
+    <button type="button" aria-pressed={active} onClick={onClick} data-tone={tone}
+      className={hot ? 'tile hot' : 'tile'}>
       <Icon size={20} color={`var(--${tone})`} aria-hidden="true" />
-      <span style={{ flex: 1, fontSize: 15, color: 'var(--color-text-secondary)' }}>{label}</span>
-      <span style={{ fontSize: 24, fontWeight: 600, color: hot ? `var(--${tone})` : 'var(--color-text-primary)' }}>
-        {count == null ? '—' : count}
-      </span>
+      <span className="tile-label">{label}</span>
+      <span className="tile-count">{count == null ? '—' : count}</span>
     </button>
   )
 }
@@ -148,7 +140,7 @@ export default function DashboardPage() {
 
       {(isLoading || list.length > 0) && (
         <>
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div className="tiles">
             {TILES.map((t) => (
               <CountTile key={t.tone} tone={t.tone} label={t.label} count={settled ? counts[t.tone] : null}
                 active={tone === t.tone} onClick={() => setTone(tone === t.tone ? null : t.tone)} />

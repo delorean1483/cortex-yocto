@@ -44,7 +44,7 @@ function SidebarContent({ compact, theme, email, role, allowed, pathname, onNav,
             <div key={section}>
               {compact
                 ? si > 0 && <div aria-hidden="true" style={{ height: 1, margin: '10px 14px', background: 'var(--color-border-tertiary)' }} />
-                : <div style={{ padding: '16px 16px 4px', fontSize: 12, fontWeight: 600, letterSpacing: '.09em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)' }}>
+                : <div style={{ padding: '16px 16px 4px', fontSize: 13, fontWeight: 600, letterSpacing: '.09em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)' }}>
                     {section}
                   </div>}
               {items.map(({ id, label, Icon }) => {
@@ -73,7 +73,7 @@ function SidebarContent({ compact, theme, email, role, allowed, pathname, onNav,
         })}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'center', justifyContent: compact ? 'center' : 'flex-start', gap: compact ? 8 : 10, padding: compact ? '10px 0' : '12px 14px', borderTop: '0.5px solid var(--color-border-tertiary)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'center', justifyContent: compact ? 'center' : 'flex-start', gap: compact ? 8 : 10, padding: compact ? '10px 0' : '12px 12px 12px 16px', borderTop: '0.5px solid var(--color-border-tertiary)', flexShrink: 0 }}>
         <div aria-hidden="true" className={ROLE_CFG[role]?.badge}
           style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
           {(email || '?').slice(0, 2).toUpperCase()}
@@ -185,8 +185,12 @@ export default function Layout({ children }) {
             <h1 style={{ margin: 0, fontSize: phone ? 18 : 20, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {unitId
                 ? <>
-                    <Link to="/" style={{ fontWeight: 500, color: 'var(--color-text-secondary)', textDecoration: 'none' }}>Dashboard</Link>
-                    <IconChevronRight size={18} aria-hidden="true" style={{ verticalAlign: 'middle', margin: '0 6px', color: 'var(--color-text-tertiary)' }} />
+                    {!phone && (
+                      <>
+                        <Link to="/" style={{ fontWeight: 500, color: 'var(--color-text-secondary)', textDecoration: 'none' }}>Dashboard</Link>
+                        <IconChevronRight size={18} aria-hidden="true" style={{ verticalAlign: 'middle', margin: '0 6px', color: 'var(--color-text-tertiary)' }} />
+                      </>
+                    )}
                     <span>{unitId}</span>
                   </>
                 : title}
@@ -203,13 +207,13 @@ export default function Layout({ children }) {
               {theme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
             </button>
             {canPreview && (
-              <label style={{ display: 'inline-flex', flex: 'none', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: 'var(--color-text-secondary)' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', border: '1px solid var(--color-border-secondary)', borderRadius: 4, padding: '1px 5px' }}>DEMO</span>
+              <label style={{ display: 'inline-flex', flex: '0 1 auto', minWidth: 0, alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 14, color: 'var(--color-text-secondary)' }}>
+                {!phone && <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', border: '1px solid var(--color-border-secondary)', borderRadius: 4, padding: '1px 5px' }}>DEMO</span>}
                 <select
                   value={role}
                   onChange={e => setRole(e.target.value)}
                   aria-label="Preview as role"
-                  style={{ fontSize: 14, minHeight: 36, width: `${{ admin: 19, fm: 28, maint: 26, eu: 25 }[role] || 28}ch`, maxWidth: phone ? 150 : undefined, border: 'none', background: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
+                  style={{ fontSize: 14, minHeight: 36, width: 'auto', fieldSizing: 'content', minWidth: 0, maxWidth: '100%', border: 'none', background: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
                 >
                   <option value="admin">Preview as Admin</option>
                   <option value="fm">Preview as Fleet Manager</option>
