@@ -307,3 +307,25 @@ export function reportView(totals) {
     ],
   }
 }
+
+// User-list status chip. Cognito reports CONFIRMED / FORCE_CHANGE_PASSWORD;
+// the mock uses active / invited.
+export function userStatusView(raw) {
+  const r = String(raw || '')
+  if (!r) return { label: '—', tone: 'off' }
+  if (r === 'CONFIRMED' || r === 'active') return { label: 'Active', tone: 'ok' }
+  if (r === 'FORCE_CHANGE_PASSWORD' || r === 'invited') return { label: 'Pending', tone: 'warn' }
+  if (r === 'DISABLED') return { label: 'Disabled', tone: 'off' }
+  const t = r.toLowerCase().replace(/_/g, ' ')
+  return { label: t.charAt(0).toUpperCase() + t.slice(1), tone: 'off' }
+}
+
+// Mirrors ROLE_CFG labels (contract.js must not import React/AuthContext).
+const ASSIGNABLE_LABELS = { admin: 'EcoFleet Admin', fm: 'Fleet Manager', maint: 'Maintenance', eu: 'End User' }
+const ASSIGNABLE_ORDER = ['admin', 'fm', 'maint', 'eu']
+
+export function assignableRoles(myRole) {
+  const i = ASSIGNABLE_ORDER.indexOf(myRole)
+  if (i < 0 || i > 1) return []
+  return ASSIGNABLE_ORDER.slice(i).map(value => ({ value, label: ASSIGNABLE_LABELS[value] }))
+}

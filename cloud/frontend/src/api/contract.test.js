@@ -3,7 +3,7 @@ import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
   heaterExt, heaterPhaseLabel, heaterTypeLabel,
          heaterFlags, diagOutputs, connLabel, otaStatusView,
          chronological, ageText, modeLabel, unitView, byAttention,
-         activeFaults, faultInfo, reportView } from './contract.js'
+         activeFaults, faultInfo, reportView, userStatusView, assignableRoles } from './contract.js'
 
 describe('otaStatusView', () => {
   it('hidden when idle/empty/null', () => {
@@ -342,5 +342,27 @@ describe('networkView (shadow reported.network)', () => {
     expect(networkView(undefined)).toEqual({ addresses: [], wifi: null })
     expect(networkView(null)).toEqual({ addresses: [], wifi: null })
     expect(networkView({ wifi: null, eth: null })).toEqual({ addresses: [], wifi: null })
+  })
+})
+
+describe('userStatusView', () => {
+  it('maps Cognito and mock statuses', () => {
+    expect(userStatusView('CONFIRMED')).toEqual({ label: 'Active', tone: 'ok' })
+    expect(userStatusView('active')).toEqual({ label: 'Active', tone: 'ok' })
+    expect(userStatusView('FORCE_CHANGE_PASSWORD')).toEqual({ label: 'Pending', tone: 'warn' })
+    expect(userStatusView('invited')).toEqual({ label: 'Pending', tone: 'warn' })
+    expect(userStatusView('DISABLED')).toEqual({ label: 'Disabled', tone: 'off' })
+    expect(userStatusView('RESET_REQUIRED')).toEqual({ label: 'Reset required', tone: 'off' })
+    expect(userStatusView('')).toEqual({ label: '—', tone: 'off' })
+    expect(userStatusView(undefined)).toEqual({ label: '—', tone: 'off' })
+  })
+})
+
+describe('assignableRoles', () => {
+  it('lists roles the caller may assign', () => {
+    expect(assignableRoles('fm').map(r => r.value)).toEqual(['fm', 'maint', 'eu'])
+    expect(assignableRoles('admin').map(r => r.value)).toEqual(['admin', 'fm', 'maint', 'eu'])
+    expect(assignableRoles('eu')).toEqual([])
+    expect(assignableRoles('admin')[1].label).toBe('Fleet Manager')
   })
 })
