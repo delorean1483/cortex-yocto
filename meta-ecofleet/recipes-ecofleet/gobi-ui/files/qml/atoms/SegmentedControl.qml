@@ -10,10 +10,12 @@ Rectangle {
     property var options: []
     property var current
     property int fontSize: Theme.fsBody
+    property color trackColor: Theme.surface
+    property bool showBorder: !Qt.colorEqual(trackColor, Theme.bg)
     signal picked(var value)
     implicitHeight: Theme.touch
     radius: Theme.radius
-    color: Theme.surface; border.color: Theme.border; border.width: 1
+    color: trackColor; border.color: Theme.border; border.width: showBorder ? 1 : 0
     RowLayout {
         anchors.fill: parent; anchors.margins: 4; spacing: 4
         Repeater {

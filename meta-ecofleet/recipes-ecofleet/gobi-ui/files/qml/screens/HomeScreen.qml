@@ -77,7 +77,7 @@ Item {
                             Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: modelData.v; color: Theme.text
                                 font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
                             Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: modelData.l; color: Theme.textMute
-                                font.pixelSize: Theme.fsCaption - 1; font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold } } } }
+                                font.pixelSize: Theme.fsCaption; font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold } } } }
             }
             // climate card: mode, setpoint, fan
             Rectangle {

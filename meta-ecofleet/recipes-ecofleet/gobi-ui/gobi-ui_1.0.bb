@@ -51,6 +51,7 @@ SRC_URI = " \
     file://qml/atoms/WifiBars.qml \
     file://qml/atoms/ConfirmButton.qml \
     file://qml/atoms/TextKeyboard.qml \
+    file://qml/atoms/PinTag.qml \
     file://qml/templates/BigNumberScreen.qml \
     file://qml/templates/ChoiceList.qml \
     file://qml/templates/TileGrid.qml \

@@ -131,7 +131,7 @@ Rectangle {
                         id: faultText
                         anchors.centerIn: parent
                         text: card.faultLabel()
-                        color: Theme.fault; font.pixelSize: Theme.fsCaption - 1; font.weight: Font.Bold
+                        color: Theme.fault; font.pixelSize: Theme.fsCaption; font.weight: Font.Bold
                         font.letterSpacing: 0.6
                     }
                 }
@@ -145,7 +145,7 @@ Rectangle {
             Repeater { model: [ {v: telemetry.heaterFanRpm, l: "RPM"}, {v: telemetry.heaterExchanger, l: "EXCH"} ]
                 RowLayout { Layout.alignment: Qt.AlignRight; spacing: 4
                     Text { text: modelData.v + ""; color: Theme.textDim; font.pixelSize: Theme.fsLabel; font.weight: Font.DemiBold }
-                    Text { text: modelData.l; color: Theme.textMute; font.pixelSize: Theme.fsCaption - 1 } } }
+                    Text { text: modelData.l; color: Theme.textMute; font.pixelSize: Theme.fsCaption } } }
         }
 
         // level (VEVOR / legacy) or setpoint (AUTOTERM) stepper
