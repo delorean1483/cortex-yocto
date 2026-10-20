@@ -42,17 +42,19 @@ describe('DashboardPage', () => {
 
   it('lists a faulted unit under Needs attention with its fault', () => {
     renderPage()
-    const attn = screen.getByRole('region', { name: /needs attention · 1/i })
+    const attn = screen.getByRole('region', { name: /^needs attention$/i })
     expect(within(attn).getByText(/APU-1/)).toBeTruthy()
     expect(within(attn).getByText(/Low oil pressure/)).toBeTruthy()
     expect(within(attn).queryByText(/APU-DEMO-01/)).toBeNull()
-    const normal = screen.getByRole('region', { name: /running normally · 1/i })
+    expect(within(attn).getByText('1 unit')).toBeTruthy()
+    const normal = screen.getByRole('region', { name: /^running normally$/i })
     expect(within(normal).getByText(/APU-DEMO-01/)).toBeTruthy()
   })
 
-  it('has no separate Needs attention panel heading', () => {
+  it('has no separate attention panel, and the heading carries no count', () => {
     renderPage()
-    expect(screen.queryByRole('heading', { name: 'Needs attention' })).toBeNull()
+    expect(screen.getAllByRole('heading', { name: 'Needs attention' })).toHaveLength(1)
+    expect(screen.queryByText('Open unit')).toBeNull()
   })
 
   it('shows four count tiles', () => {
@@ -104,7 +106,7 @@ describe('DashboardPage', () => {
   it('treats a unit that stopped reporting as offline and needing attention', () => {
     state.latest['APU-1'] = { ...OK, ts: Date.now() - 2 * 3600000 }
     renderPage()
-    const attn = screen.getByRole('region', { name: /needs attention · 1/i })
+    const attn = screen.getByRole('region', { name: /^needs attention$/i })
     expect(within(attn).getByText('APU-1')).toBeTruthy()
     expect(within(attn).getByText('Offline')).toBeTruthy()
   })

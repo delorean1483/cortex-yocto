@@ -47,8 +47,8 @@ function UnitCard({ u, tele, view }) {
       style={{ textDecoration: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span className="ucard-name">{u.unit}</span>
-        {u.fleet_id && <span style={{ fontSize: 14, color: 'var(--color-text-tertiary)' }}>{u.fleet_id}</span>}
         {u.demo && <span className="badge badge-sm t-off">demo</span>}
+        {u.fleet_id && <span style={{ fontSize: 14, color: 'var(--color-text-tertiary)' }}>{u.fleet_id}</span>}
         <span style={{ flex: 1 }} />
         <StatusBadge view={view} />
       </div>
@@ -85,7 +85,7 @@ function CountTile({ tone, label, count, active, onClick }) {
   return (
     <button type="button" aria-pressed={active} onClick={onClick}
       style={{
-        flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+        flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
         font: 'inherit', textAlign: 'left', cursor: 'pointer', borderRadius: 12,
         color: 'var(--color-text-primary)',
         background: hot ? `var(--${tone}-soft)` : 'var(--color-background-primary)',
@@ -100,12 +100,12 @@ function CountTile({ tone, label, count, active, onClick }) {
   )
 }
 
-function Section({ id, title, sub, rows }) {
+function Section({ id, title, rows }) {
   return (
     <section aria-labelledby={id} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-        <h2 id={id} className="sec-title" style={{ fontSize: 17, fontWeight: 600 }}>{title} · {rows.length}</h2>
-        <span className="sec-sub" style={{ fontSize: 14, color: 'var(--color-text-tertiary)' }}>{sub}</span>
+        <h2 id={id} className="sec-title" style={{ fontSize: 17, fontWeight: 600 }}>{title}</h2>
+        <span className="sec-sub" style={{ fontSize: 14, color: 'var(--color-text-tertiary)' }}>{rows.length} {rows.length === 1 ? 'unit' : 'units'}</span>
       </div>
       <div className="ugrid">
         {rows.map(({ u, tele, view }) => <UnitCard key={u.unit} u={u} tele={tele} view={view} />)}
@@ -186,8 +186,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {needs.length > 0 && <Section id="attn-h" title="Needs attention" sub="Faults, warnings and offline units" rows={needs} />}
-      {normal.length > 0 && <Section id="ok-h" title="Running normally" sub="No action needed" rows={normal} />}
+      {needs.length > 0 && <Section id="attn-h" title="Needs attention" rows={needs} />}
+      {normal.length > 0 && <Section id="ok-h" title="Running normally" rows={normal} />}
       {pending.length > 0 && (
         <div className="ugrid">
           {pending.map(({ u }) => <div key={u.unit} className="skeleton" style={{ height: 210, borderRadius: 12 }} />)}
