@@ -41,6 +41,12 @@ describe('Layout', () => {
     expect(document.querySelector('.rbadge')).toBeNull()
   })
 
+  it('a malformed unit id in the URL does not crash the shell', () => {
+    renderAt(1440, '/units/%E0%A4%A')
+    expect(screen.getByRole('link', { name: 'Dashboard' }).getAttribute('href')).toBe('/')
+    expect(screen.getByText('%E0%A4%A')).toBeTruthy()
+  })
+
   it('preview select is hidden unless canPreview', () => {
     renderAt(1440)
     expect(screen.queryByRole('combobox', { name: /Preview as/ })).toBeNull()

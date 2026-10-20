@@ -133,7 +133,9 @@ export default function Layout({ children }) {
       pathname={pathname} onNav={handleNav} onLogout={logout} firstRef={withFirstRef ? firstLinkRef : undefined} />
   )
 
-  const unitId = pathname.startsWith('/units/') ? decodeURIComponent(pathname.slice('/units/'.length).split('/')[0]) : null
+  const unitSeg = pathname.startsWith('/units/') ? pathname.slice('/units/'.length).split('/')[0] : null
+  let unitId = unitSeg
+  if (unitSeg) { try { unitId = decodeURIComponent(unitSeg) } catch { /* malformed escape: show raw segment */ } }
   const title = unitId
     ? null
     : NAV.find((n) => n.id === pathname)?.label ?? NAV.find((n) => pathname.startsWith(n.id) && n.id !== '/')?.label ?? 'Dashboard'
