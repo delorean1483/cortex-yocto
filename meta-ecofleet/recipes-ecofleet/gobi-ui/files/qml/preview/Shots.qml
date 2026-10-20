@@ -131,7 +131,13 @@ Item {
                                           telemetry.diagActive = true; root.poke() }],
         ["17-support",       function() { telemetry.diagActive = false; root.poke(); root.sub(supportC) }],
         ["18-lockoverlay",   function() { shell.selectRail(0); LockController.setPin("1234"); LockController.lock() }],
-        ["19-update-download", function() { root.notice("busy", "Updating software to 1.2.67", "Downloading…", "") }],
+        ["18b-lockoverlay-fault", function() { root.saved = [telemetry.hasError, telemetry.error, telemetry.mode, telemetry.controlStatus, telemetry.clmtSetpointF]
+                                          telemetry.hasError = true; telemetry.error = "low_oil"; telemetry.mode = "climate"
+                                          telemetry.controlStatus = "cooling"; telemetry.clmtSetpointF = 70; root.poke() }],
+        ["19-update-download", function() { var v = root.saved   // undo 18b's fault state; the lock stays up as before
+                                          telemetry.hasError = v[0]; telemetry.error = v[1]; telemetry.mode = v[2]
+                                          telemetry.controlStatus = v[3]; telemetry.clmtSetpointF = v[4]; root.poke()
+                                          root.notice("busy", "Updating software to 1.2.67", "Downloading…", "") }],
         ["19b-update-apu",   function() { telemetry.updateProgress = 42
                                           root.notice("busy", "Updating APU controller", "42% complete", "") }],
         ["19c-update-failed", function() { telemetry.updateProgress = -1; LockController.tryUnlock("1234"); shell.selectRail(0)
@@ -156,6 +162,7 @@ Item {
                                                 root.page = root.sub(wifiC); root.page.savedJoinSsid = "Shop-Guest" }],
         ["21j2-wifi-saved-wrongpw-join", function() { wifi.lastError = "Wrong password."; wifi.joinFailed("Shop-Guest", "Wrong password.") }]
     ]
+    property var saved: []
     property int idx: 0
     Timer { id: act; interval: 300; onTriggered: { root.steps[root.idx][1](); grab.restart() } }
     Timer { id: grab; interval: 500
