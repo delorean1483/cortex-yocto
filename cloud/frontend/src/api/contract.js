@@ -372,3 +372,30 @@ export function filterRows(rows, { tone, q }) {
     return [r.u.unit, r.u.fleet_id].some((s) => s != null && String(s).toLowerCase().includes(needle))
   })
 }
+
+// Fleet-wide fault view. `results` is [{ unit, faults } | { unit, error }].
+// Active faults and the full event log carry their unit, newest first;
+// `failed` lists the units whose fetch errored.
+export function fleetFaultRows(results) {
+  const active = []
+  const log = []
+  const failed = []
+  for (const r of results || []) {
+    if (r.error || !r.faults) { failed.push(r.unit); continue }
+    for (const f of activeFaults(r.faults)) active.push({ unit: r.unit, ...f })
+    for (const f of r.faults) log.push({ unit: r.unit, ...f })
+  }
+  const newest = (a, b) => Number(b.ts) - Number(a.ts)
+  return { active: active.sort(newest), log: log.sort(newest), failed }
+}
+
+// Severity totals over fault rows, by faultInfo(row).tone.
+export function severityCounts(rows) {
+  const out = { all: 0, err: 0, warn: 0 }
+  for (const r of rows || []) {
+    out.all += 1
+    const t = faultInfo(r).tone
+    if (t in out) out[t] += 1
+  }
+  return out
+}

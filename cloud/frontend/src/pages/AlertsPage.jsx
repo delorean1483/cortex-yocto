@@ -1,17 +1,16 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
   IconAlertTriangle, IconAlertCircle, IconCircleCheck, IconChevronRight,
 } from '@tabler/icons-react'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
-import { activeFaults, faultInfo, ageText, faultStateView } from '../api/contract.js'
-import UnitPicker from '../components/UnitPicker.jsx'
+import { faultInfo, ageText, faultStateView, shortWhen, fleetFaultRows, severityCounts, unitView } from '../api/contract.js'
+import { useFleetLatest } from '../data/hooks.js'
+import UnitPicker, { ALL_UNITS } from '../components/UnitPicker.jsx'
+import FilterChips from '../components/FilterChips.jsx'
 
 const WINDOW_LABEL = 'last 7 days'
-
-function whenText(ts) {
-  return new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
 
 // Reference only — trip points live in the APU controller firmware.
 const MONITORED = [
@@ -26,46 +25,91 @@ function SeverityBadge({ info }) {
   return <span className={`badge badge-sm t-${info.tone}`}>{info.severity}</span>
 }
 
+function FaultCell({ info, cleared }) {
+  const Icon = info.tone === 'err' ? IconAlertTriangle : IconAlertCircle
+  return (
+    <>
+      {!cleared && <Icon size={18} aria-hidden="true" style={{ verticalAlign: 'middle', marginRight: 8, color: `var(--${info.tone})` }} />}
+      <span className="strong">{info.name}</span>
+      <span className="code">{info.code}</span>
+    </>
+  )
+}
+
 export default function AlertsPage() {
   const { selectedUnit, setSelectedUnit, role } = useAuth()
+  const fleetRole = role === 'admin' || role === 'fm'
+  // Scope is page-local: AuthContext's selectedUnit is shared with other pages
+  // and must never hold the all-units sentinel.
+  const [scope, setScope]   = useState(fleetRole ? ALL_UNITS : selectedUnit)
   const [units, setUnits]   = useState([])
-  const [faults, setFaults] = useState(null)
-  const [error, setError]   = useState('')
+  const [ready, setReady]   = useState(false)
+  const [results, setResults] = useState(null)
+  const [sev, setSev]       = useState('all')
+  const eff = scope === ALL_UNITS ? ALL_UNITS : (scope || selectedUnit)
+  const allMode = eff === ALL_UNITS
 
   useEffect(() => {
     api.listUnits().then(d => {
       const list = d.units || []
       setUnits(list)
-      if (!selectedUnit && list.length > 0) setSelectedUnit(list[0].unit)
-    }).catch(() => {})
+      if (!fleetRole && !selectedUnit && list.length > 0) setSelectedUnit(list[0].unit)
+    }).catch(() => {}).finally(() => setReady(true))
   }, [])
 
   useEffect(() => {
-    if (!selectedUnit) return
+    if (!eff || (allMode && !ready)) return
     let live = true
-    setFaults(null)
-    setError('')
-    api.getFaults(selectedUnit, { start: '-7d', limit: '100' })
-      .then(d => { if (live) setFaults(d.faults || []) })
-      .catch(err => { if (live) setError(err.message) })
+    setResults(null)
+    const targets = allMode ? units.map(u => u.unit) : [eff]
+    Promise.allSettled(targets.map(u => api.getFaults(u, { start: '-7d', limit: '100' }))).then(settled => {
+      if (!live) return
+      setResults(settled.map((r, i) => r.status === 'fulfilled'
+        ? { unit: targets[i], faults: r.value.faults || [] }
+        : { unit: targets[i], error: r.reason }))
+    })
     return () => { live = false }
-  }, [selectedUnit])
+  }, [eff, allMode && ready, allMode ? units : null])
 
-  const active = faults ? activeFaults(faults) : []
-  const anyCritical = active.some((f) => faultInfo(f).tone === 'err')
+  const { byUnit, pending } = useFleetLatest(units.map(u => u.unit))
+  const now = Date.now()
+  const offline = (unit) => !pending[unit] && byUnit[unit] !== undefined && unitView(byUnit[unit], now).stale
+
+  const { active, log, failed } = results ? fleetFaultRows(results) : { active: [], log: [], failed: [] }
+  const counts = severityCounts(active)
+  const shown = allMode && sev !== 'all' ? active.filter(f => faultInfo(f).tone === sev) : active
+  const unitCount = new Set(active.map(f => f.unit)).size
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`
+
+  const anyCritical = counts.err > 0
   const tone = active.length === 0 ? 'ok' : anyCritical ? 'err' : 'warn'
   const BannerIcon = tone === 'ok' ? IconCircleCheck : tone === 'err' ? IconAlertTriangle : IconAlertCircle
+
+  const pick = (v) => {
+    setScope(v)
+    if (v !== ALL_UNITS) setSelectedUnit(v)
+  }
 
   return (
     <>
       <div className="toolbar">
-        <UnitPicker units={units} value={selectedUnit} onChange={setSelectedUnit} />
+        <UnitPicker units={units} value={eff} onChange={pick} allLabel={fleetRole ? 'All units' : undefined} />
+        {allMode && (
+          <FilterChips label="Severity" value={sev} onChange={setSev} options={[
+            { value: 'all',  label: `All · ${counts.all}` },
+            { value: 'err',  label: `Critical · ${counts.err}` },
+            { value: 'warn', label: `Warning · ${counts.warn}` },
+          ]} />
+        )}
+        {allMode && <span className="sec-sub" style={{ marginLeft: 'auto' }}>Last 7 days</span>}
       </div>
 
-      {error && <div className="notice" style={{ color: 'var(--err)' }}>⚠ {error}</div>}
-      {!faults && !error && selectedUnit && <div className="skeleton" style={{ height: 88, borderRadius: 14 }} />}
+      {failed.length > 0 && (
+        <div className="notice" style={{ color: 'var(--err)' }}>{`Couldn't load faults for ${failed.join(', ')}`}</div>
+      )}
+      {!results && eff && <div className="skeleton" style={{ height: 88, borderRadius: 14 }} />}
 
-      {faults && (
+      {results && !allMode && failed.length === 0 && (
         <section aria-label="Fault status" className={`banner b-${tone}`}>
           <span className={`badge badge-icon t-${tone}`} style={{ width: 52, height: 52 }}>
             <BannerIcon size={28} aria-hidden="true" />
@@ -74,56 +118,90 @@ export default function AlertsPage() {
             <h2 className="banner-title" style={{ margin: 0, color: tone === 'ok' ? 'var(--color-text-primary)' : `var(--${tone})` }}>
               {active.length === 0 ? 'No active faults' : `${active.length} active fault${active.length === 1 ? '' : 's'}`}
             </h2>
-            <div className="banner-sub">{selectedUnit} · {WINDOW_LABEL}</div>
+            <div className="banner-sub">{eff} · {WINDOW_LABEL}</div>
           </div>
         </section>
       )}
 
-      {active.length > 0 && (
-        <section aria-label="Active faults" className="panel">
-          {active.map((f) => {
-            const info = faultInfo(f)
-            const Icon = info.tone === 'err' ? IconAlertTriangle : IconAlertCircle
-            return (
-              <div key={info.code} className="attn-row">
-                <span className={`badge badge-icon t-${info.tone}`}><Icon size={20} aria-hidden="true" /></span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="attn-title">{info.name}</div>
-                  <div className="attn-sub">Raised {ageText(Date.now() - f.ts)} · code {info.code}</div>
-                </div>
-                <SeverityBadge info={info} />
-              </div>
-            )
-          })}
+      {results && allMode && (
+        <div className="sec-hd" style={{ marginBottom: 0 }}>
+          <h2 id="active-h" className="sec-title" style={{ margin: 0 }}>Active faults</h2>
+          <span className="sec-sub">{active.length === 0 ? 'None across all units' : `${active.length} across ${plural(unitCount, 'unit')}`}</span>
+        </div>
+      )}
+
+      {shown.length > 0 && (
+        <section aria-label="Active faults" className="panel" style={{ overflowX: 'auto' }}>
+          <table className="dtbl roomy" aria-label="Active faults">
+            <thead>
+              <tr>
+                {allMode && <th className="w-150">Unit</th>}
+                <th>Fault</th><th>Severity</th>
+                {allMode && <th>Raised</th>}
+                {allMode && <th />}
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((f) => {
+                const info = faultInfo(f)
+                return (
+                  <tr key={`${f.unit}-${info.code}`} className={info.tone === 'err' ? 'row-err' : undefined}>
+                    {allMode && <td className="strong">{f.unit}</td>}
+                    <td>
+                      <FaultCell info={info} />
+                      {!allMode && <div className="subline">Raised {ageText(now - f.ts)}</div>}
+                    </td>
+                    <td><SeverityBadge info={info} /></td>
+                    {allMode && (
+                      <td>
+                        {ageText(now - f.ts)}
+                        {offline(f.unit) && <div className="subline">Unit offline</div>}
+                      </td>
+                    )}
+                    {allMode && (
+                      <td className="num">
+                        <Link className="btn btn-sm" to={`/units/${encodeURIComponent(f.unit)}`}
+                          aria-label={`Open unit ${f.unit}`}>Open unit</Link>
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </section>
       )}
 
-      {faults && faults.length > 0 && (
+      {log.length > 0 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div className="sec-hd">
             <h2 id="fault-log-h" className="sec-title" style={{ margin: 0 }}>Fault log</h2>
-            <span className="sec-sub">{faults.length} event{faults.length === 1 ? '' : 's'} · {WINDOW_LABEL}</span>
+            <span className="sec-sub">{log.length} event{log.length === 1 ? '' : 's'} · {WINDOW_LABEL}</span>
           </div>
           <div className="panel" style={{ overflowX: 'auto' }}>
-            <table className="dtbl" aria-labelledby="fault-log-h">
+            <table className="dtbl roomy" aria-labelledby="fault-log-h">
               <thead>
-                <tr><th>When</th><th>Fault</th><th>State</th></tr>
+                <tr>
+                  <th className="w-170">When</th>
+                  {allMode && <th className="w-150">Unit</th>}
+                  <th>Fault</th>
+                  <th className="w-110">State</th>
+                </tr>
               </thead>
               <tbody>
-                {faults.slice(0, 50).map((f, i) => {
+                {log.slice(0, 50).map((f, i) => {
                   const cleared = f.state === 'cleared'
                   const info = faultInfo(f)
                   const sv = faultStateView(f, info)
                   return (
                     <tr key={i}>
-                      <td style={{ whiteSpace: 'nowrap' }}>{whenText(f.ts)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{shortWhen(f.ts)}</td>
+                      {allMode && <td className="strong">{f.unit}</td>}
                       <td>
                         {cleared && info.code === '0x0000' ? 'All faults cleared' : info.name}
-                        <span style={{ marginLeft: 8, fontSize: 12.5, color: 'var(--color-text-tertiary)' }}>{info.code}</span>
+                        <span className="code">{info.code}</span>
                       </td>
-                      <td>
-                        <span className={`badge badge-sm t-${sv.tone}`}>{sv.label}</span>
-                      </td>
+                      <td><span className={`badge badge-sm t-${sv.tone}`}>{sv.label}</span></td>
                     </tr>
                   )
                 })}

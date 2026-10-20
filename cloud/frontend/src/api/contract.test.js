@@ -3,7 +3,7 @@ import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
   heaterExt, heaterPhaseLabel, heaterTypeLabel,
          heaterFlags, diagOutputs, connLabel, otaStatusView,
          chronological, ageText, modeLabel, unitView, byAttention,
-         activeFaults, faultInfo, reportView, userStatusView, assignableRoles, rangeLabel, shortWhen, faultStateView, toneCounts, filterRows } from './contract.js'
+         activeFaults, faultInfo, reportView, userStatusView, assignableRoles, rangeLabel, shortWhen, faultStateView, toneCounts, filterRows, fleetFaultRows, severityCounts } from './contract.js'
 
 describe('otaStatusView', () => {
   it('hidden when idle/empty/null', () => {
@@ -410,5 +410,40 @@ describe('toneCounts / filterRows', () => {
   })
   it('matches fleet_id', () => {
     expect(filterRows(rows, { tone: null, q: 'fleet-001' }).map(r => r.u.unit)).toEqual(['TRUCK-002'])
+  })
+})
+
+describe('fleetFaultRows', () => {
+  const results = [
+    { unit: 'A', faults: [
+      { ts: 3000, fault: '0x0020', state: 'active' },
+      { ts: 1000, fault: '0x0004', state: 'active' },
+      { ts: 2000, fault: '0x0004', state: 'cleared' },
+    ] },
+    { unit: 'B', error: new Error('boom') },
+    { unit: 'C', faults: [{ ts: 2500, fault: '0x0004', state: 'active' }] },
+  ]
+  it('collects active faults per unit, newest first, and the failed units', () => {
+    const r = fleetFaultRows(results)
+    expect(r.active.map((x) => x.unit)).toEqual(['A', 'C'])
+    expect(r.active[0].fault).toBe('0x0020')
+    expect(r.failed).toEqual(['B'])
+  })
+  it('merges the log across units, newest first', () => {
+    const r = fleetFaultRows(results)
+    expect(r.log.map((x) => x.ts)).toEqual([3000, 2500, 2000, 1000])
+    expect(r.log[1].unit).toBe('C')
+  })
+  it('a single failure with one critical active gives one active row', () => {
+    const r = fleetFaultRows([{ unit: 'A', faults: [{ ts: 1, fault: '0x0020', state: 'active' }] }, { unit: 'B', error: 'x' }])
+    expect(r.active).toHaveLength(1)
+    expect(r.active[0].unit).toBe('A')
+    expect(r.failed).toEqual(['B'])
+  })
+})
+
+describe('severityCounts', () => {
+  it('counts all, critical and warning rows', () => {
+    expect(severityCounts([{ fault: '0x0020' }, { fault: '0x0004' }])).toEqual({ all: 2, err: 1, warn: 1 })
   })
 })
