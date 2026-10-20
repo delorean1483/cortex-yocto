@@ -378,3 +378,13 @@ details.ref[open] > summary .chev { transform: rotate(90deg); }
 .search { position: relative; display: inline-block; }
 .search > svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--color-text-tertiary); pointer-events: none; }
 .search .control { padding-left: 34px; width: 100%; }
+
+/* Maintenance */
+.svc-title { font-size: 17px; }
+.svc-sub { font-size: 14px; margin-left: 12px; margin-right: auto; }
+.svc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.svc-card { background: var(--color-background-primary); border: 1px solid var(--color-border-secondary); border-radius: 12px; padding: 16px 18px; }
+.svc-card .scard-lbl { font-size: 14px; color: var(--color-text-secondary); margin-bottom: 6px; }
+.svc-card .scard-val { font-size: 26px; font-weight: 600; line-height: 1.15; }
+.svc-card .scard-sub { font-size: 13px; margin-top: 4px; }
+.dtbl .w-180 { width: 180px; }
