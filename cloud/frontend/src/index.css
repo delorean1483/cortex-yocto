@@ -170,7 +170,7 @@ button { font-family: inherit; }
 /* Table */
 .dtbl { width: 100%; border-collapse: collapse; font-size: 14px; }
 .dtbl th { text-align: left; padding: 10px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 13px; font-weight: 500; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: .07em; }
-.dtbl td { padding: 8px; border-bottom: 0.5px solid var(--color-border-tertiary); vertical-align: middle; }
+.dtbl td { padding: 8px 14px; border-bottom: 0.5px solid var(--color-border-tertiary); vertical-align: middle; }
 .dtbl tr:last-child td { border-bottom: none; }
 .dtbl td.num, .dtbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .dtbl.roomy td { padding: 12px 14px; }
@@ -354,4 +354,4 @@ details.ref[open] > summary .chev { transform: rotate(90deg); }
 .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .search { position: relative; display: inline-block; }
 .search > svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--color-text-tertiary); pointer-events: none; }
-.search .control { padding-left: 34px; }
+.search .control { padding-left: 34px; width: 100%; }
