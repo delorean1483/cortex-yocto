@@ -315,3 +315,32 @@ describe('reportView', () => {
     expect(v.zeroRuntime).toBe(false)
   })
 })
+
+import { networkView } from './contract.js'
+
+describe('networkView (shadow reported.network)', () => {
+  const WIFI = { ip: '192.168.0.211', ssid: 'HomeNet', signal_dbm: -58 }
+  it('lists WiFi then Ethernet addresses, and the WiFi network with its signal', () => {
+    const v = networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' } })
+    expect(v.addresses).toEqual([{ ip: '192.168.0.211', via: 'WiFi' }, { ip: '192.168.0.94', via: 'Ethernet' }])
+    expect(v.wifi).toBe('HomeNet, −58 dBm')
+  })
+  it('WiFi only (eth null)', () => {
+    const v = networkView({ wifi: WIFI, eth: null })
+    expect(v.addresses).toEqual([{ ip: '192.168.0.211', via: 'WiFi' }])
+  })
+  it('Ethernet only (wifi null): no WiFi line', () => {
+    const v = networkView({ wifi: null, eth: { ip: '192.168.0.94' } })
+    expect(v.addresses).toEqual([{ ip: '192.168.0.94', via: 'Ethernet' }])
+    expect(v.wifi).toBe(null)
+  })
+  it('WiFi joined but no address yet, or no signal reading', () => {
+    expect(networkView({ wifi: { ip: null, ssid: 'HomeNet', signal_dbm: null }, eth: null }))
+      .toEqual({ addresses: [], wifi: 'HomeNet' })
+  })
+  it('older firmware (no network block) or nothing up', () => {
+    expect(networkView(undefined)).toEqual({ addresses: [], wifi: null })
+    expect(networkView(null)).toEqual({ addresses: [], wifi: null })
+    expect(networkView({ wifi: null, eth: null })).toEqual({ addresses: [], wifi: null })
+  })
+})

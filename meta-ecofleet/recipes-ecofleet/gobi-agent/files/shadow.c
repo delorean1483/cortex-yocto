@@ -536,6 +536,29 @@ int shadow_publish_reported(struct mosquitto *mosq,
         }
     }
 
+    /* LAN addresses for the dashboard. The cloud merges reported updates key
+     * by key, so a part that is down is sent as null rather than omitted —
+     * otherwise its last address would stay in the shadow for good. */
+    const net_info_t *n = &reported->network;
+    cJSON *net = cJSON_AddObjectToObject(rep, "network");
+    if (n->wifi_ip[0] || n->wifi_ssid[0]) {
+        cJSON *wifi = cJSON_AddObjectToObject(net, "wifi");
+        if (n->wifi_ip[0])   cJSON_AddStringToObject(wifi, "ip", n->wifi_ip);
+        else                 cJSON_AddNullToObject(wifi, "ip");
+        if (n->wifi_ssid[0]) cJSON_AddStringToObject(wifi, "ssid", n->wifi_ssid);
+        else                 cJSON_AddNullToObject(wifi, "ssid");
+        if (n->wifi_signal_valid) cJSON_AddNumberToObject(wifi, "signal_dbm", n->wifi_signal_dbm);
+        else                      cJSON_AddNullToObject(wifi, "signal_dbm");
+    } else {
+        cJSON_AddNullToObject(net, "wifi");
+    }
+    if (n->eth_ip[0]) {
+        cJSON *eth = cJSON_AddObjectToObject(net, "eth");
+        cJSON_AddStringToObject(eth, "ip", n->eth_ip);
+    } else {
+        cJSON_AddNullToObject(net, "eth");
+    }
+
     /* Echo the assigned location back so desired == reported (no standing
      * delta). */
     pthread_mutex_lock(&s.config_mutex);

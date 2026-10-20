@@ -23,6 +23,8 @@
 #include <stdint.h>
 #include <mosquitto.h>
 
+#include "net_info.h"
+
 /* ── Configurable fields that can be changed via shadow ─────────────────── */
 typedef struct {
     int      poll_interval_s;    /* Modbus poll interval, 5–60 s (default: 5)  */
@@ -91,6 +93,11 @@ typedef struct {
     char     heater_control[10]; /* "level"|"setpoint"                           */
     int      heater_setpoint_f;  /* reg 69 as degF                               */
     bool     heater_fault;       /* phase == fault                               */
+
+    /* LAN addresses for the dashboard (reported.network). Always published;
+     * a part that is down goes out as null so the merged cloud shadow never
+     * keeps a stale address. */
+    net_info_t network;
 } shadow_reported_t;
 
 /* ── Callbacks ────────────────────────────────────────────────────────────── */

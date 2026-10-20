@@ -141,3 +141,18 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" -I"$cjson/include" "$here/test_ota_offer.c" "$files/ota_offer.c" \
    -L"$cjson/lib" -lcjson -o "$here/test_ota_offer" && "$here/test_ota_offer"
+
+# Unit LAN addresses for the dashboard (reported.network): the /proc/net/wireless
+# signal parse and the wlan0/eth0 IPv4 pick from getifaddrs().
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" "$here/test_net_info.c" "$files/net_info.c" \
+   -o "$here/test_net_info" && "$here/test_net_info"
+
+# reported.network through the REAL shadow.c: absent parts are sent as null.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -DLOCATION_JSON_SHARED='"/tmp/test_shadow_network_location.json"' \
+   -DLOCATION_JSON_LEGACY='"/tmp/test_shadow_network_location.legacy.json"' \
+   -I"$here/mqstub" -I"$files" -I"$cjson/include" \
+   "$here/test_shadow_network.c" "$files/location.c" "$files/state_path.c" \
+   -L"$cjson/lib" -lcjson -lpthread \
+   -o "$here/test_shadow_network" && "$here/test_shadow_network"

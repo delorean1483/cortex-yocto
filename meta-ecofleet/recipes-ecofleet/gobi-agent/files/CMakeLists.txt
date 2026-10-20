@@ -52,6 +52,7 @@ target_sources(gobi-agent PRIVATE
     apu_command.c
     ota_status.c
     ota_offer.c
+    net_info.c
 )
 
 target_include_directories(gobi-agent PRIVATE
