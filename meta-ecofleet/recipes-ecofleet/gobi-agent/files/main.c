@@ -1326,6 +1326,10 @@ int main(void)
              * as e.g. "failed: install 1.2.48" instead of a stuck "pending"). */
             read_ota_status(srep.ota_status, sizeof(srep.ota_status));
 
+            /* LAN addresses (WiFi / Ethernet) so the dashboard can show where
+             * to reach the unit. */
+            net_info_read(&srep.network);
+
             shadow_publish_reported(g_mosq, &srep);
 
             /* Heater-scoped remote start/stop/level via AWS shadow desired
