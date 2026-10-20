@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 
 const mutate = vi.fn()
+const mocks = vi.hoisted(() => ({ shadow: null }))
 vi.mock('../../data/hooks.js', () => ({
   useCommand: () => ({ mutate, isPending: false }),
-  useShadow: () => ({ data: { reported: { firmware_version: '1.2.57' } } }),
+  useShadow: () => ({ data: mocks.shadow }),
 }))
 vi.mock('../../contexts/AuthContext.jsx', () => ({ useAuth: () => ({ role: 'admin' }) }))
 
@@ -23,7 +24,28 @@ function renderTab(tele, props = {}) {
 }
 
 describe('OverviewTab', () => {
-  beforeEach(() => mutate.mockClear())
+  beforeEach(() => {
+    mutate.mockClear()
+    mocks.shadow = { reported: { firmware_version: '1.2.57' } }
+  })
+
+  it('shows the unit\'s LAN addresses and WiFi network in Unit info', () => {
+    mocks.shadow = { reported: { firmware_version: '1.2.79', network: {
+      wifi: { ip: '192.168.0.211', ssid: 'HomeNet', signal_dbm: -58 }, eth: { ip: '192.168.0.94' } } } }
+    renderTab(BASE)
+    const info = screen.getByRole('heading', { name: 'Unit info' }).closest('section')
+    expect(within(info).getByText('IP address')).toBeTruthy()
+    expect(within(info).getByText('192.168.0.211 (WiFi)')).toBeTruthy()
+    expect(within(info).getByText('192.168.0.94 (Ethernet)')).toBeTruthy()
+    expect(within(info).getByText('HomeNet, \u221258 dBm')).toBeTruthy()
+  })
+
+  it('shows dashes for a unit that doesn\'t report its network yet', () => {
+    renderTab(BASE)
+    const info = screen.getByRole('heading', { name: 'Unit info' }).closest('section')
+    const ipRow = within(info).getByText('IP address').parentElement
+    expect(within(ipRow).getByText('\u2014')).toBeTruthy()
+  })
 
   it('leads with a fault banner naming the fault', () => {
     renderTab({ ...BASE, error: 'Low oil pressure', error_n: 1, oil_ok: false })

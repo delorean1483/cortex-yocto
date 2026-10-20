@@ -5,7 +5,7 @@ import {
 } from '@tabler/icons-react'
 import {
   fmt, apuVersionLabel, unitView, modeLabel, engineRunning, heaterStateLabel,
-  heaterExt, heaterPhaseLabel,
+  heaterExt, heaterPhaseLabel, networkView,
 } from '../../api/contract.js'
 import { useCommand, useShadow } from '../../data/hooks.js'
 import { useCan } from '../../components/RoleGate.jsx'
@@ -94,6 +94,7 @@ export default function OverviewTab({ tele, unit, isDemo, onOpenTab }) {
   if (!tele) return <div className="notice">Waiting for telemetry…</div>
 
   const view = unitView(tele)
+  const net = networkView(shadow?.reported?.network)
   const copy = bannerCopy(tele, view)
   const Icon = TONE_ICON[view.tone]
   const lowBatt = tele.batt_v != null && Number(tele.batt_v) < 12
@@ -164,6 +165,12 @@ export default function OverviewTab({ tele, unit, isDemo, onOpenTab }) {
             <Row label="Oil hours" sm>{fmt.hours(tele.oil_hrs)}</Row>
             <Row label="APU firmware" sm>{apuVersionLabel(tele.apu_fw_version)}</Row>
             <Row label="System image" sm>{shadow?.reported?.firmware_version || '—'}</Row>
+            <Row label="IP address" sm>
+              {net.addresses.length
+                ? net.addresses.map((a) => <div key={a.via}>{`${a.ip} (${a.via})`}</div>)
+                : '—'}
+            </Row>
+            <Row label="WiFi" sm>{net.wifi || '—'}</Row>
           </Group>
         </div>
       </div>

@@ -111,6 +111,26 @@ export function apuVersionLabel(v) {
   return `${major}.${minor}.${patch}`
 }
 
+// Shadow reported.network (gobi-agent): the unit's LAN addresses, for finding
+// it on its network. { wifi: {ip, ssid, signal_dbm} | null, eth: {ip} | null };
+// absent on firmware older than the network report. A part that is down comes
+// as null, never as a stale value.
+export function networkView(network) {
+  const wifi = network?.wifi || null
+  const eth = network?.eth || null
+  const addresses = []
+  if (wifi?.ip) addresses.push({ ip: wifi.ip, via: 'WiFi' })
+  if (eth?.ip) addresses.push({ ip: eth.ip, via: 'Ethernet' })
+  let wifiText = null
+  if (wifi?.ssid) {
+    const dbm = Number(wifi.signal_dbm)
+    wifiText = wifi.signal_dbm != null && Number.isFinite(dbm)
+      ? `${wifi.ssid}, −${Math.abs(dbm)} dBm`
+      : wifi.ssid
+  }
+  return { addresses, wifi: wifiText }
+}
+
 // apu_flash_state: idle | flashing | verifying | done | failed. Returns a label
 // plus flags the FirmwareTab uses to drive the pending→applied UI.
 export function apuFlashStateLabel(state) {
