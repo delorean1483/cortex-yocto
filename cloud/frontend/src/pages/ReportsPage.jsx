@@ -85,7 +85,7 @@ export default function ReportsPage() {
             <h2 id="ops-h" className="sec-title" style={{ margin: 0 }}>Operator activity</h2>
             <span className="sec-sub">{operators.length} {operators.length === 1 ? 'operator' : 'operators'}</span>
           </div>
-          <div className="panel" style={{ overflowX: 'auto' }}>
+          <div className="panel panel-x">
             <table className="dtbl" aria-labelledby="ops-h">
               <thead><tr><th>Operator</th><th>Fleet</th><th className="num">Starts</th><th className="num">Stops</th><th className="num">FW updates</th></tr></thead>
               <tbody>

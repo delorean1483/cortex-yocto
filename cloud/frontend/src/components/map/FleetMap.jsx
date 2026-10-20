@@ -63,6 +63,23 @@ function ClickToPlace({ active, onPick }) {
   return null
 }
 
+function Legend() {
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    L.DomEvent.disableClickPropagation(el)
+    L.DomEvent.disableScrollPropagation(el)
+  }, [])
+  return (
+    <div ref={ref} className="map-legend" role="group" aria-label="Map legend">
+      {LEGEND.map(([tone, name]) => (
+        <span key={tone} className="map-legend-item"><span className={`map-legend-dot t-${tone}`} aria-hidden="true" />{name}</span>
+      ))}
+    </div>
+  )
+}
+
 export default function FleetMap({ pins, selected, focus, placing, onPick, onOpen }) {
   const placingReady = placing && placing.lat != null && placing.lon != null
   return (
@@ -97,11 +114,7 @@ export default function FleetMap({ pins, selected, focus, placing, onPick, onOpe
           title={`New location for ${placing.unit}`}
         />
       )}
-      <div className="map-legend" role="group" aria-label="Map legend">
-        {LEGEND.map(([tone, name]) => (
-          <span key={tone} className="map-legend-item"><span className={`map-legend-dot t-${tone}`} aria-hidden="true" />{name}</span>
-        ))}
-      </div>
+      <Legend />
     </MapContainer>
   )
 }

@@ -216,6 +216,9 @@ button { font-family: inherit; }
 .t-off  { color: var(--off);  background: var(--off-soft); }
 
 .panel { border: 1px solid var(--color-border-secondary); border-radius: 12px; background: var(--color-background-primary); overflow: hidden; }
+.panel { flex-shrink: 0; }
+.panel-x { overflow-x: auto; }
+a.btn, a.btn:hover { text-decoration: none; }
 .attn-row { display: flex; align-items: center; gap: 16px; padding: 12px 18px; border-top: 1px solid var(--color-border-tertiary); }
 .attn-row:first-child { border-top: 0; }
 .attn-title { font-size: 15px; font-weight: 600; }

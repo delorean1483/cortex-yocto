@@ -133,7 +133,7 @@ export default function AlertsPage() {
       )}
 
       {shown.length > 0 && (
-        <section aria-label="Active faults" className="panel" style={{ overflowX: 'auto' }}>
+        <section aria-label="Active faults" className="panel panel-x">
           <table className="dtbl roomy" aria-label="Active faults">
             <thead>
               <tr>
@@ -180,7 +180,7 @@ export default function AlertsPage() {
             <h2 id="fault-log-h" className="sec-title" style={{ margin: 0 }}>Fault log</h2>
             <span className="sec-sub">{log.length} event{log.length === 1 ? '' : 's'} · {WINDOW_LABEL}</span>
           </div>
-          <div className="panel" style={{ overflowX: 'auto' }}>
+          <div className="panel panel-x">
             <table className="dtbl roomy" aria-labelledby="fault-log-h">
               <thead>
                 <tr>

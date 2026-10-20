@@ -109,9 +109,8 @@ export default function UsersPage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <SearchInput value={q} onChange={setQ} placeholder="Filter by email" width={280} />
         <FilterChips label="Role" options={roleOptions} value={roleFilter} onChange={setRoleFilter} />
-        <button className="btn btn-sm" onClick={fetchUsers}>
+        <button className="btn" style={{ padding: 0, width: 36 }} aria-label="Refresh" title="Refresh" onClick={fetchUsers}>
           <IconRefresh size={16} className={loading ? 'spin' : undefined} />
-          Refresh
         </button>
         {isAdmin && !showForm && (
           <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => setShowForm(true)}>

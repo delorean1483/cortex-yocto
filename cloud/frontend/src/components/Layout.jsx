@@ -211,10 +211,10 @@ export default function Layout({ children }) {
                   aria-label="Preview as role"
                   style={{ fontSize: 14, minHeight: 36, maxWidth: phone ? 150 : undefined, border: 'none', background: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
                 >
-                  <option value="admin">Preview as Admin ▾</option>
-                  <option value="fm">Preview as Fleet Manager ▾</option>
-                  <option value="maint">Preview as Maintenance ▾</option>
-                  <option value="eu">Preview as End User ▾</option>
+                  <option value="admin">Preview as Admin</option>
+                  <option value="fm">Preview as Fleet Manager</option>
+                  <option value="maint">Preview as Maintenance</option>
+                  <option value="eu">Preview as End User</option>
                 </select>
               </label>
             )}

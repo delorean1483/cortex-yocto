@@ -197,7 +197,7 @@ export default function MaintenancePage() {
             <h2 id="svc-history-h" className="sec-title svc-title">Service history</h2>
             <span className="sec-sub svc-sub">{shown.length} {shown.length === 1 ? 'record' : 'records'}</span>
           </div>
-          <div className="panel" style={{ overflowX: 'auto' }}>
+          <div className="panel panel-x">
             <table className="dtbl roomy" aria-labelledby="svc-history-h">
               <thead>
                 <tr>
