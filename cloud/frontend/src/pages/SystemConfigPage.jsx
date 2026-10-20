@@ -79,7 +79,7 @@ export default function SystemConfigPage() {
     <>
       <div className="toolbar">
         <UnitPicker units={list} value={unit} onChange={setSelectedUnit} />
-        <span className="stat-cap">Settings apply to one unit at a time.</span>
+        <span style={{ fontSize: 14, color: 'var(--color-text-tertiary)' }}>Settings apply to one unit at a time.</span>
       </div>
 
       {isDemo && <div className="notice">Demo units can't be configured.</div>}
@@ -101,7 +101,7 @@ export default function SystemConfigPage() {
                 )}
               </div>
               {outside && <div className="stat-cap">This interval was set outside this page.</div>}
-              <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-secondary)' }}>
+              <p style={{ margin: 0, fontSize: 15, color: 'var(--color-text-secondary)' }}>
                 How often the unit reads the APU and sends telemetry. Shorter intervals give fresher data but add database load.
               </p>
 
@@ -137,7 +137,7 @@ export default function SystemConfigPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: 'var(--warn-soft)', color: 'var(--warn)', borderRadius: 8, padding: '12px 14px', fontSize: 14 }}>
                     <IconAlertTriangle size={18} aria-hidden="true" />
                     <span style={{ flex: 1 }}>Needs system image {REBOOT_MIN_FW} or newer. {unit} is on {imageFw || 'an unknown version'}.</span>
-                    <button className="btn" onClick={() => navigate(`/units/${encodeURIComponent(unit)}?tab=firmware`)}>Go to Firmware</button>
+                    <button className="btn btn-sm" onClick={() => navigate(`/units/${encodeURIComponent(unit)}?tab=firmware`)}>Go to Firmware</button>
                   </div>
                 )}
                 <div>
