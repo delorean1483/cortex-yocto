@@ -1,12 +1,12 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   IconAlertTriangle, IconAlertCircle, IconCircleCheck, IconWifiOff, IconChevronRight,
 } from '@tabler/icons-react'
 import StatusBadge from '../components/StatusBadge.jsx'
 import SearchInput from '../components/SearchInput.jsx'
 import { useUnits, useUnitLatest } from '../data/hooks.js'
-import { unitView, byAttention, fmt, apuVersionLabel, toneCounts, filterRows } from '../api/contract.js'
+import { unitView, byAttention, fmt, apuVersionLabel, toneCounts, filterRows, ageText } from '../api/contract.js'
 
 const TONE_ICON = { err: IconAlertTriangle, warn: IconAlertCircle, ok: IconCircleCheck, off: IconWifiOff }
 const TONE_TEXT = { err: 'var(--err)', warn: 'var(--warn)' }
@@ -97,11 +97,97 @@ function Section({ id, title, rows }) {
   )
 }
 
+// Cards | Table choice is a per-viewer convenience; storage can be blocked.
+const VIEW_KEY = 'eco_dash_view'
+function loadView() {
+  try { return localStorage.getItem(VIEW_KEY) === 'table' ? 'table' : 'cards' } catch { return 'cards' }
+}
+function saveView(v) {
+  try { localStorage.setItem(VIEW_KEY, v) } catch { /* ignore */ }
+}
+
+function ViewToggle({ value, onChange }) {
+  return (
+    <div role="group" aria-label="View" className="vseg">
+      {[['cards', 'Cards'], ['table', 'Table']].map(([v, label]) => (
+        <button key={v} type="button" aria-pressed={value === v} onClick={() => onChange(v)}>{label}</button>
+      ))}
+    </div>
+  )
+}
+
+// Dense one-row-per-unit view: every unit once, in byAttention order. The unit
+// name is the keyboard-reachable link; the whole row is a mouse shortcut to it.
+function UnitTable({ rows, now }) {
+  const navigate = useNavigate()
+  const withFleet = rows.some((r) => r.u.fleet_id)
+  // Leave clicks the link already handled (incl. Cmd/Ctrl-click to a new tab)
+  // and drag-selections alone; a plain click elsewhere opens the unit.
+  const openRow = (e, unit) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+    if (e.target.closest?.('a, button')) return
+    if (String(window.getSelection?.() ?? '') !== '') return
+    navigate(unitHref(unit))
+  }
+  return (
+    <>
+      <div className="panel panel-x">
+        <table className="dtbl utbl" aria-label="Units">
+          <thead>
+            <tr>
+              <th className="w-112">Status</th>
+              <th>Unit</th>
+              {withFleet && <th>Fleet</th>}
+              <th className="grow">Status detail</th>
+              <th className="num">Battery</th>
+              <th className="num">Cabin</th>
+              <th className="num">RPM</th>
+              <th className="num">Fan</th>
+              <th>Last report</th>
+              <th aria-hidden="true" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ u, tele, view }) => {
+              const err = view?.tone === 'err'
+              const detail = !view ? 'Loading…' : (view.tone === 'off' && tele ? 'Not reporting' : view.headline)
+              // Last-known readings of a unit that stopped reporting are history, not current state.
+              const num = view?.stale && tele ? 'num utbl-stale' : 'num'
+              return (
+                <tr key={u.unit} className={err ? 'row-err' : undefined} onClick={(e) => openRow(e, u.unit)}>
+                  <td>{view ? <StatusBadge view={view} size={14} small /> : '—'}</td>
+                  <td>
+                    <Link to={unitHref(u.unit)} className="utbl-unit">{u.unit}</Link>
+                    {u.demo && <span className="badge badge-sm t-off utbl-demo">demo</span>}
+                  </td>
+                  {withFleet && <td className="utbl-sub">{u.fleet_id || '—'}</td>}
+                  <td className={err ? 'grow utbl-err' : 'grow'}>{detail}</td>
+                  <td className={num}><Val v={tele?.batt_v} format={(n) => `${oneDecimal(n)} V`} /></td>
+                  <td className={num}>{fmt.tempF(tele?.cabin_temp_f)}</td>
+                  <td className={num}><Val v={tele?.rpm} format={thousands} /></td>
+                  <td className={num}>{fmt.pct(tele?.fan_speed)}</td>
+                  <td className="utbl-sub">{tele?.ts != null ? ageText(now - Number(tele.ts)) : '—'}</td>
+                  <td aria-hidden="true"><IconChevronRight size={16} color="var(--color-text-tertiary)" /></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="utbl-cap">
+        {rows.length} {rows.length === 1 ? 'unit' : 'units'} · sorted by needs attention · click a row to open the unit
+      </div>
+    </>
+  )
+}
+
 export default function DashboardPage() {
   const { data: units, isLoading, error } = useUnits()
   const [latest, setLatest] = useState({}) // unit -> { tele, pending }
   const [tone, setTone] = useState(null)
   const [q, setQ] = useState('')
+  const [view, setView] = useState(loadView)
+  const pickView = (v) => { setView(v); saveView(v) }
   const [now, setNow] = useState(() => Date.now())
 
   // "Reported 6s ago" and the offline cut-over need a moving clock.
@@ -148,6 +234,8 @@ export default function DashboardPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <SearchInput value={q} onChange={setQ} placeholder="Filter by unit or fleet" width={300} />
+            <span style={{ flex: 1 }} />
+            <ViewToggle value={view} onChange={pickView} />
           </div>
         </>
       )}
@@ -169,9 +257,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {needs.length > 0 && <Section id="attn-h" title="Needs attention" rows={needs} />}
-      {normal.length > 0 && <Section id="ok-h" title="Running normally" rows={normal} />}
-      {pending.length > 0 && (
+      {view === 'table' && shown.length > 0 && <UnitTable rows={shown} now={now} />}
+      {view === 'cards' && needs.length > 0 && <Section id="attn-h" title="Needs attention" rows={needs} />}
+      {view === 'cards' && normal.length > 0 && <Section id="ok-h" title="Running normally" rows={normal} />}
+      {view === 'cards' && pending.length > 0 && (
         <div className="ugrid">
           {pending.map(({ u }) => <div key={u.unit} className="skeleton" style={{ height: 210, borderRadius: 12 }} />)}
         </div>
