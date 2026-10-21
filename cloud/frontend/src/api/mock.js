@@ -139,7 +139,7 @@ export const mockApi = {
     reported: { report_mode: 'normal', poll_interval_s: reportedInterval(unit), online: true, stale_seconds: 4,
       apu_fw_version: SNAPSHOTS[unit]?.apu_fw_version ?? 10240,
       firmware_version: '1.2.39',  // one behind the channel latest (1.2.40) -> demo shows "update available"
-      network: { wifi: { ip: '192.168.0.211', ssid: 'Yard WiFi', signal_dbm: -61 }, eth: null },
+      network: { wifi: { ip: '192.168.0.211', ssid: 'Yard WiFi', signal_dbm: -61 }, eth: null, primary: 'wifi' },
       heater_desired_seq: HEATER_SEQ[unit] || 0 },
     desired: {}, delta: {}, last_updated: Date.now() }),
 

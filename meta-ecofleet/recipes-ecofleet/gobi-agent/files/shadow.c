@@ -558,6 +558,13 @@ int shadow_publish_reported(struct mosquitto *mosq,
     } else {
         cJSON_AddNullToObject(net, "eth");
     }
+    /* the interface carrying the default route: "eth" | "wifi" | "other" */
+    switch (n->primary) {
+    case NET_PRIMARY_ETH:   cJSON_AddStringToObject(net, "primary", "eth");   break;
+    case NET_PRIMARY_WIFI:  cJSON_AddStringToObject(net, "primary", "wifi");  break;
+    case NET_PRIMARY_OTHER: cJSON_AddStringToObject(net, "primary", "other"); break;
+    default:                cJSON_AddNullToObject(net, "primary");            break;
+    }
 
     /* Echo the assigned location back so desired == reported (no standing
      * delta). */

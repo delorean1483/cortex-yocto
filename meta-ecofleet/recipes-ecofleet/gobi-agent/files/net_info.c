@@ -59,6 +59,31 @@ bool net_wireless_signal_dbm(const char *proc_text, const char *ifname, int *dbm
     return false;
 }
 
+net_primary_t net_primary(const char *proc_route_text)
+{
+    if (!proc_route_text)
+        return NET_PRIMARY_NONE;
+    net_primary_t best = NET_PRIMARY_NONE;
+    unsigned long best_metric = 0;
+    const char *line = strchr(proc_route_text, '\n');      /* skip the header */
+    while (line && *++line) {
+        /* Iface Destination Gateway Flags RefCnt Use Metric Mask ... */
+        char ifname[17];
+        unsigned long dest, gw, flags, refcnt, use, metric, mask;
+        if (sscanf(line, "%16s %lx %lx %lx %lu %lu %lu %lx",
+                   ifname, &dest, &gw, &flags, &refcnt, &use, &metric, &mask) == 8
+            && dest == 0 && mask == 0 && (flags & 0x1)          /* RTF_UP */
+            && (best == NET_PRIMARY_NONE || metric < best_metric)) {
+            best_metric = metric;
+            best = strcmp(ifname, ETH_IF) == 0  ? NET_PRIMARY_ETH
+                 : strcmp(ifname, WIFI_IF) == 0 ? NET_PRIMARY_WIFI
+                 : NET_PRIMARY_OTHER;
+        }
+        line = strchr(line, '\n');
+    }
+    return best;
+}
+
 static void read_ssid(char *ssid, size_t len)
 {
     ssid[0] = '\0';
@@ -103,5 +128,14 @@ void net_info_read(net_info_t *out)
         text[n] = '\0';
         fclose(f);
         out->wifi_signal_valid = net_wireless_signal_dbm(text, WIFI_IF, &out->wifi_signal_dbm);
+    }
+
+    f = fopen("/proc/net/route", "r");
+    if (f) {
+        char text[2048];
+        size_t n = fread(text, 1, sizeof(text) - 1, f);
+        text[n] = '\0';
+        fclose(f);
+        out->primary = net_primary(text);
     }
 }

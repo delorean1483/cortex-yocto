@@ -31,12 +31,14 @@ describe('OverviewTab', () => {
 
   it('shows the unit\'s LAN addresses and WiFi network in Unit info', () => {
     mocks.shadow = { reported: { firmware_version: '1.2.79', network: {
-      wifi: { ip: '192.168.0.211', ssid: 'HomeNet', signal_dbm: -58 }, eth: { ip: '192.168.0.94' } } } }
+      wifi: { ip: '192.168.0.211', ssid: 'HomeNet', signal_dbm: -58 }, eth: { ip: '192.168.0.94' },
+      primary: 'eth' } } }
     renderTab(BASE)
     const info = screen.getByRole('heading', { name: 'Unit info' }).closest('section')
     expect(within(info).getByText('IP address')).toBeTruthy()
-    expect(within(info).getByText('192.168.0.211 (WiFi)')).toBeTruthy()
-    expect(within(info).getByText('192.168.0.94 (Ethernet)')).toBeTruthy()
+    const lines = within(within(info).getByText('IP address').parentElement)
+      .getAllByText(/\(WiFi|\(Ethernet/).map((e) => e.textContent)
+    expect(lines).toEqual(['192.168.0.94 (Ethernet, primary)', '192.168.0.211 (WiFi)'])
     expect(within(info).getByText('HomeNet, \u221258 dBm')).toBeTruthy()
   })
 

@@ -114,13 +114,16 @@ export function apuVersionLabel(v) {
 // Shadow reported.network (gobi-agent): the unit's LAN addresses, for finding
 // it on its network. { wifi: {ip, ssid, signal_dbm} | null, eth: {ip} | null };
 // absent on firmware older than the network report. A part that is down comes
-// as null, never as a stale value.
+// as null, never as a stale value. `primary` ("eth" | "wifi" | "other" | null)
+// is the interface holding the default route; it is listed first and marked.
 export function networkView(network) {
   const wifi = network?.wifi || null
   const eth = network?.eth || null
+  const primary = network?.primary
   const addresses = []
-  if (wifi?.ip) addresses.push({ ip: wifi.ip, via: 'WiFi' })
-  if (eth?.ip) addresses.push({ ip: eth.ip, via: 'Ethernet' })
+  if (wifi?.ip) addresses.push({ ip: wifi.ip, via: 'WiFi', primary: primary === 'wifi' })
+  if (eth?.ip) addresses.push({ ip: eth.ip, via: 'Ethernet', primary: primary === 'eth' })
+  addresses.sort((a, b) => Number(b.primary) - Number(a.primary))
   let wifiText = null
   if (wifi?.ssid) {
     const dbm = Number(wifi.signal_dbm)

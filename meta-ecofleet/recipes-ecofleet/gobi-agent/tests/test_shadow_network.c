@@ -58,7 +58,27 @@ int main(void) {
     CHECK(strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(wifi, "ssid")), "HomeNet") == 0);
     CHECK(cJSON_GetNumberValue(cJSON_GetObjectItem(wifi, "signal_dbm")) == -58);
     CHECK(strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(eth, "ip")), "192.168.0.94") == 0);
+    CHECK(cJSON_IsNull(cJSON_GetObjectItem(net, "primary")));   /* not known: null, not omitted */
     cJSON_Delete(root);
+
+    /* the interface carrying the default route */
+    r.network.primary = NET_PRIMARY_ETH;
+    shadow_publish_reported((struct mosquitto *)0x1, &r);
+    net = network(&root);
+    CHECK(strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(net, "primary")), "eth") == 0);
+    cJSON_Delete(root);
+    r.network.primary = NET_PRIMARY_WIFI;
+    shadow_publish_reported((struct mosquitto *)0x1, &r);
+    net = network(&root);
+    CHECK(strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(net, "primary")), "wifi") == 0);
+    cJSON_Delete(root);
+    /* some other interface (e.g. a modem) carries it: not one we list */
+    r.network.primary = NET_PRIMARY_OTHER;
+    shadow_publish_reported((struct mosquitto *)0x1, &r);
+    net = network(&root);
+    CHECK(strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(net, "primary")), "other") == 0);
+    cJSON_Delete(root);
+    r.network.primary = NET_PRIMARY_NONE;
 
     /* Ethernet gone: eth is null, not omitted */
     r.network.eth_ip[0] = '\0';

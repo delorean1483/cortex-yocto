@@ -162,7 +162,9 @@ export default function OverviewTab({ tele, unit, isDemo, onOpenTab }) {
             <Row label="System image" sm>{shadow?.reported?.firmware_version || '—'}</Row>
             <Row label="IP address" sm>
               {net.addresses.length
-                ? net.addresses.map((a) => <div key={a.via}>{`${a.ip} (${a.via})`}</div>)
+                ? net.addresses.map((a) => (
+                    <div key={a.via}>{`${a.ip} (${a.via}${a.primary ? ', primary' : ''})`}</div>
+                  ))
                 : '—'}
             </Row>
             <Row label="WiFi" sm>{net.wifi || '—'}</Row>
