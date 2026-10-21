@@ -329,27 +329,41 @@ static void running_version(char *out, size_t out_len)
     fclose(f);
 }
 
+/* First line of `path` (newline stripped) and its age in seconds by mtime.
+ * False if the file can't be opened. */
+static bool read_line_age(const char *path, char *line, size_t line_len, long *age)
+{
+    FILE *f = fopen(path, "r");
+    if (!f) return false;
+
+    struct stat st;
+    *age = -1;   /* -1 (fstat failed) counts as fresh, never expires */
+    if (fstat(fileno(f), &st) == 0)
+        *age = (long)(time(NULL) - st.st_mtime);
+
+    line[0] = '\0';
+    if (fgets(line, (int)line_len, f))
+        line[strcspn(line, "\r\n")] = '\0';
+    fclose(f);
+    return true;
+}
+
 /* Read the root worker's last OTA status line (e.g. "installing 1.2.48" or
  * "failed: ...") into `out`, or "" if there's no status file. Reported to the
  * shadow each cycle so the dashboard sees OTA progress/failure. A line older
  * than OTA_STATUS_TTL_S (by the status file's mtime) is treated as idle, so a
  * terminal failure doesn't leave a stale pill on the dashboard forever — see
- * ota_status_effective(). */
+ * ota_status_effective(). An install still queued for the worker already
+ * reads as downloading — see ota_request_status(). */
 static void read_ota_status(char *out, size_t out_len)
 {
     out[0] = '\0';
-    FILE *f = fopen(OTA_STATUS_FILE, "r");
-    if (!f) return;
-
-    struct stat st;
-    long age = -1;   /* -1 (fstat failed) counts as fresh, never expires */
-    if (fstat(fileno(f), &st) == 0)
-        age = (long)(time(NULL) - st.st_mtime);
-
-    char line[64] = {0};
-    if (fgets(line, sizeof(line), f))
-        line[strcspn(line, "\r\n")] = '\0';
-    fclose(f);
+    char line[64];
+    long age;
+    if (read_line_age(OTA_REQ_FILE, line, sizeof(line), &age) &&
+        ota_request_status(line, age, OTA_STATUS_TTL_S, out, out_len))
+        return;
+    if (!read_line_age(OTA_STATUS_FILE, line, sizeof(line), &age)) return;
 
     const char *eff = ota_status_effective(line, age, OTA_STATUS_TTL_S);
     strncpy(out, eff, out_len - 1);
