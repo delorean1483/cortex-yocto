@@ -22,8 +22,6 @@ Rectangle {
 
     radius: Theme.radius
     color: Theme.surface
-    border.color: Theme.border
-    border.width: 1
 
     // ---- On/Off (optimistic; cleared once telemetry reconciles) ----
     property var uiOn: null
@@ -106,55 +104,45 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 14; anchors.rightMargin: 10
-        spacing: Theme.gap
+        anchors.leftMargin: 16; anchors.rightMargin: 8
+        spacing: 14
 
-        // label + live state (or the fault badge in its place)
-        ColumnLayout {
-            Layout.fillWidth: true; spacing: 2
-            Text { Layout.fillWidth: true
-                text: "HEATER" + (card.typeTag(telemetry.heaterType) ? " · " + card.typeTag(telemetry.heaterType) : "")
-                color: Theme.textMute; font.pixelSize: Theme.fsCaption
+        // one baseline row: label, live state (+ fault badge), type/rpm
+        RowLayout {
+            Layout.fillWidth: true; spacing: 10
+            Text { text: "HEATER"; color: Theme.textMute; font.pixelSize: Theme.fsCaption
                 font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold }
-            RowLayout { spacing: 8
-                Text { text: (card.faulted && card.clearTried && telemetry.heaterCmdResult === 1)
-                             ? "Still cooling — retry" : card.stateLabel(card.curState)
-                    color: card.stateColor(card.curState)
-                    font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold }
-                Rectangle {
-                    visible: card.showFault
-                    Layout.preferredHeight: 22; Layout.preferredWidth: faultText.implicitWidth + 16
-                    radius: 11
-                    color: Theme.tint(Theme.fault, 0.16)
-                    border.color: Theme.fault; border.width: 1
-                    Text {
-                        id: faultText
-                        anchors.centerIn: parent
-                        text: card.faultLabel()
-                        color: Theme.fault; font.pixelSize: Theme.fsCaption - 1; font.weight: Font.Bold
-                        font.letterSpacing: 0.6
-                    }
+            Text { text: (card.faulted && card.clearTried && telemetry.heaterCmdResult === 1)
+                         ? "Still cooling — retry" : card.stateLabel(card.curState)
+                color: card.stateColor(card.curState)
+                font.pixelSize: 16; font.weight: Font.DemiBold }
+            Rectangle {
+                visible: card.showFault
+                Layout.preferredHeight: 22; Layout.preferredWidth: faultText.implicitWidth + 16
+                radius: 11
+                color: Theme.tint(Theme.fault, 0.16)
+                border.color: Theme.fault; border.width: 1
+                Text {
+                    id: faultText
+                    anchors.centerIn: parent
+                    text: card.faultLabel()
+                    color: Theme.fault; font.pixelSize: Theme.fsCaption; font.weight: Font.Bold
+                    font.letterSpacing: 0.6
                 }
             }
-        }
-
-        // fan RPM / exchanger readout (nested layouts default to fillWidth —
-        // pin them so only the label column absorbs spare width)
-        ColumnLayout {
-            Layout.fillWidth: false; spacing: 0
-            Repeater { model: [ {v: telemetry.heaterFanRpm, l: "RPM"}, {v: telemetry.heaterExchanger, l: "EXCH"} ]
-                RowLayout { Layout.alignment: Qt.AlignRight; spacing: 4
-                    Text { text: modelData.v + ""; color: Theme.textDim; font.pixelSize: Theme.fsLabel; font.weight: Font.DemiBold }
-                    Text { text: modelData.l; color: Theme.textMute; font.pixelSize: Theme.fsCaption - 1 } } }
+            Text { Layout.fillWidth: true; elide: Text.ElideRight
+                text: (card.typeTag(telemetry.heaterType) ? card.typeTag(telemetry.heaterType) + " · " : "") + telemetry.heaterFanRpm + " rpm"
+                color: Theme.textMute; font.pixelSize: Theme.fsCaption }
         }
 
         // level (VEVOR / legacy) or setpoint (AUTOTERM) stepper
-        RowLayout { Layout.fillWidth: false; spacing: 6
+        RowLayout { Layout.fillWidth: false; spacing: 8
             Text { text: card.useSetpoint ? "SET" : "LEVEL"; color: Theme.textMute; font.pixelSize: Theme.fsCaption
                 font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold }
             Stepper { Layout.fillWidth: false
                 text: card.useSetpoint ? (card.setpoint + "°") : card.level
-                textSize: 22; textWidth: card.useSetpoint ? 52 : 32
+                textSize: 24; textWidth: card.useSetpoint ? 52 : 34
+                buttonW: 48; buttonH: 44; buttonRadius: 10; buttonFill: Theme.surface2; buttonBorder: false
                 onDecrement: card.useSetpoint ? card.bumpSp(-2) : card.bumpLevel(-1)
                 onIncrement: card.useSetpoint ? card.bumpSp(2) : card.bumpLevel(1) }
         }
@@ -163,7 +151,7 @@ Rectangle {
         // never starts the heater; ON is a separate, later tap)
         SegmentedControl {
             visible: !card.faulted
-            Layout.preferredWidth: 132
+            Layout.preferredWidth: 128; Layout.preferredHeight: 44; trackColor: Theme.bg
             options: [{label:"ON", value:true}, {label:"OFF", value:false}]
             current: card.effOn
             onPicked: function(v) { if (v !== card.effOn) card.setOn(v) }

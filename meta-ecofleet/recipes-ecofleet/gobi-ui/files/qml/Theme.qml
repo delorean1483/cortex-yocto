@@ -28,6 +28,11 @@ QtObject {
     readonly property color ok:        "#3FB950"
     readonly property color warn:      "#E3B341"
     readonly property color fault:     "#F85149"
+    readonly property color faultText: "#FF7B72"   // fault-coloured TEXT (lighter, reads on surfaces)
+    readonly property color okText:    "#56D364"   // ok-coloured TEXT
+    readonly property color radioRing: "#4A5361"   // unselected radio ring
+    readonly property color keyFill:   "#1F252E"   // keypad key fill
+    readonly property color lockPanel: "#141820"   // lock-screen panel
     function tint(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 
     // ── type scale (px on the 800x480 canvas) ──
@@ -36,7 +41,7 @@ QtObject {
     readonly property int fsTitle:   20    // screen titles, card headlines
     readonly property int fsBody:    16    // buttons, values, paragraphs
     readonly property int fsLabel:   13    // field labels, secondary values
-    readonly property int fsCaption: 12    // smallest text anywhere in the UI
+    readonly property int fsCaption: 13    // smallest text anywhere in the UI
     readonly property real lsCaps:   1.2   // letter-spacing for ALL-CAPS labels
 
     // ── shape & rhythm ──

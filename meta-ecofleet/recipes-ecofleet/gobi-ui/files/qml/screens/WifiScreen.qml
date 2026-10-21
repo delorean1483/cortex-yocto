@@ -107,7 +107,7 @@ Item {
             delegate: Rectangle {
                 width: ListView.view.width; height: 48; radius: Theme.radiusSm
                 color: modelData.inUse ? Theme.tint(Theme.accent, 0.12) : (nma.pressed ? Theme.surface2 : Theme.surface)
-                border.color: modelData.inUse ? Theme.accent : "transparent"; border.width: 1
+                border.width: 0
                 opacity: modelData.supported ? 1 : 0.55
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 14; spacing: 12

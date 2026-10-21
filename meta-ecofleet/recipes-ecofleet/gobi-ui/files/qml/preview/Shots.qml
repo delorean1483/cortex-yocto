@@ -18,7 +18,7 @@ Item {
     LockOverlay { anchors.fill: parent }
     UpdateOverlay { anchors.fill: parent }
 
-    Component { id: homeC; HomeScreen {} }
+    Component { id: homeC; HomeScreen { appShell: shell } }
     Component { id: battC; BatteryScreen {} }
     Component { id: menuC; MenuScreen { appShell: shell } }
     Component { id: diagC;      DiagnosticsScreen {} }
@@ -51,13 +51,6 @@ Item {
         telemetry.updateKind = kind; telemetry.updateTitle = title
         telemetry.updateDetail = detail; telemetry.updateKey = key; root.poke()
     }
-    // Swipe the Menu tile grid to its second page (find the SwipeView by walking the item tree).
-    function findSwipe(it) {
-        if (it.currentIndex !== undefined && it.incrementCurrentIndex) return it
-        for (var i = 0; i < it.children.length; i++) { var r = findSwipe(it.children[i]); if (r) return r }
-        return null
-    }
-    function menuPage2() { var sv = findSwipe(shell); if (sv) sv.setCurrentIndex(1) }
     property var netsAll: []
     property var page: null
     // Mock list with nothing in use (for steps where the unit is not connected).
@@ -66,7 +59,18 @@ Item {
 
     property var steps: [
         ["01-home",          function() { telemetry.load() }],
-        ["02-home-cooling",  function() { telemetry.mode = "climate"; telemetry.controlStatus = "cooling"
+        ["01b-home-fault",   function() { telemetry.mode = "climate"; telemetry.controlStatus = "cooling"
+                                          telemetry.hasError = true; telemetry.error = "low_oil"
+                                          eventlog.sample(); root.poke() }],
+        ["01e-header-stale-fault", function() { telemetry.stale = true; root.poke() }],
+        ["01c-home-fault-noevents", function() { telemetry.hasError = true; telemetry.error = "low_oil"
+                                          eventlog.events = []; eventlog.activeCount = 0; shell.selectRail(0); root.poke() }],
+        ["01d-home-cleared", function() { telemetry.hasError = false; telemetry.error = "none"; shell.selectRail(0); root.poke() }],
+        ["01f-home-longcode", function() { telemetry.hasError = true; telemetry.error = "compressor_overcurrent_lockout"
+                                          shell.selectRail(0); root.poke() }],
+        ["02-home-cooling",  function() { telemetry.stale = false; telemetry.hasError = false; telemetry.error = "none"
+                                          eventlog.events = []; eventlog.activeCount = 0
+                                          telemetry.mode = "climate"; telemetry.controlStatus = "cooling"
                                           telemetry.fanAuto = true; telemetry.heaterCommsOk = true
                                           telemetry.heaterState = "running"; telemetry.heaterFanRpm = 2600
                                           telemetry.heaterExchanger = 180; root.poke() }],
@@ -86,14 +90,24 @@ Item {
                                           telemetry.heaterState = "off"; telemetry.heaterFanRpm = 0
                                           telemetry.heaterExchanger = 0; telemetry.heaterExt = false
                                           telemetry.heaterPhase = "off"; root.poke(); shell.selectRail(1) }],
+        ["03c-battery-charging", function() { telemetry.mode = "battery"; telemetry.controlStatus = "charging"
+                                          telemetry.battV = 13.9; root.poke() }],
+        ["03d-battery-low",  function() { telemetry.battV = 11.6; telemetry.controlStatus = "off"
+                                          telemetry.mode = "off"; root.poke() }],
+        ["03e-battery-restore", function() { telemetry.battV = 12.2; telemetry.mode = "off"
+                                          telemetry.controlStatus = "off"; root.poke() }],
+        ["03b-mode",         function() { telemetry.mode = "climate"; shell.selectRail(0); shell.openMode() }],
         ["04-menu",          function() { shell.selectRail(2) }],
-        ["05-diagnostics",   function() { root.sub(diagC) }],
-        ["06-usermaint",     function() { root.sub(usermaintC) }],
+        ["04b-menu-fault",   function() { telemetry.hasError = true; telemetry.error = "low_oil"; eventlog.sample(); shell.selectRail(2); root.poke() }],
+        ["04c-menu-restore", function() { telemetry.hasError = false; telemetry.error = "none"; eventlog.events = []; eventlog.activeCount = 0; root.poke() }],
+        ["05-diagnostics",   function() { telemetry.tsMs = Date.now() - 3000; root.sub(diagC) }],
+        ["05b-diagnostics-fault", function() { telemetry.tsMs = Date.now() - 3000; telemetry.hasError = true; telemetry.error = "low_oil"; telemetry.oilOk = false; root.sub(diagC) }],
+        ["06-usermaint",     function() { telemetry.hasError = false; telemetry.error = "none"; telemetry.oilOk = true; root.poke(); root.sub(usermaintC) }],
         ["07-unitinfo",      function() { root.sub(unitC) }],
         ["07b-unitinfo-nowifi", function() { wifi.state = "idle"; wifi.ssid = ""; wifi.ip = ""; root.sub(unitC) }],
         ["08-alerts",        function() { wifi.state = "connected"; wifi.ssid = "EcoFleet-Staff"; wifi.ip = "192.168.0.206"; root.sub(alertsC) }],
-        ["09-alerts-fault",  function() { telemetry.hasError = true; telemetry.error = "low_oil"; root.poke(); root.sub(alertsC) }],
-        ["10-errorlog",      function() { telemetry.hasError = false; telemetry.error = "none"; root.poke(); root.sub(logC) }],
+        ["09-alerts-fault",  function() { telemetry.hasError = true; telemetry.error = "low_oil"; eventlog.sample(); root.poke(); root.sub(alertsC) }],
+        ["10-errorlog",      function() { telemetry.hasError = false; telemetry.error = "none"; eventlog.events = []; eventlog.activeCount = 0; root.poke(); root.sub(logC) }],
         ["10b-errorlog-events", function() { eventlog.sample(); root.sub(logC) }],
         ["11-settings",      function() { root.sub(settingsC) }],
         ["12-cloud",         function() { root.sub(cloudC) }],
@@ -106,9 +120,12 @@ Item {
         ["12d-cloud-nowifi", function() { wifi.state = "idle"; wifi.ssid = ""; wifi.ip = ""; root.sub(cloudC) }],
         ["13-screenlock",    function() { wifi.state = "connected"; wifi.ssid = "EcoFleet-Staff"; wifi.ip = "192.168.0.206"; root.sub(lockC) }],
         ["14-maintenance",   function() { root.sub(maintC) }],
-        ["14b-swupdate-uptodate", function() { var p = root.sub(swupdC); p.checking = false }],
+        ["14e-maintenance-update", function() { telemetry.otaAvailable = "1.2.74"; root.poke(); root.sub(maintC) }],
+        ["14b-swupdate-uptodate", function() { telemetry.otaAvailable = ""; root.poke(); var p = root.sub(swupdC); p.checking = false }],
         ["14c-swupdate-available", function() { telemetry.otaLatest = "1.2.74"; telemetry.otaAvailable = "1.2.74"
                                                  root.poke(); var p = root.sub(swupdC); p.checking = false }],
+        ["14f-swupdate-available-failed", function() { telemetry.otaAvailable = "1.2.74"; telemetry.otaCheckState = "failed: network"
+                                              root.poke(); var p = root.sub(swupdC); p.checking = false }],
         ["14d-swupdate-failed", function() { telemetry.otaAvailable = ""; telemetry.otaCheckState = "failed: network"
                                               root.poke(); var p = root.sub(swupdC); p.checking = false }],
         ["15-comptest-lock", function() { root.sub(comptestC) }],
@@ -116,7 +133,13 @@ Item {
                                           telemetry.diagActive = true; root.poke() }],
         ["17-support",       function() { telemetry.diagActive = false; root.poke(); root.sub(supportC) }],
         ["18-lockoverlay",   function() { shell.selectRail(0); LockController.setPin("1234"); LockController.lock() }],
-        ["19-update-download", function() { root.notice("busy", "Updating software to 1.2.67", "Downloading…", "") }],
+        ["18b-lockoverlay-fault", function() { root.saved = [telemetry.hasError, telemetry.error, telemetry.mode, telemetry.controlStatus, telemetry.clmtSetpointF]
+                                          telemetry.hasError = true; telemetry.error = "low_oil"; telemetry.mode = "climate"
+                                          telemetry.controlStatus = "cooling"; telemetry.clmtSetpointF = 70; root.poke() }],
+        ["19-update-download", function() { var v = root.saved   // undo 18b's fault state; the lock stays up as before
+                                          telemetry.hasError = v[0]; telemetry.error = v[1]; telemetry.mode = v[2]
+                                          telemetry.controlStatus = v[3]; telemetry.clmtSetpointF = v[4]; root.poke()
+                                          root.notice("busy", "Updating software to 1.2.67", "Downloading…", "") }],
         ["19b-update-apu",   function() { telemetry.updateProgress = 42
                                           root.notice("busy", "Updating APU controller", "42% complete", "") }],
         ["19c-update-failed", function() { telemetry.updateProgress = -1; LockController.tryUnlock("1234"); shell.selectRail(0)
@@ -139,10 +162,9 @@ Item {
         // Saved network whose password changed: wrong password → the password screen opens.
         ["21j-wifi-saved-wrongpw", function() { wifi.state = "idle"; wifi.networks = root.netsIdle()
                                                 root.page = root.sub(wifiC); root.page.savedJoinSsid = "Shop-Guest" }],
-        ["21j2-wifi-saved-wrongpw-join", function() { wifi.lastError = "Wrong password."; wifi.joinFailed("Shop-Guest", "Wrong password.") }],
-        ["21i-menu-p2",        function() { wifi.lastError = ""; wifi.state = "connected"; wifi.networks = root.netsAll
-                                            shell.selectRail(2); root.menuPage2() }]
+        ["21j2-wifi-saved-wrongpw-join", function() { wifi.lastError = "Wrong password."; wifi.joinFailed("Shop-Guest", "Wrong password.") }]
     ]
+    property var saved: []
     property int idx: 0
     Timer { id: act; interval: 300; onTriggered: { root.steps[root.idx][1](); grab.restart() } }
     Timer { id: grab; interval: 500

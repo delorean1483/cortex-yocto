@@ -16,16 +16,27 @@ Item {
         stack.push(railScreens[i])
     }
     Header { id: hdr; anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-             onWifiTapped: shell.openWifi() }
+             onWifiTapped: shell.openWifi(); onFaultTapped: shell.openAlerts() }
     Component { id: wifiC; WifiScreen {} }
     function openWifi() {
         if (stack.currentItem && stack.currentItem.isWifiScreen === true) return   // already there
         selectRail(2); stack.push(wifiC)
     }
+    Component { id: alertsC; AlertsScreen {} }
+    Component { id: modeC; ModeScreen {} }
+    function openAlerts() {
+        if (stack.currentItem && stack.currentItem.isAlertsScreen === true) return
+        selectRail(2); stack.push(alertsC)
+    }
+    function openMode() {
+        if (stack.currentItem && stack.currentItem.isModeScreen === true) return
+        stack.push(modeC)
+    }
     Rail {
         id: rail
         anchors.top: hdr.bottom; anchors.bottom: parent.bottom; anchors.left: parent.left
         model: shell.railModel; currentIndex: shell.railIndex
+        badgeCount: StatusLabels.faultCount(telemetry.hasError, eventlog.activeCount)
         onPicked: shell.selectRail(index)
     }
     StackView {

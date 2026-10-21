@@ -43,5 +43,29 @@ QtObject {
         if (connected)           return { state: "connecting", title: "Connecting…" }
         return                          { state: "offline",    title: "Not connected" }
     }
+    // ---- 1a display helpers (pure). `events` = EventLogModel maps, newest first; endMs === 0 means active.
+    function thousands(n)      { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",") }
+    function faultCount(hasError, activeCount) { return hasError ? Math.max(1, activeCount) : 0 }
+    function faultCountLabel(n) { return n === 1 ? "1 fault" : n + " faults" }
+    function activeEvent(events) { for (var i = 0; i < events.length; i++) if (events[i].endMs === 0) return events[i]; return null }
+    function recentCleared(events, n) { var r = []; for (var i = 0; i < events.length && r.length < n; i++) if (events[i].endMs > 0) r.push(events[i]); return r }
+    function activeFor(startMs, nowMs) { return !startMs ? "" : "Active for " + duration(nowMs - startMs) }
+    function faultSnapshot(e)  { return !e ? "" : "At fault: " + mode(e.mode) + " · " + control(e.controlStatus) + " · " + thousands(e.rpm)
+                                 + " rpm · " + e.battV.toFixed(1) + " V · coolant " + Math.round(e.coolantF) + "°F" }
+    function battHealth(v)     { return v >= 12.4 ? { key: "healthy", label: "Healthy" } : v < 11.8 ? { key: "low", label: "Low" } : { key: "ok", label: "OK" } }
+    function battModeHelp(m)   { return m === "climate" ? "Climate mode is running. On switches the APU to Battery mode."
+                               : m === "battery" ? "Runs the APU only to keep the truck battery charged."
+                               : m === "off" ? "APU stays off. On starts it in Battery mode." : "" }
+    function climateLine(on, controlStatus, setpointF) {
+        var sp = setpointF > 0
+        if (!on) return "climate off"
+        if (controlStatus === "cooling") return "cooling" + (sp ? " to " + setpointF + "°" : "")
+        if (controlStatus === "chillin") return "at target" + (sp ? " " + setpointF + "°" : "")
+        return control(controlStatus).toLowerCase()
+    }
+    // Status-dot hue for a control_status value (cooling blue, warming orange, at-target teal, ...).
+    function controlHue(s) { return s === "cooling" ? "#2F81F7" : (s === "warming_up" || s === "starting") ? "#F0883E"
+                             : s === "chillin" ? "#39B0C4" : s === "charging" ? Theme.ok
+                             : (s === "running" || s === "defrost") ? Theme.textDim : "transparent" }
     function title(s)          { if (!s) return "—"; var t = String(s).replace(/_/g, " "); return t.charAt(0).toUpperCase() + t.slice(1) }
 }
