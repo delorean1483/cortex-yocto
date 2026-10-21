@@ -117,7 +117,7 @@ primary: "eth" | "wifi" | "other" | null}`; `primary` is the interface holding
 the default route (lowest metric), so the one the unit's traffic uses. Any part
 that is down is `null`, never omitted, because the shadow merges reported
 updates key by key. Absent on firmware older than the network report
-(`primary` from the release after 1.2.79).
+(`primary` from the first release after 1.2.81).
 
 ---
 
