@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, fireEvent } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, useParams } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom'
 
 const FRESH = () => Date.now()
 const state = vi.hoisted(() => ({ loading: false, latestPending: false, latest: {}, noFleet: false }))
@@ -236,6 +236,65 @@ describe('DashboardPage table view', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Fault/ }))
     expect(bodyRows()).toHaveLength(1)
     expect(within(bodyRows()[0]).getByText('APU-1')).toBeTruthy()
+  })
+
+  // Unit page stub with a Back button, so a doubled history push is observable:
+  // one Back must return to the dashboard.
+  function renderWithHistory() {
+    function UnitStub() {
+      const navigate = useNavigate()
+      return <div>unit page {useParams().id}<button type="button" onClick={() => navigate(-1)}>Back</button></div>
+    }
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/units/:id" element={<UnitStub />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('clicking the unit link pushes one history entry (one Back returns to the dashboard)', () => {
+    renderWithHistory()
+    showTable()
+    fireEvent.click(within(bodyRows()[0]).getByRole('link', { name: 'APU-1' }))
+    expect(screen.getByText('unit page APU-1')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect(screen.getByRole('table', { name: 'Units' })).toBeTruthy()
+  })
+
+  it('leaves the dashboard alone on a modifier-click (the link opens a new tab instead)', () => {
+    renderWithHistory()
+    showTable()
+    fireEvent.click(bodyRows()[1], { metaKey: true })
+    fireEvent.click(bodyRows()[1], { ctrlKey: true })
+    expect(screen.queryByText(/unit page/)).toBeNull()
+    expect(screen.getByRole('table', { name: 'Units' })).toBeTruthy()
+  })
+
+  it('does not navigate when the click ends a text selection', () => {
+    renderWithHistory()
+    showTable()
+    const spy = vi.spyOn(window, 'getSelection').mockReturnValue({ toString: () => 'Low oil' })
+    fireEvent.click(bodyRows()[0])
+    spy.mockRestore()
+    expect(screen.queryByText(/unit page/)).toBeNull()
+  })
+
+  it('dims the last-known readings of a unit that stopped reporting', () => {
+    state.latest['APU-1'] = { ...OK, batt_v: 11.6, ts: Date.now() - 2 * 3600000 }
+    renderPage()
+    showTable()
+    expect(within(bodyRows()[0]).getByText('11.6 V').className).toContain('utbl-stale')
+    expect(within(bodyRows()[1]).getByText('13.9 V').className).not.toContain('utbl-stale')
+  })
+
+  it('falls back to cards when browser storage is blocked', () => {
+    const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+    renderPage()
+    spy.mockRestore()
+    expect(within(viewGroup()).getByRole('button', { name: 'Cards' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('remembers the chosen view', () => {

@@ -425,3 +425,6 @@ details.ref[open] > summary .chev { transform: rotate(90deg); }
 .utbl-sub { color: var(--color-text-secondary); }
 .utbl-err { font-weight: 600; color: var(--err); }
 .utbl-cap { font-size: 14px; color: var(--color-text-tertiary); }
+.utbl-demo { margin-left: 8px; }
+.utbl .utbl-stale { color: var(--color-text-tertiary); }
+.vseg button:not([aria-pressed="true"]):hover { background: var(--color-background-secondary); }

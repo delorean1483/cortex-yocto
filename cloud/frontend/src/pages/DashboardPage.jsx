@@ -121,6 +121,14 @@ function ViewToggle({ value, onChange }) {
 function UnitTable({ rows, now }) {
   const navigate = useNavigate()
   const withFleet = rows.some((r) => r.u.fleet_id)
+  // Leave clicks the link already handled (incl. Cmd/Ctrl-click to a new tab)
+  // and drag-selections alone; a plain click elsewhere opens the unit.
+  const openRow = (e, unit) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+    if (e.target.closest?.('a, button')) return
+    if (String(window.getSelection?.() ?? '') !== '') return
+    navigate(unitHref(unit))
+  }
   return (
     <>
       <div className="panel panel-x">
@@ -143,19 +151,21 @@ function UnitTable({ rows, now }) {
             {rows.map(({ u, tele, view }) => {
               const err = view?.tone === 'err'
               const detail = !view ? 'Loading…' : (view.tone === 'off' && tele ? 'Not reporting' : view.headline)
+              // Last-known readings of a unit that stopped reporting are history, not current state.
+              const num = view?.stale && tele ? 'num utbl-stale' : 'num'
               return (
-                <tr key={u.unit} className={err ? 'row-err' : undefined} onClick={() => navigate(unitHref(u.unit))}>
+                <tr key={u.unit} className={err ? 'row-err' : undefined} onClick={(e) => openRow(e, u.unit)}>
                   <td>{view ? <StatusBadge view={view} size={14} small /> : '—'}</td>
                   <td>
                     <Link to={unitHref(u.unit)} className="utbl-unit">{u.unit}</Link>
-                    {u.demo && <span className="badge badge-sm t-off" style={{ marginLeft: 8 }}>demo</span>}
+                    {u.demo && <span className="badge badge-sm t-off utbl-demo">demo</span>}
                   </td>
                   {withFleet && <td className="utbl-sub">{u.fleet_id || '—'}</td>}
                   <td className={err ? 'grow utbl-err' : 'grow'}>{detail}</td>
-                  <td className="num"><Val v={tele?.batt_v} format={(n) => `${oneDecimal(n)} V`} /></td>
-                  <td className="num">{fmt.tempF(tele?.cabin_temp_f)}</td>
-                  <td className="num"><Val v={tele?.rpm} format={thousands} /></td>
-                  <td className="num">{fmt.pct(tele?.fan_speed)}</td>
+                  <td className={num}><Val v={tele?.batt_v} format={(n) => `${oneDecimal(n)} V`} /></td>
+                  <td className={num}>{fmt.tempF(tele?.cabin_temp_f)}</td>
+                  <td className={num}><Val v={tele?.rpm} format={thousands} /></td>
+                  <td className={num}>{fmt.pct(tele?.fan_speed)}</td>
                   <td className="utbl-sub">{tele?.ts != null ? ageText(now - Number(tele.ts)) : '—'}</td>
                   <td aria-hidden="true"><IconChevronRight size={16} color="var(--color-text-tertiary)" /></td>
                 </tr>
