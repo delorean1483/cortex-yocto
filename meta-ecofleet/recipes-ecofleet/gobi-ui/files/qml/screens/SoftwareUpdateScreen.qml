@@ -20,10 +20,26 @@ Item {
         checkTimeout.restart()
     }
     Timer { id: checkTimeout; interval: 15000; onTriggered: page.checking = false }
+
+    // UI-side "starting" between the confirming tap and the agent's snapshot
+    // that shows the update in progress (the global UpdateOverlay then takes
+    // over), so Install can't be armed and sent again meanwhile. A refusal
+    // changes otaCheckState ("failed: busy" / "failed: not offered").
+    property bool starting: false
+    property string startState: ""
+    function install() {
+        page.starting = true
+        page.startState = telemetry.otaCheckState
+        telemetry.installUpdate(telemetry.otaAvailable)
+        startTimeout.restart()
+    }
+    Timer { id: startTimeout; interval: 15000; onTriggered: page.starting = false }
+
     Connections {
         target: telemetry
         function onDataChanged() {
             if (page.checking && telemetry.otaCheckTs !== page.checkStartTs) page.checking = false
+            if (page.starting && (page.busy || telemetry.otaCheckState !== page.startState)) page.starting = false
         }
     }
     Component.onCompleted: check()
@@ -34,7 +50,7 @@ Item {
     readonly property bool busy: telemetry.updateKind === "busy"
     readonly property bool available: telemetry.otaAvailable !== ""
     // A checking/failed state must stay visible even when an update is on offer.
-    readonly property bool showStatus: available && (checking || telemetry.otaCheckState.indexOf("failed") === 0)
+    readonly property bool showStatus: available && (checking || starting || telemetry.otaCheckState.indexOf("failed") === 0)
 
     function ago(ts) {
         if (!ts) return ""
@@ -43,6 +59,7 @@ Item {
     }
     function statusText() {
         if (page.checking) return "Checking for updates…"
+        if (page.starting) return "Starting update…"
         var s = telemetry.otaCheckState
         if (s === "failed: network") return "Couldn't check — no internet connection"
         if (s === "failed: bad manifest") return "Couldn't check — update service unavailable"
@@ -53,7 +70,7 @@ Item {
         return "Not checked yet"
     }
     function statusColor() {
-        if (page.checking) return Theme.info
+        if (page.checking || page.starting) return Theme.info
         if (telemetry.otaCheckState.indexOf("failed") === 0) return Theme.warn
         if (page.available) return Theme.accent
         return Theme.ok
@@ -99,12 +116,12 @@ Item {
                 }
                 RowLayout { Layout.fillWidth: true; spacing: 12
                     ConfirmButton {
-                        visible: page.available && !page.busy && !page.checking
+                        visible: page.available && !page.busy && !page.checking && !page.starting
                         label: "Install " + telemetry.otaAvailable
                         confirmLabel: "Tap again to install"
                         tone: Theme.accent; filled: true; radius: 12; fontSize: 18; fontWeight: Font.Bold
                         Layout.fillWidth: true; Layout.preferredWidth: -1; Layout.preferredHeight: 56
-                        onConfirmed: telemetry.installUpdate(telemetry.otaAvailable)
+                        onConfirmed: page.install()
                     }
                     Rectangle { Layout.preferredWidth: 180; Layout.preferredHeight: 56; radius: 12
                         color: cka.pressed ? Theme.border : Theme.surface2
