@@ -1,6 +1,8 @@
 /* Host test for net_info.c's pure parts: the WiFi signal level from
- * /proc/net/wireless text, and the wlan0/eth0 IPv4 pick from a getifaddrs()
- * list. (The ioctl that reads the SSID is Linux-only and not run here.) */
+ * /proc/net/wireless text, the wlan0/eth0 IPv4 pick from a getifaddrs() list,
+ * and which interface owns the address the route lookup picked. (The SSID
+ * ioctl is Linux-only and the route lookup needs a live network; neither is
+ * run here.) */
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <string.h>
@@ -79,43 +81,29 @@ static void ifaddrs_tests(void) {
     CHECK(n.wifi_ip[0] == '\0' && n.eth_ip[0] == '\0');
 }
 
-static const char *ROUTE_HDR =
-    "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n";
-
 static void primary_tests(void) {
-    char buf[1024];
+    struct sockaddr_in w = sa("192.168.0.211"), e = sa("192.168.0.94"),
+                       e2 = sa("10.0.0.5"), m = sa("100.64.1.2");
 
-    /* .86 today: both up, Ethernet metric 10, WiFi 2048 (WiFi listed first) */
-    snprintf(buf, sizeof buf, "%s"
-        "wlan0\t00000000\t0100A8C0\t0003\t0\t0\t2048\t00000000\t0\t0\t0\n"
-        "eth0\t00000000\t0100A8C0\t0003\t0\t0\t10\t00000000\t0\t0\t0\n"
-        "eth0\t0000A8C0\t00000000\t0001\t0\t0\t10\t00FFFFFF\t0\t0\t0\n", ROUTE_HDR);
-    CHECK(net_primary(buf) == NET_PRIMARY_ETH);
+    /* list: wlan0, eth0 with two IPv4 addresses, a modem */
+    struct ifaddrs i_m  = { .ifa_next = NULL,  .ifa_name = "wwan0", .ifa_addr = (struct sockaddr *)&m };
+    struct ifaddrs i_e2 = { .ifa_next = &i_m,  .ifa_name = "eth0",  .ifa_addr = (struct sockaddr *)&e2 };
+    struct ifaddrs i_e  = { .ifa_next = &i_e2, .ifa_name = "eth0",  .ifa_addr = (struct sockaddr *)&e };
+    struct ifaddrs i_w  = { .ifa_next = &i_e,  .ifa_name = "wlan0", .ifa_addr = (struct sockaddr *)&w };
 
-    /* WiFi only (R1 today) */
-    snprintf(buf, sizeof buf, "%s"
-        "wlan0\t00000000\t0100A8C0\t0003\t0\t0\t2048\t00000000\t0\t0\t0\n", ROUTE_HDR);
-    CHECK(net_primary(buf) == NET_PRIMARY_WIFI);
+    /* the interface that owns the address the route lookup picked */
+    CHECK(net_primary_from_ifaddrs(&i_w, &e.sin_addr) == NET_PRIMARY_ETH);
+    CHECK(net_primary_from_ifaddrs(&i_w, &w.sin_addr) == NET_PRIMARY_WIFI);
+    CHECK(net_primary_from_ifaddrs(&i_w, &m.sin_addr) == NET_PRIMARY_OTHER);
 
-    /* a lower-metric default on another interface (e.g. a future modem) */
-    snprintf(buf, sizeof buf, "%s"
-        "eth0\t00000000\t0100A8C0\t0003\t0\t0\t10\t00000000\t0\t0\t0\n"
-        "wwan0\t00000000\t0101A8C0\t0003\t0\t0\t5\t00000000\t0\t0\t0\n", ROUTE_HDR);
-    CHECK(net_primary(buf) == NET_PRIMARY_OTHER);
+    /* eth0's second address is still eth0 (eth_ip only holds the first) */
+    CHECK(net_primary_from_ifaddrs(&i_w, &e2.sin_addr) == NET_PRIMARY_ETH);
 
-    /* a default route that isn't up (flags without RTF_UP) doesn't count */
-    snprintf(buf, sizeof buf, "%s"
-        "eth0\t00000000\t0100A8C0\t0002\t0\t0\t10\t00000000\t0\t0\t0\n"
-        "wlan0\t00000000\t0100A8C0\t0003\t0\t0\t2048\t00000000\t0\t0\t0\n", ROUTE_HDR);
-    CHECK(net_primary(buf) == NET_PRIMARY_WIFI);
-
-    /* no default route, empty, NULL */
-    snprintf(buf, sizeof buf, "%s"
-        "eth0\t0000A8C0\t00000000\t0001\t0\t0\t10\t00FFFFFF\t0\t0\t0\n", ROUTE_HDR);
-    CHECK(net_primary(buf) == NET_PRIMARY_NONE);
-    CHECK(net_primary(ROUTE_HDR) == NET_PRIMARY_NONE);
-    CHECK(net_primary("") == NET_PRIMARY_NONE);
-    CHECK(net_primary(NULL) == NET_PRIMARY_NONE);
+    /* an address no interface holds any more, no route, empty list */
+    struct sockaddr_in gone = sa("192.168.0.50");
+    CHECK(net_primary_from_ifaddrs(&i_w, &gone.sin_addr) == NET_PRIMARY_NONE);
+    CHECK(net_primary_from_ifaddrs(&i_w, NULL) == NET_PRIMARY_NONE);
+    CHECK(net_primary_from_ifaddrs(NULL, &e.sin_addr) == NET_PRIMARY_NONE);
 }
 
 int main(void) {

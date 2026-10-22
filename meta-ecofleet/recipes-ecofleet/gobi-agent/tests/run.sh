@@ -143,7 +143,8 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -L"$cjson/lib" -lcjson -o "$here/test_ota_offer" && "$here/test_ota_offer"
 
 # Unit LAN addresses for the dashboard (reported.network): the /proc/net/wireless
-# signal parse and the wlan0/eth0 IPv4 pick from getifaddrs().
+# signal parse, the wlan0/eth0 IPv4 pick from getifaddrs(), and which interface
+# holds the address the route lookup picked (reported.network.primary).
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" "$here/test_net_info.c" "$files/net_info.c" \
    -o "$here/test_net_info" && "$here/test_net_info"
