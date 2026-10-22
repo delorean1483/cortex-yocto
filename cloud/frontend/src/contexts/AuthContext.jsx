@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { setTokens, clearTokens, loadRefreshToken } from '../api/client.js'
+import { setTokens, clearTokens, loadRefreshToken, onTokenRefresh } from '../api/client.js'
 
 function parseJwtPayload(token) {
   try { return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) }
@@ -38,6 +38,10 @@ export function AuthProvider({ children }) {
     if (real && real !== 'admin') setRoleState(real)
     else if (savedRole && ROLE_CFG[savedRole]) setRoleState(savedRole)
     setLoading(false)
+    // The first API call after a load refreshes the token; its role is the
+    // real one. An admin keeps the role being previewed.
+    onTokenRefresh((token) => adoptRole(parseJwtPayload(token)?.role, false))
+    return () => onTokenRefresh(null)
   }, [])
 
   function setRole(r) {
@@ -45,19 +49,16 @@ export function AuthProvider({ children }) {
     localStorage.setItem('eco_role', r)
   }
 
-  function login(token, refreshToken) {
-    setTokens(token, refreshToken)
-    const payload = parseJwtPayload(token)
-    const email   = payload?.email || ''
-    const jwtRole = payload?.role
-    const u = { email }
-    setUser(u)
-    localStorage.setItem('eco_user', JSON.stringify(u))
+  // Real role from a signed token. `resetPreview` (sign-in) also drops any
+  // role being previewed; a non-admin never keeps one.
+  function adoptRole(jwtRole, resetPreview) {
     if (jwtRole && ROLE_CFG[jwtRole]) {
-      setRoleState(jwtRole)
       setRealRole(jwtRole)
-      localStorage.setItem('eco_role', jwtRole)
       localStorage.setItem('eco_real_role', jwtRole)
+      if (resetPreview || jwtRole !== 'admin') {
+        setRoleState(jwtRole)
+        localStorage.setItem('eco_role', jwtRole)
+      }
     } else {
       // Unknown or missing role: least privilege, never the 'admin' default.
       setRoleState('eu')
@@ -65,6 +66,15 @@ export function AuthProvider({ children }) {
       localStorage.setItem('eco_role', 'eu')
       localStorage.removeItem('eco_real_role')
     }
+  }
+
+  function login(token, refreshToken) {
+    setTokens(token, refreshToken)
+    const payload = parseJwtPayload(token)
+    const u = { email: payload?.email || '' }
+    setUser(u)
+    localStorage.setItem('eco_user', JSON.stringify(u))
+    adoptRole(payload?.role, true)
   }
 
   function logout() {

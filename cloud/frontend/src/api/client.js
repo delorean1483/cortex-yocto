@@ -4,6 +4,13 @@ const BASE = import.meta.env.VITE_API_URL || 'https://tphro82ot9.execute-api.us-
 
 let _token = null
 let _refreshToken = null
+let _onRefresh = null
+
+// AuthContext listens so a refreshed token's role reaches the UI without a
+// fresh sign-in (sessions saved before eco_real_role existed, role changes).
+export function onTokenRefresh(fn) {
+  _onRefresh = fn
+}
 
 export function setTokens(token, refreshToken) {
   _token = token
@@ -35,6 +42,7 @@ async function tryRefresh() {
   if (!res.ok) throw new Error('refresh failed')
   const data = await res.json()
   _token = data.token
+  if (_onRefresh) _onRefresh(data.token)
 }
 
 export async function apiFetch(path, options = {}) {
