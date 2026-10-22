@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
+#include <pthread.h>
 #include <syslog.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -582,6 +583,40 @@ static void on_log(struct mosquitto *mosq, void *obj, int level, const char *str
 {
     (void)mosq; (void)obj; (void)level;
     syslog(LOG_DEBUG, "mosquitto: %s", str);
+}
+
+/* ── MQTT network loop ───────────────────────────────────────────────────── */
+/* Our own thread instead of mosquitto_loop_start(): libmosquitto's
+ * loop_forever() gives up for good on any TLS-level error (it treats errno
+ * EPROTO as fatal), which ends its thread and leaves the link down until the
+ * agent restarts. That happens on a fresh slot, whose clock starts at the
+ * image build date: the broker cert looks not-yet-valid until NTP fixes the
+ * clock a second later. Here every failure retries with back-off, reset once
+ * a CONNACK arrives. Publishes from the main thread wake the 1 s select via
+ * mosquitto_threaded_set(). */
+static pthread_t g_mqtt_thread;
+
+static void *mqtt_loop(void *arg)
+{
+    (void)arg;
+    int delay_s = MQTT_RECONNECT_MIN_S;
+
+    while (g_running) {
+        int rc = mosquitto_loop(g_mosq, 1000, 1);
+        if (rc == MOSQ_ERR_SUCCESS) {
+            if (g_mqtt_connected) delay_s = MQTT_RECONNECT_MIN_S;
+            continue;
+        }
+        syslog(LOG_INFO, "MQTT link down (%s) — retrying in %d s",
+               mosquitto_strerror(rc), delay_s);
+        for (int slept = 0; slept < delay_s && g_running; slept++)
+            sleep(1);
+        if (!g_running) break;
+        delay_s *= 2;
+        if (delay_s > MQTT_RECONNECT_MAX_S) delay_s = MQTT_RECONNECT_MAX_S;
+        mosquitto_reconnect_async(g_mosq);
+    }
+    return NULL;
 }
 
 /* ── Modbus read ─────────────────────────────────────────────────────────── */
@@ -1154,9 +1189,8 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    /* Reconnect with exponential backoff (5s → 60s) so a transient outage or a
-     * failed first connect keeps retrying instead of giving up. */
-    mosquitto_reconnect_delay_set(g_mosq, 5, 60, true);
+    /* mqtt_loop() runs the network loop and reconnects; see there. */
+    mosquitto_threaded_set(g_mosq, true);
 
     mosquitto_connect_callback_set(g_mosq,    on_connect);
     mosquitto_disconnect_callback_set(g_mosq, on_disconnect);
@@ -1179,7 +1213,11 @@ int main(void)
     if (rc != MOSQ_ERR_SUCCESS)
         syslog(LOG_WARNING, "Initial MQTT connect failed (%d) — will retry", rc);
 
-    mosquitto_loop_start(g_mosq);   /* background thread handles reconnects */
+    rc = pthread_create(&g_mqtt_thread, NULL, mqtt_loop, NULL);
+    if (rc != 0) {
+        syslog(LOG_ERR, "MQTT thread: %s", strerror(rc));
+        return EXIT_FAILURE;
+    }
 
     /* ── 6. Telemetry loop ───────────────────────────────────────────────── */
     /* Fault history store: prefer the slot-shared /data partition. */
@@ -1193,15 +1231,6 @@ int main(void)
         /* Read poll interval from shadow config (updated live by delta msgs) */
         const shadow_config_t *scfg = shadow_get_config();
         int poll_s = scfg->poll_interval_s;
-
-        /* Self-heal the MQTT link. mosquitto_loop_start()'s automatic reconnect
-         * can wedge when the *first* connect fails — e.g. the TLS handshake is
-         * rejected because the RTC was unset at boot (clock in the year 2000),
-         * so the broker cert looks "not yet valid". Once the clock/network is
-         * good this re-attempt succeeds; telemetry is buffered to SQLite in the
-         * meantime, so nothing is lost while disconnected. */
-        if (!g_mqtt_connected)
-            mosquitto_reconnect_async(g_mosq);
 
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
@@ -1449,7 +1478,7 @@ int main(void)
     /* ── 7. Cleanup ──────────────────────────────────────────────────────── */
     syslog(LOG_INFO, "gobi-agent shutting down");
     shadow_cleanup();
-    mosquitto_loop_stop(g_mosq, true);
+    pthread_join(g_mqtt_thread, NULL);   /* exits within ~1 s of g_running = 0 */
     mosquitto_destroy(g_mosq);
     mosquitto_lib_cleanup();
     curl_global_cleanup();

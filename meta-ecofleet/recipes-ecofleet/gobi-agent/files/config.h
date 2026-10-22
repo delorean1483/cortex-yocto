@@ -22,6 +22,7 @@
 #define MQTT_PORT            8883
 #define MQTT_KEEPALIVE_S     60
 #define MQTT_QOS             1
+#define MQTT_RECONNECT_MIN_S 5      /* first retry after a failed connect */
 #define MQTT_RECONNECT_MAX_S 60     /* cap on exponential back-off */
 
 /* ── TLS certificate paths (installed by Yocto recipe) ──────────────────── */
