@@ -316,47 +316,70 @@ describe('reportView', () => {
   })
 })
 
-import { networkView } from './contract.js'
+import { networkView, versionAtLeast } from './contract.js'
+
+describe('versionAtLeast', () => {
+  it('compares x.y.z numerically', () => {
+    expect(versionAtLeast('1.2.82', '1.2.82')).toBe(true)
+    expect(versionAtLeast('1.2.100', '1.2.82')).toBe(true)
+    expect(versionAtLeast('1.3.0', '1.2.82')).toBe(true)
+    expect(versionAtLeast(' 1.2.82 ', '1.2.82')).toBe(true)
+    expect(versionAtLeast('1.2.81', '1.2.82')).toBe(false)
+    expect(versionAtLeast('0.9.99', '1.2.82')).toBe(false)
+  })
+  it('false for a missing or unparseable version', () => {
+    for (const v of [undefined, null, '', '1.2', '1.2.82-dev', 'abc']) {
+      expect(versionAtLeast(v, '1.2.82')).toBe(false)
+    }
+  })
+})
 
 describe('networkView (shadow reported.network)', () => {
   const WIFI = { ip: '192.168.0.211', ssid: 'HomeNet', signal_dbm: -58 }
+  const FW = '1.2.82'
   it('lists WiFi then Ethernet addresses, and the WiFi network with its signal', () => {
-    const v = networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' } })
+    const v = networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' } }, FW)
     expect(v.addresses).toEqual([{ ip: '192.168.0.211', via: 'WiFi', primary: false }, { ip: '192.168.0.94', via: 'Ethernet', primary: false }])
     expect(v.wifi).toBe('HomeNet, −58 dBm')
   })
   it('WiFi only (eth null)', () => {
-    const v = networkView({ wifi: WIFI, eth: null })
+    const v = networkView({ wifi: WIFI, eth: null }, FW)
     expect(v.addresses).toEqual([{ ip: '192.168.0.211', via: 'WiFi', primary: false }])
   })
   it('Ethernet only (wifi null): no WiFi line', () => {
-    const v = networkView({ wifi: null, eth: { ip: '192.168.0.94' } })
+    const v = networkView({ wifi: null, eth: { ip: '192.168.0.94' } }, FW)
     expect(v.addresses).toEqual([{ ip: '192.168.0.94', via: 'Ethernet', primary: false }])
     expect(v.wifi).toBe(null)
   })
   it('WiFi joined but no address yet, or no signal reading', () => {
-    expect(networkView({ wifi: { ip: null, ssid: 'HomeNet', signal_dbm: null }, eth: null }))
+    expect(networkView({ wifi: { ip: null, ssid: 'HomeNet', signal_dbm: null }, eth: null }, FW))
       .toEqual({ addresses: [], wifi: 'HomeNet' })
   })
-  it('puts the primary interface (default route) first and marks it', () => {
-    const v = networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' }, primary: 'eth' })
+  it('puts the primary interface first and marks it', () => {
+    const v = networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' }, primary: 'eth' }, FW)
     expect(v.addresses).toEqual([
       { ip: '192.168.0.94', via: 'Ethernet', primary: true },
       { ip: '192.168.0.211', via: 'WiFi', primary: false },
     ])
-    expect(networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' }, primary: 'wifi' }).addresses[0])
+    expect(networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' }, primary: 'wifi' }, '1.2.83').addresses[0])
       .toEqual({ ip: '192.168.0.211', via: 'WiFi', primary: true })
   })
   it('no mark when primary is unknown, null, or another interface', () => {
     for (const primary of [undefined, null, 'other']) {
-      const v = networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' }, primary })
+      const v = networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' }, primary }, FW)
+      expect(v.addresses.map((a) => [a.via, a.primary])).toEqual([['WiFi', false], ['Ethernet', false]])
+    }
+  })
+  it('ignores a primary left in the shadow by newer firmware after a rollback', () => {
+    for (const fw of ['1.2.81', undefined, null]) {
+      const v = networkView({ wifi: WIFI, eth: { ip: '192.168.0.94' }, primary: 'wifi' }, fw)
       expect(v.addresses.map((a) => [a.via, a.primary])).toEqual([['WiFi', false], ['Ethernet', false]])
     }
   })
   it('older firmware (no network block) or nothing up', () => {
-    expect(networkView(undefined)).toEqual({ addresses: [], wifi: null })
-    expect(networkView(null)).toEqual({ addresses: [], wifi: null })
-    expect(networkView({ wifi: null, eth: null })).toEqual({ addresses: [], wifi: null })
+    expect(networkView(undefined, '1.2.70')).toEqual({ addresses: [], wifi: null })
+    expect(networkView(null, FW)).toEqual({ addresses: [], wifi: null })
+    expect(networkView({ wifi: null, eth: null }, FW)).toEqual({ addresses: [], wifi: null })
   })
 })
 

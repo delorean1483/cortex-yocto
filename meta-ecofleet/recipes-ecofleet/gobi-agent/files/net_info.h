@@ -8,10 +8,11 @@
 #include <stdbool.h>
 
 struct ifaddrs;
+struct in_addr;
 
-/* Which interface carries the default route (lowest metric wins). */
+/* Which interface the kernel routes the unit's internet traffic through. */
 typedef enum {
-    NET_PRIMARY_NONE = 0,    /* no default route                             */
+    NET_PRIMARY_NONE = 0,    /* no route to the internet                     */
     NET_PRIMARY_WIFI,        /* wlan0                                        */
     NET_PRIMARY_ETH,         /* eth0                                         */
     NET_PRIMARY_OTHER,       /* some other interface (e.g. a modem)          */
@@ -27,8 +28,10 @@ typedef struct {
 } net_info_t;
 
 /* Read everything from the running system: getifaddrs(), the SSID from the
- * WiFi driver (Linux wireless-extensions ioctl) and the signal from
- * /proc/net/wireless. Fields that can't be read stay empty / invalid. */
+ * WiFi driver (Linux wireless-extensions ioctl), the signal from
+ * /proc/net/wireless, and the primary interface from the kernel's route lookup
+ * for an internet address. Fields that can't be read stay empty / invalid /
+ * NET_PRIMARY_NONE. */
 void net_info_read(net_info_t *out);
 
 /* Clear OUT and fill wifi_ip / eth_ip from the first IPv4 address of wlan0 /
@@ -40,8 +43,9 @@ void net_info_from_ifaddrs(net_info_t *out, const struct ifaddrs *list);
  * above, as when it isn't associated). */
 bool net_wireless_signal_dbm(const char *proc_text, const char *ifname, int *dbm);
 
-/* The interface holding the lowest-metric default route that is up, from the
- * text of /proc/net/route. */
-net_primary_t net_primary(const char *proc_route_text);
+/* The interface in a getifaddrs() list that holds SRC, the local address the
+ * route lookup picked. NONE when SRC is NULL (no route) or no interface holds
+ * it; OTHER when it isn't eth0 or wlan0. */
+net_primary_t net_primary_from_ifaddrs(const struct ifaddrs *list, const struct in_addr *src);
 
 #endif

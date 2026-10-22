@@ -94,7 +94,7 @@ export default function OverviewTab({ tele, unit, isDemo, onOpenTab }) {
   if (!tele) return <div className="notice">Waiting for telemetry…</div>
 
   const view = unitView(tele)
-  const net = networkView(shadow?.reported?.network)
+  const net = networkView(shadow?.reported?.network, shadow?.reported?.firmware_version)
   const copy = bannerCopy(tele, view)
   const Icon = TONE_ICON[view.tone]
   const lowBatt = tele.batt_v != null && Number(tele.batt_v) < 12
@@ -163,7 +163,7 @@ export default function OverviewTab({ tele, unit, isDemo, onOpenTab }) {
             <Row label="IP address" sm>
               {net.addresses.length
                 ? net.addresses.map((a) => (
-                    <div key={a.via}>{`${a.ip} (${a.via}${a.primary ? ', primary' : ''})`}</div>
+                    <span key={a.via} style={{ display: 'block' }}>{`${a.ip} (${a.via}${a.primary ? ', primary' : ''})`}</span>
                   ))
                 : '—'}
             </Row>
