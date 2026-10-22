@@ -111,15 +111,31 @@ export function apuVersionLabel(v) {
   return `${major}.${minor}.${patch}`
 }
 
+// True when system image version V ("x.y.z") is MIN or newer; false when V is
+// missing or not x.y.z.
+export function versionAtLeast(v, min) {
+  const parse = (s) => {
+    const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(s ?? '').trim())
+    return m ? m.slice(1).map(Number) : null
+  }
+  const a = parse(v), b = parse(min)
+  if (!a || !b) return false
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i]
+  return true
+}
+
 // Shadow reported.network (gobi-agent): the unit's LAN addresses, for finding
 // it on its network. { wifi: {ip, ssid, signal_dbm} | null, eth: {ip} | null };
 // absent on firmware older than the network report. A part that is down comes
 // as null, never as a stale value. `primary` ("eth" | "wifi" | "other" | null)
-// is the interface holding the default route; it is listed first and marked.
-export function networkView(network) {
+// is the interface the unit's traffic goes out on; it is listed first and
+// marked. It is ignored below NETWORK_PRIMARY_MIN_FW: an agent rolled back to
+// one never sends the key, so the shadow would keep the newer agent's value.
+export const NETWORK_PRIMARY_MIN_FW = '1.2.82'
+export function networkView(network, firmwareVersion) {
   const wifi = network?.wifi || null
   const eth = network?.eth || null
-  const primary = network?.primary
+  const primary = versionAtLeast(firmwareVersion, NETWORK_PRIMARY_MIN_FW) ? network?.primary : null
   const addresses = []
   if (wifi?.ip) addresses.push({ ip: wifi.ip, via: 'WiFi', primary: primary === 'wifi' })
   if (eth?.ip) addresses.push({ ip: eth.ip, via: 'Ethernet', primary: primary === 'eth' })

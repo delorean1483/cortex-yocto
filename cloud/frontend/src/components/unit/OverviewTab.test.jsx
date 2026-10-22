@@ -30,7 +30,7 @@ describe('OverviewTab', () => {
   })
 
   it('shows the unit\'s LAN addresses and WiFi network in Unit info', () => {
-    mocks.shadow = { reported: { firmware_version: '1.2.79', network: {
+    mocks.shadow = { reported: { firmware_version: '1.2.82', network: {
       wifi: { ip: '192.168.0.211', ssid: 'HomeNet', signal_dbm: -58 }, eth: { ip: '192.168.0.94' },
       primary: 'eth' } } }
     renderTab(BASE)

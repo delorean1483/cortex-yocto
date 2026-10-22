@@ -113,11 +113,13 @@ applied — **compare-and-clear**. The UI tracks pending → applied off this.
 
 `reported.network` (every report): the unit's LAN addresses, for finding it on
 its network. `{wifi: {ip, ssid, signal_dbm} | null, eth: {ip} | null,
-primary: "eth" | "wifi" | "other" | null}`; `primary` is the interface holding
-the default route (lowest metric), so the one the unit's traffic uses. Any part
+primary: "eth" | "wifi" | "other" | null}`; `primary` is the interface the
+kernel routes the unit's internet traffic through (`null` = no route). Any part
 that is down is `null`, never omitted, because the shadow merges reported
 updates key by key. Absent on firmware older than the network report
-(`primary` from the first release after 1.2.81).
+(`primary` from 1.2.82). The dashboard ignores `primary` when
+`firmware_version` is older than 1.2.82: an agent rolled back to one never
+sends the key, so the shadow keeps the newer agent's last value.
 
 ---
 
