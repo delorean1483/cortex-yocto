@@ -24,9 +24,10 @@ Item {
     }
     Component { id: alertsC; AlertsScreen {} }
     Component { id: modeC; ModeScreen {} }
+    // Over the current screen, so Back returns there (e.g. Home's fault strip).
     function openAlerts() {
         if (stack.currentItem && stack.currentItem.isAlertsScreen === true) return
-        selectRail(2); stack.push(alertsC)
+        stack.push(alertsC)
     }
     function openMode() {
         if (stack.currentItem && stack.currentItem.isModeScreen === true) return
