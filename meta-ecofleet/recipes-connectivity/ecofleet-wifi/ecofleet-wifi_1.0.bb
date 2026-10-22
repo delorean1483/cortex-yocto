@@ -12,6 +12,7 @@ SRC_URI = " \
     file://variscite-wifi-nostop.conf \
     file://variscite-bt-guard.conf \
     file://wait-online-any.conf \
+    file://timesyncd-retry.conf \
 "
 S = "${WORKDIR}"
 
@@ -31,16 +32,20 @@ do_install() {
     install -D -m 0644 ${WORKDIR}/variscite-wifi-nostop.conf \
         $unitdir/variscite-wifi.service.d/ecofleet.conf
 
-    # Online = any link routable, so a unit on WiFi alone (or Ethernet alone)
-    # doesn't wait out the 2-minute timeout for the other link.
-    install -D -m 0644 ${WORKDIR}/wait-online-any.conf \
-        $unitdir/systemd-networkd-wait-online.service.d/ecofleet.conf
-
     # Start WiFi at boot; the drop-in above waits for /data and runs
     # ecofleet-wifi-init first so a usable config always exists.
     install -d $unitdir/multi-user.target.wants
     ln -sf ${systemd_system_unitdir}/wpa_supplicant@.service \
         $unitdir/multi-user.target.wants/wpa_supplicant@wlan0.service
+
+    # Online = any link routable, so a unit on WiFi alone (or Ethernet alone)
+    # doesn't wait out the 2-minute timeout for the other link.
+    install -D -m 0644 ${WORKDIR}/wait-online-any.conf \
+        $unitdir/systemd-networkd-wait-online.service.d/ecofleet.conf
+
+    # First time sync within seconds of the network coming up, not 30 s after.
+    install -D -m 0644 ${WORKDIR}/timesyncd-retry.conf \
+        ${D}${sysconfdir}/systemd/timesyncd.conf.d/ecofleet.conf
 
     install -D -m 0644 ${WORKDIR}/variscite-bt-guard.conf \
         $unitdir/variscite-bt.service.d/ecofleet.conf
@@ -56,4 +61,5 @@ FILES:${PN} = " \
     ${sbindir}/ecofleet-wifi-init \
     ${sysconfdir}/systemd/network/25-wlan0.network \
     ${sysconfdir}/systemd/system \
+    ${sysconfdir}/systemd/timesyncd.conf.d \
 "
