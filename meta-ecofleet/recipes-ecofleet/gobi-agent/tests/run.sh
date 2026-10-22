@@ -16,21 +16,25 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g \
 "$here/test_weather"
 
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
-   -I"$files" "$here/test_bl_crc32.c" "$files/bl_crc32.c" -o "$here/test_bl_crc32" && "$here/test_bl_crc32"
+   -I"$files" "$here/test_bl_crc32.c" "$files/bl_crc32.c" -o "$here/test_bl_crc32"
+"$here/test_bl_crc32"
 
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
-   -I"$files" "$here/test_bl_frame.c" "$files/bl_frame.c" -o "$here/test_bl_frame" && "$here/test_bl_frame"
+   -I"$files" "$here/test_bl_frame.c" "$files/bl_frame.c" -o "$here/test_bl_frame"
+"$here/test_bl_frame"
 
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" "$here/test_bl_session.c" "$files/bl_session.c" "$files/bl_frame.c" "$files/bl_crc32.c" "$here/fake_bootloader.c" \
-   -o "$here/test_bl_session" && "$here/test_bl_session"
+   -o "$here/test_bl_session"
+"$here/test_bl_session"
 
 # Transport-layer test: drives the REAL bl_transport_serial_xfer byte-framing
 # loop over a pty (txstub/modbus.h stands in for libmodbus on the host). Covers
 # the delayed-reply fragmentation that caused the remote-flash VERIFY failures.
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$here/txstub" -I"$files" "$here/test_bl_transport_serial.c" "$files/bl_frame.c" \
-   -lpthread -o "$here/test_bl_transport_serial" && "$here/test_bl_transport_serial"
+   -lpthread -o "$here/test_bl_transport_serial"
+"$here/test_bl_transport_serial"
 
 cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -fsanitize=address,undefined \
@@ -78,7 +82,8 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -I"$here/mqstub" -I"$files" -I"$cjson/include" \
    "$here/test_shadow_fw_target.c" "$files/location.c" "$files/state_path.c" \
    -L"$cjson/lib" -lcjson -lpthread \
-   -o "$here/test_shadow_fw_target" && "$here/test_shadow_fw_target"
+   -o "$here/test_shadow_fw_target"
+"$here/test_shadow_fw_target"
 
 # Assigned-location helpers (location.c): desired.location parse, file form,
 # change-only store.
@@ -86,7 +91,8 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" -I"$cjson/include" \
    "$here/test_location.c" "$files/location.c" \
    -L"$cjson/lib" -lcjson \
-   -o "$here/test_location" && "$here/test_location"
+   -o "$here/test_location"
+"$here/test_location"
 
 # desired.location through the REAL shadow.c: partial-delta merge, clear, and
 # reported.location echo (no standing delta).
@@ -96,18 +102,21 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$here/mqstub" -I"$files" -I"$cjson/include" \
    "$here/test_shadow_location.c" "$files/location.c" "$files/state_path.c" \
    -L"$cjson/lib" -lcjson -lpthread \
-   -o "$here/test_shadow_location" && "$here/test_shadow_location"
+   -o "$here/test_shadow_location"
+"$here/test_shadow_location"
 
 # Slot-shared (/data) vs per-slot state file selection + legacy retirement.
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" "$here/test_state_path.c" "$files/state_path.c" \
-   -o "$here/test_state_path" && "$here/test_state_path"
+   -o "$here/test_state_path"
+"$here/test_state_path"
 
 # Remote-reboot loop guard: honor each desired.reboot (by AWS metadata
 # timestamp) only once across the cold reset it triggers.
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" "$here/test_reboot_guard.c" "$files/reboot_guard.c" \
-   -o "$here/test_reboot_guard" && "$here/test_reboot_guard"
+   -o "$here/test_reboot_guard"
+"$here/test_reboot_guard"
 
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -DLOCATION_JSON_SHARED='"/tmp/test_shadow_reboot_location.json"' \
@@ -115,17 +124,20 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$here/mqstub" -I"$files" -I"$cjson/include" \
    "$here/test_shadow_reboot.c" "$files/location.c" "$files/state_path.c" \
    -L"$cjson/lib" -lcjson -lpthread \
-   -o "$here/test_shadow_reboot" && "$here/test_shadow_reboot"
+   -o "$here/test_shadow_reboot"
+"$here/test_shadow_reboot"
 
 # On-device APU fault history (panel Error Log).
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" -I"$cjson/include" "$here/test_event_log.c" "$files/event_log.c" \
-   -L"$cjson/lib" -lcjson -o "$here/test_event_log" && "$here/test_event_log"
+   -L"$cjson/lib" -lcjson -o "$here/test_event_log"
+"$here/test_event_log"
 
 # Heater coprocessor extended block (fw regs 68..75): pure helpers.
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" "$here/test_heater_ext.c" "$files/heater_ext.c" \
-   -o "$here/test_heater_ext" && "$here/test_heater_ext"
+   -o "$here/test_heater_ext"
+"$here/test_heater_ext"
 
 # desired.heater setpoint_f/clear_fault + reported.heater extended fields
 # through the REAL shadow.c.
@@ -135,19 +147,22 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$here/mqstub" -I"$files" -I"$cjson/include" \
    "$here/test_shadow_heater.c" "$files/location.c" "$files/state_path.c" \
    -L"$cjson/lib" -lcjson -lpthread \
-   -o "$here/test_shadow_heater" && "$here/test_shadow_heater"
+   -o "$here/test_shadow_heater"
+"$here/test_shadow_heater"
 
 # On-panel software update: manifest parse, version compare, offer decision.
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" -I"$cjson/include" "$here/test_ota_offer.c" "$files/ota_offer.c" \
-   -L"$cjson/lib" -lcjson -o "$here/test_ota_offer" && "$here/test_ota_offer"
+   -L"$cjson/lib" -lcjson -o "$here/test_ota_offer"
+"$here/test_ota_offer"
 
 # Unit LAN addresses for the dashboard (reported.network): the /proc/net/wireless
 # signal parse, the wlan0/eth0 IPv4 pick from getifaddrs(), and which interface
 # holds the address the route lookup picked (reported.network.primary).
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" "$here/test_net_info.c" "$files/net_info.c" \
-   -o "$here/test_net_info" && "$here/test_net_info"
+   -o "$here/test_net_info"
+"$here/test_net_info"
 
 # reported.network through the REAL shadow.c: absent parts are sent as null.
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
@@ -156,4 +171,5 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$here/mqstub" -I"$files" -I"$cjson/include" \
    "$here/test_shadow_network.c" "$files/location.c" "$files/state_path.c" \
    -L"$cjson/lib" -lcjson -lpthread \
-   -o "$here/test_shadow_network" && "$here/test_shadow_network"
+   -o "$here/test_shadow_network"
+"$here/test_shadow_network"
