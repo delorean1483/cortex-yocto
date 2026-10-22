@@ -11,6 +11,7 @@ SRC_URI = " \
     file://wpa_supplicant-wlan0.conf \
     file://variscite-wifi-nostop.conf \
     file://variscite-bt-guard.conf \
+    file://wait-online-any.conf \
 "
 S = "${WORKDIR}"
 
@@ -29,6 +30,11 @@ do_install() {
         $unitdir/wpa_supplicant@wlan0.service.d/ecofleet.conf
     install -D -m 0644 ${WORKDIR}/variscite-wifi-nostop.conf \
         $unitdir/variscite-wifi.service.d/ecofleet.conf
+
+    # Online = any link routable, so a unit on WiFi alone (or Ethernet alone)
+    # doesn't wait out the 2-minute timeout for the other link.
+    install -D -m 0644 ${WORKDIR}/wait-online-any.conf \
+        $unitdir/systemd-networkd-wait-online.service.d/ecofleet.conf
 
     # Start WiFi at boot; the drop-in above waits for /data and runs
     # ecofleet-wifi-init first so a usable config always exists.
