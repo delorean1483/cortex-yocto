@@ -4,6 +4,8 @@
 # even with a wiped/default u-boot environment. Updates never write p1.
 #
 # Layout: p1 boot, p2 rootfs-a, p3 rootfs-b, p4 data.
+# Boards: one image boots both the Variscite dev kit (DT8MCustomBoard) and the
+# EF-MX8MM (R1) carrier; the board is detected below and picks the DTB.
 # u-boot env: slot_active = "a" | "b" (default a); A/B rollback trial =
 # upgrade_available / bootcount / bootlimit (armed by swupdate post-install,
 # cleared by ecofleet-boot-confirm on a healthy boot).
@@ -41,6 +43,28 @@ if test "${upgrade_available}" = "1"; then
     fi
 fi
 
+# Board detection: R1 has an MCP7940N RTC at 0x6f on I2C3 (u-boot bus 2, alias
+# i2c2 = &i2c3); the dev kit has nothing there. If the probe fails for any
+# reason, the dev-kit DTB is used, which still boots R1 far enough for WiFi.
+setenv ecofleet_board devkit
+if i2c dev 2; then
+    if i2c probe 0x6f; then
+        setenv ecofleet_board r1
+    fi
+fi
+echo "==> EcoFleet: board ${ecofleet_board}"
+
+# R1: hold the Ethernet PHY (KSZ9031) in reset from here on. Its RGMII I/O is
+# 3.3 V while the SoC's ENET pads are fed 1.8 V (R1 hardware finding 3), and
+# nothing on the board pulls its reset line (ETH_dReset). SAI3_TXFS -> ALT5
+# GPIO4_IO31 (IOMUXC mux 0x1D8, pad 0x440), driven low. With the R1 DTB, Linux
+# keeps it low (eth-rst-hog); with the dev-kit DTB, see the fixups below.
+if test "${ecofleet_board}" = "r1"; then
+    mw.l 0x303301d8 0x5
+    mw.l 0x30330440 0x16
+    gpio clear GPIO4_31
+fi
+
 # Required by booti when the kernel is compressed (Image.gz)
 setenv kernel_comp_addr_r 0x44000000
 setenv kernel_comp_size   0x4000000
@@ -62,8 +86,44 @@ for try in 1 2; do
     fi
 
     if ext4load mmc ${devnum}:${_part} ${loadaddr} /boot/Image.gz; then
-        if ext4load mmc ${devnum}:${_part} ${fdt_addr} /boot/imx8mm-var-dart-dt8mcustomboard.dtb; then
-            setenv bootargs "console=ttymxc0,115200 root=/dev/mmcblk${devnum}p${_part} rootwait rw quiet ${ecofleet_extra_args}"
+        # R1 tries its own DTB first. The dev-kit DTB is the fallback for the
+        # dev kit and for an R1 slot holding a release older than R1 support.
+        setenv fdt_ok 0
+        if test "${ecofleet_board}" = "r1"; then
+            if ext4load mmc ${devnum}:${_part} ${fdt_addr} /boot/imx8mm-ecofleet-ef-mx8mm.dtb; then
+                setenv fdt_ok 1
+                # Ethernet opt-in for a board reworked so the PHY's and the
+                # SoC's Ethernet I/O voltages match (finding 3: SOK1-31
+                # NVCC_ENET fed 3.3 V). Set with `fw_setenv ecofleet_eth 1`
+                # only after metering it: on an unreworked board the PHY would
+                # drive 3.3 V into the SoC's 1.8 V pads. Turns the FEC on and
+                # drops the reset hog so the FEC driver can release the PHY.
+                if test "${ecofleet_eth}" = "1"; then
+                    echo "==> EcoFleet: Ethernet on (ecofleet_eth=1)"
+                    fdt addr ${fdt_addr}
+                    fdt resize 1024
+                    fdt set /soc@0/bus@30800000/ethernet@30be0000 status okay
+                    fdt rm /soc@0/bus@30000000/gpio@30230000/eth-rst-hog
+                fi
+            fi
+        fi
+        if test "${fdt_ok}" = "0"; then
+            if ext4load mmc ${devnum}:${_part} ${fdt_addr} /boot/imx8mm-var-dart-dt8mcustomboard.dtb; then
+                setenv fdt_ok 1
+                # R1 on the dev-kit DTB: switch off the dev kit's SAI3 audio
+                # (it would take ETH_dReset back from GPIO and release the PHY)
+                # and its SD-card host (on R1 that bus is the carrier eMMC, with
+                # VCCQ fixed at 3.3 V; the SD host could switch it to 1.8 V).
+                if test "${ecofleet_board}" = "r1"; then
+                    fdt addr ${fdt_addr}
+                    fdt resize 1024
+                    fdt set /soc@0/bus@30000000/spba-bus@30000000/sai@30030000 status disabled
+                    fdt set /soc@0/bus@30800000/mmc@30b50000 status disabled
+                fi
+            fi
+        fi
+        if test "${fdt_ok}" = "1"; then
+            setenv bootargs "console=ttymxc0,115200 root=/dev/mmcblk${devnum}p${_part} rootwait rw quiet ecofleet_board=${ecofleet_board} ${ecofleet_extra_args}"
             booti ${loadaddr} - ${fdt_addr}
         fi
     fi

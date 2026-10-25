@@ -1,0 +1,5 @@
+# Keep udev's automounter off mmcblk1: on R1 (EF-MX8MM) that is the carrier
+# eMMC, which will hold a recovery image whose partitions carry the same labels
+# as the SoM eMMC's; on the dev kit it is the SD card. Nothing in the running
+# system uses them, and mounted rw under /run/media they could be written to.
+/dev/mmcblk1
