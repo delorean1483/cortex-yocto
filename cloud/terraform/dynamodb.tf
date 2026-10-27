@@ -49,6 +49,21 @@ resource "aws_dynamodb_table" "unit_locations" {
   tags = { Project = var.project }
 }
 
+# One item per unit: the low-battery alert state the ingest Lambda keeps
+# (cloud/lambda/ingest/battery-check.js). `ver` guards concurrent writes.
+resource "aws_dynamodb_table" "battery_alerts" {
+  name         = "${var.project}-${var.env}-battery-alerts"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "unit"
+
+  attribute {
+    name = "unit"
+    type = "S"
+  }
+
+  tags = { Project = var.project }
+}
+
 # ── IAM: Lambda DynamoDB + Cognito admin access ───────────────────────────────
 resource "aws_iam_role_policy" "lambda_dynamodb" {
   name = "${var.project}-${var.env}-lambda-dynamodb"
@@ -89,6 +104,15 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
           "dynamodb:Scan",
         ]
         Resource = aws_dynamodb_table.unit_locations.arn
+      },
+      {
+        Sid    = "DynamoDBBatteryAlerts"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+        ]
+        Resource = aws_dynamodb_table.battery_alerts.arn
       },
       {
         Sid    = "CognitoAdmin"

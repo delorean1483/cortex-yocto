@@ -5,7 +5,7 @@ resource "aws_apigatewayv2_api" "main" {
 
   cors_configuration {
     allow_origins = ["*"]
-    allow_methods = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
+    allow_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     allow_headers = ["Content-Type", "Authorization"]
     max_age       = 300
   }
@@ -139,6 +139,19 @@ resource "aws_apigatewayv2_route" "fleet_users_update" {
 resource "aws_apigatewayv2_route" "fleet_users_delete" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "DELETE /fleet/users/{email}"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+# The caller's own email-alerts preference (any role)
+resource "aws_apigatewayv2_route" "fleet_me_alerts_get" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "GET /fleet/me/alerts"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_me_alerts_put" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "PUT /fleet/me/alerts"
   target    = "integrations/${aws_apigatewayv2_integration.api.id}"
 }
 

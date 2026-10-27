@@ -45,6 +45,12 @@ resource "aws_iam_role_policy" "lambda" {
         Resource = aws_sns_topic.alerts.arn
       },
       {
+        Sid      = "SESSend"
+        Effect   = "Allow"
+        Action   = "ses:SendEmail"
+        Resource = aws_sesv2_email_identity.alerts.arn
+      },
+      {
         Sid    = "CloudWatchLogs"
         Effect = "Allow"
         Action = [
@@ -121,6 +127,12 @@ resource "aws_lambda_function" "ingest" {
       INFLUX_PRIVATE_IP = aws_instance.influxdb.private_ip
       INFLUX_ORG        = "ecofleet"
       INFLUX_BUCKET     = "telemetry"
+      # Low-battery alerts (battery-check.js) and delivery (alert-mail.js)
+      BATTERY_ALERTS_TABLE = aws_dynamodb_table.battery_alerts.name
+      USERS_TABLE          = aws_dynamodb_table.users.name
+      SNS_TOPIC_ARN        = aws_sns_topic.alerts.arn
+      ALERT_FROM           = var.alert_from
+      DASHBOARD_URL        = var.dashboard_url
     }
   }
 
@@ -157,6 +169,10 @@ resource "aws_lambda_function" "fault_handler" {
       INFLUX_ORG        = "ecofleet"
       INFLUX_BUCKET     = "faults"
       SNS_TOPIC_ARN     = aws_sns_topic.alerts.arn
+      # Delivery (alert-mail.js): SNS until ALERT_FROM is set, then SES per person
+      USERS_TABLE   = aws_dynamodb_table.users.name
+      ALERT_FROM    = var.alert_from
+      DASHBOARD_URL = var.dashboard_url
     }
   }
 
