@@ -247,18 +247,23 @@ export function byAttention(a, b) {
 }
 
 // ── Faults (Alerts page) ─────────────────────────────────────────────────────
-// Controller fault bits. Several can be set at once; any critical bit makes the
-// event critical.
-const FAULT_BITS = [
-  { mask: 0x0001, name: 'DC under-voltage',  critical: false },
-  { mask: 0x0002, name: 'DC under-voltage',  critical: false },
-  { mask: 0x0004, name: 'DC over-voltage',   critical: false },
-  { mask: 0x0008, name: 'Over-current',      critical: true },
-  { mask: 0x0010, name: 'Coolant over-temp', critical: true },
-  { mask: 0x0020, name: 'Low oil pressure',  critical: true },
-  { mask: 0x0040, name: 'Comm timeout',      critical: false },
-  { mask: 0x0080, name: 'Sensor fault',      critical: false },
-]
+// APU error codes (`fault` is the code in hex). The firmware reports one at a
+// time (control_error_t, g0b1-firmware App/services/control.h), not a bitmask.
+const FAULT_CODES = {
+  0: { name: 'No fault' },
+  1: { name: 'Low oil pressure', critical: true },
+  2: { name: 'High engine temperature', critical: true },
+  3: { name: 'Low battery' },
+  4: { name: 'A/C low pressure', critical: true },
+  5: { name: 'A/C high pressure', critical: true },
+  6: { name: 'Engine failed to start', critical: true },
+  7: { name: 'Standby (truck engine on)' },
+  8: { name: 'Engine stalled', critical: true },
+  9: { name: 'No engine RPM', critical: true },
+  10: { name: 'High A/C pressure', critical: true },
+}
+// The APU stops itself while the truck's engine runs: normal, not a fault.
+const STANDBY = 7
 
 function faultCode(fault) {
   if (fault == null || fault === '') return 0
@@ -270,34 +275,24 @@ function hexCode(code) {
   return `0x${code.toString(16).padStart(4, '0').toUpperCase()}`
 }
 
-// Display info for one fault event: a name (the device's description when it
-// sent one), the hex code, and severity.
+// Display info for one fault event: a name (the description the cloud
+// recorded, when there is one), the hex code, and severity.
 export function faultInfo(f) {
   const code = faultCode(f?.fault)
-  const bits = FAULT_BITS.filter((b) => code & b.mask)
-  const critical = bits.some((b) => b.critical)
+  const known = FAULT_CODES[code]
+  const critical = !!known?.critical
   const told = [f?.description, f?.error].find((t) => t && t !== 'none')
-  const name = told || [...new Set(bits.map((b) => b.name))].join(', ') || `Fault ${hexCode(code)}`
+  const name = told || known?.name || `Fault ${hexCode(code)}`
   return { name, code: hexCode(code), tone: critical ? 'err' : 'warn', severity: critical ? 'Critical' : 'Warning' }
 }
 
-// Faults still in effect: walking newest -> oldest, an all-clear (code 0) ends
-// the walk; a clear for one code resolves that code only. Repeats of a code
-// collapse to the newest event. Returns newest first.
+// The fault in effect, if any: one code at a time, so the newest event is the
+// unit's current state. Returns [] or [that event].
 export function activeFaults(events) {
-  const sorted = [...(events || [])].sort((a, b) => Number(b.ts) - Number(a.ts))
-  const cleared = new Set()
-  const out = new Map()
-  for (const e of sorted) {
-    const code = faultCode(e.fault)
-    if (e.state === 'cleared' || code === 0) {
-      if (code === 0) break
-      cleared.add(code)
-      continue
-    }
-    if (!cleared.has(code) && !out.has(code)) out.set(code, e)
-  }
-  return [...out.values()]
+  const newest = [...(events || [])].sort((a, b) => Number(b.ts) - Number(a.ts))[0]
+  if (!newest || newest.state !== 'active') return []
+  const code = faultCode(newest.fault)
+  return code === 0 || code === STANDBY ? [] : [newest]
 }
 
 // ── Reports ──────────────────────────────────────────────────────────────────
@@ -367,6 +362,7 @@ export function faultStateView(f, info) {
   const state = f?.state
   if (state === 'cleared') return { label: 'Cleared', tone: 'ok' }
   if (state === 'active') return { label: 'Active', tone: info.tone }
+  if (state === 'standby') return { label: 'Standby', tone: 'off' }
   return { label: state || '—', tone: 'off' }
 }
 

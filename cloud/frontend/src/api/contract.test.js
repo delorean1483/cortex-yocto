@@ -252,12 +252,13 @@ describe('byAttention', () => {
 })
 
 describe('faultInfo', () => {
-  it('names a known code and its severity', () => {
-    expect(faultInfo({ fault: '0x0020' })).toMatchObject({ name: 'Low oil pressure', tone: 'err', severity: 'Critical' })
-    expect(faultInfo({ fault: '0x0001' })).toMatchObject({ name: 'DC under-voltage', tone: 'warn', severity: 'Warning' })
+  it('names a firmware error code and its severity', () => {
+    expect(faultInfo({ fault: '0x0001' })).toMatchObject({ name: 'Low oil pressure', tone: 'err', severity: 'Critical' })
+    expect(faultInfo({ fault: '0x0003' })).toMatchObject({ name: 'Low battery', tone: 'warn', severity: 'Warning' })
+    expect(faultInfo({ fault: '0x0009' })).toMatchObject({ name: 'No engine RPM', tone: 'err' })
   })
-  it('prefers the description the device sent', () => {
-    expect(faultInfo({ fault: '0x0020', description: 'Oil pressure switch open' }).name).toBe('Oil pressure switch open')
+  it('prefers the description the cloud recorded', () => {
+    expect(faultInfo({ fault: '0x0001', description: 'Oil pressure switch open' }).name).toBe('Oil pressure switch open')
   })
   it('unknown codes fall back to the hex code as a warning', () => {
     expect(faultInfo({ fault: '0x4000' })).toMatchObject({ name: 'Fault 0x4000', tone: 'warn' })
@@ -265,28 +266,27 @@ describe('faultInfo', () => {
 })
 
 describe('activeFaults', () => {
+  // The APU reports one error code at a time, so the newest event is its state.
   const ev = (min, fault, state = 'active') => ({ ts: 1_000_000_000 - min * 60000, fault, state })
-  it('a fault with no later clear is active', () => {
-    expect(activeFaults([ev(4, '0x0020')]).map((f) => f.fault)).toEqual(['0x0020'])
+  it('a fault with nothing after it is active', () => {
+    expect(activeFaults([ev(4, '0x0001')]).map((f) => f.fault)).toEqual(['0x0001'])
   })
-  it('an all-clear (0x0000) resolves everything before it', () => {
-    expect(activeFaults([ev(1, '0x0000', 'cleared'), ev(30, '0x0020')])).toEqual([])
+  it('a later no-fault event clears it', () => {
+    expect(activeFaults([ev(1, '0x0000', 'cleared'), ev(30, '0x0001')])).toEqual([])
   })
-  it('faults after the last all-clear are active; older ones are not', () => {
-    const out = activeFaults([ev(2, '0x0004'), ev(10, '0x0000', 'cleared'), ev(60, '0x0020')])
-    expect(out.map((f) => f.fault)).toEqual(['0x0004'])
+  it('a later fault replaces it', () => {
+    expect(activeFaults([ev(1, '0x0002'), ev(5, '0x0001')]).map((f) => f.fault)).toEqual(['0x0002'])
   })
-  it('a clear for one code leaves other faults active', () => {
-    const out = activeFaults([ev(1, '0x0020', 'cleared'), ev(5, '0x0020'), ev(6, '0x0004')])
-    expect(out.map((f) => f.fault)).toEqual(['0x0004'])
-  })
-  it('repeats of the same code collapse to the newest event', () => {
-    const out = activeFaults([ev(1, '0x0020'), ev(3, '0x0020')])
-    expect(out).toHaveLength(1)
-    expect(out[0].ts).toBe(1_000_000_000 - 60000)
+  it('standby (truck engine on) is not an active fault', () => {
+    expect(activeFaults([ev(1, '0x0007', 'standby'), ev(5, '0x0001')])).toEqual([])
+    expect(activeFaults([ev(1, '0x0007', 'standby')])).toEqual([])
   })
   it('order of the input does not matter', () => {
-    expect(activeFaults([ev(60, '0x0020'), ev(10, '0x0000', 'cleared'), ev(2, '0x0004')]).map((f) => f.fault)).toEqual(['0x0004'])
+    expect(activeFaults([ev(60, '0x0001'), ev(10, '0x0000', 'cleared'), ev(2, '0x0003')]).map((f) => f.fault)).toEqual(['0x0003'])
+  })
+  it('no events, no active faults', () => {
+    expect(activeFaults([])).toEqual([])
+    expect(activeFaults(undefined)).toEqual([])
   })
 })
 
@@ -424,6 +424,7 @@ describe('faultStateView', () => {
     expect(faultStateView({ state: 'cleared' }, { tone: 'err' })).toEqual({ label: 'Cleared', tone: 'ok' })
     expect(faultStateView({ state: 'active' }, { tone: 'err' })).toEqual({ label: 'Active', tone: 'err' })
     expect(faultStateView({ state: 'active' }, { tone: 'warn' })).toEqual({ label: 'Active', tone: 'warn' })
+    expect(faultStateView({ state: 'standby' }, { tone: 'warn' })).toEqual({ label: 'Standby', tone: 'off' })
     expect(faultStateView({ state: 'x' }, { tone: 'err' })).toEqual({ label: 'x', tone: 'off' })
     expect(faultStateView({}, { tone: 'err' })).toEqual({ label: '—', tone: 'off' })
   })
@@ -454,17 +455,17 @@ describe('toneCounts / filterRows', () => {
 describe('fleetFaultRows', () => {
   const results = [
     { unit: 'A', faults: [
-      { ts: 3000, fault: '0x0020', state: 'active' },
-      { ts: 1000, fault: '0x0004', state: 'active' },
-      { ts: 2000, fault: '0x0004', state: 'cleared' },
+      { ts: 3000, fault: '0x0001', state: 'active' },
+      { ts: 1000, fault: '0x0003', state: 'active' },
+      { ts: 2000, fault: '0x0000', state: 'cleared' },
     ] },
     { unit: 'B', error: new Error('boom') },
-    { unit: 'C', faults: [{ ts: 2500, fault: '0x0004', state: 'active' }] },
+    { unit: 'C', faults: [{ ts: 2500, fault: '0x0003', state: 'active' }] },
   ]
   it('collects active faults per unit, newest first, and the failed units', () => {
     const r = fleetFaultRows(results)
     expect(r.active.map((x) => x.unit)).toEqual(['A', 'C'])
-    expect(r.active[0].fault).toBe('0x0020')
+    expect(r.active[0].fault).toBe('0x0001')
     expect(r.failed).toEqual(['B'])
   })
   it('merges the log across units, newest first', () => {
@@ -473,7 +474,7 @@ describe('fleetFaultRows', () => {
     expect(r.log[1].unit).toBe('C')
   })
   it('a single failure with one critical active gives one active row', () => {
-    const r = fleetFaultRows([{ unit: 'A', faults: [{ ts: 1, fault: '0x0020', state: 'active' }] }, { unit: 'B', error: 'x' }])
+    const r = fleetFaultRows([{ unit: 'A', faults: [{ ts: 1, fault: '0x0001', state: 'active' }] }, { unit: 'B', error: 'x' }])
     expect(r.active).toHaveLength(1)
     expect(r.active[0].unit).toBe('A')
     expect(r.failed).toEqual(['B'])
@@ -482,7 +483,7 @@ describe('fleetFaultRows', () => {
 
 describe('severityCounts', () => {
   it('counts all, critical and warning rows', () => {
-    expect(severityCounts([{ fault: '0x0020' }, { fault: '0x0004' }])).toEqual({ all: 2, err: 1, warn: 1 })
+    expect(severityCounts([{ fault: '0x0001' }, { fault: '0x0003' }])).toEqual({ all: 2, err: 1, warn: 1 })
   })
 })
 

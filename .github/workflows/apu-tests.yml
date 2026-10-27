@@ -21,9 +21,9 @@ jobs:
       - name: Install fault Lambda deps
         working-directory: cloud/lambda/fault
         run: npm ci
-      - name: Fault decoder regression test
+      - name: Fault event rule tests
         working-directory: cloud/lambda/fault
-        run: node faults.test.js
+        run: node fault-alert.test.js
 
   apu-simulator:
     name: APU simulator matrix (Python)

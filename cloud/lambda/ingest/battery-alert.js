@@ -1,5 +1,7 @@
 'use strict';
 
+const { centralTime } = require('./alert-mail');
+
 // Pure low-battery rule: one telemetry reading in, the unit's new alert state
 // and the email to send (if any) out. No I/O; battery-check.js stores the
 // state per unit.
@@ -73,14 +75,6 @@ const SUBJECTS = {
   daily: 'Battery still low',
   recovered: 'Battery recovered',
 };
-
-// "Oct 25, 2026, 1:42 AM CDT". Newer ICU puts U+202F before AM/PM; use a space.
-function centralTime(ms) {
-  return new Date(ms).toLocaleString('en-US', {
-    timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
-  }).replace(/ /g, ' ');
-}
 
 function batteryEmail(kind, unit, v, nowMs, dashboardUrl) {
   const volts = `${v.toFixed(2)} V`;

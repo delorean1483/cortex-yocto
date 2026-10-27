@@ -5,8 +5,9 @@ const { SNSClient, PublishCommand }                   = require('@aws-sdk/client
 const { SESv2Client, SendEmailCommand }               = require('@aws-sdk/client-sesv2');
 const { DynamoDBClient }                              = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, ScanCommand }         = require('@aws-sdk/lib-dynamodb');
-const { InfluxDB, Point }                             = require('@influxdata/influxdb-client');
+const { InfluxDB, Point, flux }                       = require('@influxdata/influxdb-client');
 const { sendAlert, sesEmailInput }                    = require('./alert-mail');
+const { handleFault }                                 = require('./fault-alert');
 
 const REGION     = process.env.AWS_REGION || 'us-east-1';
 const INFLUX_URL = `http://${process.env.INFLUX_PRIVATE_IP}:8086`;
@@ -53,107 +54,50 @@ async function getInfluxToken() {
   return _influxToken;
 }
 
-// Fault bitmask → human-readable description.
-// Bit positions match the Gobi APU register REG_FAULT word.
-const FAULT_BITS = {
-  0x0001: 'Low oil pressure',
-  0x0002: 'High coolant temperature',
-  0x0004: 'Low battery voltage',
-  0x0008: 'Modbus communication failure',
-  0x0010: 'Overcurrent',
-  0x0020: 'Low fuel',
-  0x0040: 'Engine overspeed',
-  0x0080: 'Starter failure',
-};
-
-function describeFault(faultHex) {
-  const word = parseInt(faultHex, 16);
-  if (!word) return 'No fault';
-  // NB: FAULT_BITS keys are numbers, so Object.entries stringifies them to
-  // DECIMAL (0x0010 -> "16"). Use Number(bit), not parseInt(bit, 16), or every
-  // bit >= 0x10 is mis-masked (e.g. "16" as hex = 22) and faults mis-decode.
-  const active = Object.entries(FAULT_BITS)
-    .filter(([bit]) => word & Number(bit))
-    .map(([, desc]) => desc);
-  return active.length ? active.join(', ') : `Unknown fault (${faultHex})`;
+function influxClient(token) {
+  return new InfluxDB({ url: INFLUX_URL, token });
 }
 
-// Alarm on a new/changed fault, recovery notice on a 0x0000 clear.
-function faultEmail(unit, fault, state, tsMs) {
-  const cleared     = (parseInt(fault, 16) || 0) === 0;
-  const description = describeFault(fault);
-  const isoTime     = new Date(tsMs).toISOString();
-
-  const subject = cleared
-    ? `[EcoFleet] Recovered — ${unit}: APU fault cleared`
-    : `[EcoFleet] Fault — ${unit}: ${description}`;
-  const text = cleared
-    ? [
-        `Unit     : ${unit}`,
-        `Status   : fault cleared (${fault})`,
-        `APU state: ${state || 'unknown'}`,
-        `Time     : ${isoTime}`,
-      ].join('\n')
-    : [
-        `Unit     : ${unit}`,
-        `Fault    : ${fault}  (${description})`,
-        `APU state: ${state || 'unknown'}`,
-        `Time     : ${isoTime}`,
-      ].join('\n');
-  return { subject, text };
+// The unit's newest record at or before tsMs (stop is exclusive, hence +1), so
+// a redelivered message finds its own earlier copy. Records from before error_n
+// existed have no such field and are not found.
+async function lastFault(unit, tsMs) {
+  const queryApi = influxClient(await getInfluxToken()).getQueryApi(INFLUX_ORG);
+  const rows = await queryApi.collectRows(flux`
+    from(bucket: ${BUCKET})
+      |> range(start: 1970-01-01T00:00:00Z, stop: ${new Date(tsMs + 1)})
+      |> filter(fn: (r) => r._measurement == "faults" and r.unit == ${unit} and r._field == "error_n")
+      |> last()
+  `);
+  if (!rows.length) return null;
+  return { code: Number(rows[0]._value), tsMs: Date.parse(rows[0]._time) };
 }
 
-// Exported for unit tests (faults.test.js, excluded from the deploy zip).
-// The Lambda entry point remains exports.handler below.
-exports.describeFault = describeFault;
-exports.faultEmail = faultEmail;
+async function writeFault(unit, tsMs, f) {
+  const writeApi = influxClient(await getInfluxToken()).getWriteApi(INFLUX_ORG, BUCKET, 'ms');
+  writeApi.writePoint(new Point('faults')
+    .tag('unit', unit)
+    .stringField('fault', f.fault)
+    .stringField('error', f.error)
+    .intField('error_n', f.error_n)
+    .stringField('description', f.description)
+    .stringField('state', f.state)
+    .stringField('status', f.status)
+    .booleanField('active', f.active)
+    .timestamp(tsMs));
+  await writeApi.close();
+}
 
+// IoT rule `SELECT * FROM 'ecofleet/+/faults'` delivers the agent's message as
+// the event. Email goes to the SNS topic until ALERT_FROM is set, then to
+// everyone who turned email alerts on.
 exports.handler = async (event) => {
-  // IoT rule delivers fault JSON directly as event:
-  //   { unit, ts (epoch ms), fault (hex string e.g. "0x0004"), state }
-  const { unit, ts, fault, state } = event;
-
-  if (!unit || !fault) {
-    console.error('Dropping malformed fault event — missing unit or fault:', JSON.stringify(event));
-    return;
-  }
-
-  const tsMs = ts || Date.now();
-
-  // A fault word of 0 is a fault-cleared (recovery) event, not a new alarm.
-  const word    = parseInt(fault, 16) || 0;
-  const cleared = word === 0;
-
-  // 1. Write to InfluxDB faults bucket
-  const token    = await getInfluxToken();
-  const client   = new InfluxDB({ url: INFLUX_URL, token });
-  const writeApi = client.getWriteApi(INFLUX_ORG, BUCKET, 'ms');
-
-  const point = new Point('faults')
-    .tag('unit',         unit)
-    .stringField('fault', fault)
-    .stringField('state', state || 'unknown')
-    .stringField('description', describeFault(fault))
-    .booleanField('active', !cleared)   // false marks the fault-cleared event
-    .timestamp(tsMs);
-
-  writeApi.writePoint(point);
-
-  try {
-    await writeApi.close();
-  } catch (err) {
-    console.error('InfluxDB write failed:', err.message);
-    throw err;
-  }
-
-  // 2. Email: the SNS topic until ALERT_FROM is set, then everyone opted in
-  try {
-    const { via, sent } = await sendAlert(faultEmail(unit, fault, state, tsMs), mailIo,
-      { alertFrom: ALERT_FROM, dashboardUrl: DASHBOARD_URL });
-    console.log(`Fault ${cleared ? 'cleared' : 'recorded and alerted'}: `
-      + `unit=${unit} fault=${fault} (${describeFault(fault)}) via=${via} sent=${sent}`);
-  } catch (err) {
-    // Write succeeded — don't fail the Lambda over an email error
-    console.error('Alert email failed (fault already written to InfluxDB):', err.message);
-  }
+  await handleFault(event, {
+    lastFault,
+    writeFault,
+    sendAlert: async (m) => {
+      const { via, sent } = await sendAlert(m, mailIo, { alertFrom: ALERT_FROM, dashboardUrl: DASHBOARD_URL });
+      console.log(`Fault email "${m.subject}" via=${via} sent=${sent}`);
+    },
+  }, DASHBOARD_URL, Date.now());
 };
