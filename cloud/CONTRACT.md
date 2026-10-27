@@ -89,6 +89,12 @@ field names.
 Published on every change, including the transition back to `none`, so the cloud
 can auto-resolve.
 
+`error_n` is the APU's `control_error_t` (0 = `none`; one code at a time, not a
+bitmask). `lambda/fault/fault-alert.js` writes every message to the `faults`
+bucket (`fault` = the code in hex, `state` = `active` / `cleared` / `standby`)
+and emails when a fault starts or clears. Code 7 (`standby`: the APU stopped
+because the truck's engine is running) is recorded but is not a fault.
+
 ---
 
 ## 3. Device shadow — control plane

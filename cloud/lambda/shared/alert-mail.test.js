@@ -1,7 +1,7 @@
 'use strict';
 // Run: node cloud/lambda/shared/alert-mail.test.js
 const assert = require('node:assert');
-const { recipientsFrom, withFooter, sendAlert, sesEmailInput } = require('./alert-mail');
+const { recipientsFrom, withFooter, sendAlert, sesEmailInput, centralTime } = require('./alert-mail');
 
 let failed = 0;
 const check = async (name, fn) => {
@@ -88,6 +88,11 @@ const optedIn = (email) => ({ email, email_alerts: true });
           Body: { Text: { Data: 'T —', Charset: 'UTF-8' } },
         } },
       });
+  });
+
+  await check('centralTime: US Central with the zone, plain space before AM/PM', () => {
+    assert.strictEqual(centralTime(Date.UTC(2026, 9, 25, 6, 42)), 'Oct 25, 2026, 1:42 AM CDT');
+    assert.strictEqual(centralTime(Date.UTC(2026, 11, 1, 18, 5)), 'Dec 1, 2026, 12:05 PM CST');
   });
 
   if (failed) { console.error(`alert-mail.test.js: ${failed} failed`); process.exit(1); }

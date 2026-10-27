@@ -57,4 +57,12 @@ function sesEmailInput({ from, to, subject, text }) {
   };
 }
 
-module.exports = { recipientsFrom, withFooter, sendAlert, sesEmailInput };
+// "Oct 25, 2026, 1:42 AM CDT". Newer ICU puts U+202F before AM/PM; use a space.
+function centralTime(ms) {
+  return new Date(ms).toLocaleString('en-US', {
+    timeZone: 'America/Chicago', month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+  }).replace(/ /g, ' ');
+}
+
+module.exports = { recipientsFrom, withFooter, sendAlert, sesEmailInput, centralTime };

@@ -133,8 +133,8 @@ export const mockApi = {
   },
 
   getFaults: (unit) => delay({ unit, count: 2, faults: [
-    { ts: Date.now() - 4 * 60000, fault: '0x0004', error: 'Low battery voltage', state: 'active' },
-    { ts: Date.now() - 3 * 3600000, fault: '0x0000', error: 'none', state: 'cleared' },
+    { ts: Date.now() - 4 * 60000, fault: '0x0003', description: 'Low battery', state: 'active' },
+    { ts: Date.now() - 3 * 3600000, fault: '0x0000', description: 'No fault', state: 'cleared' },
   ] }),
 
   getShadow: (unit) => delay({ unit, shadow_exists: true, version: 12,

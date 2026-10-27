@@ -49,16 +49,16 @@ describe('AlertsPage single unit (maint / eu)', () => {
 
   it('an uncleared fault is active; a cleared one only appears in the log', async () => {
     state.faults = [
-      { ts: NOW - 4 * 60000, fault: '0x0020', state: 'active' },
+      { ts: NOW - 4 * 60000, fault: '0x0001', state: 'active' },
       { ts: NOW - 3 * 3600000, fault: '0x0000', state: 'cleared' },
-      { ts: NOW - 5 * 3600000, fault: '0x0004', state: 'active' },
+      { ts: NOW - 5 * 3600000, fault: '0x0003', state: 'active' },
     ]
     renderPage()
     expect(await screen.findByRole('heading', { name: '1 active fault' })).toBeTruthy()
     const active = screen.getByRole('region', { name: 'Active faults' })
     expect(within(active).getByText('Low oil pressure')).toBeTruthy()
     expect(within(active).getByText('Critical')).toBeTruthy()
-    expect(within(active).queryByText('DC over-voltage')).toBeNull()
+    expect(within(active).queryByText('Low battery')).toBeNull()
     const log = screen.getByRole('table', { name: 'Fault log' })
     expect(within(log).getAllByRole('row')).toHaveLength(4) // header + 3 events
   })
@@ -76,15 +76,16 @@ describe('AlertsPage all units (admin / fm)', () => {
     state.role = 'admin'; state.selectedUnit = 'TRUCK-001'
     state.setSelectedUnit = vi.fn()
     state.listUnits = () => Promise.resolve({ units: state.units })
-    state.units = [{ unit: 'A', demo: false }, { unit: 'B', demo: false }]
-    state.latest = { A: { ts: NOW }, B: { ts: NOW } }
+    state.units = [{ unit: 'A', demo: false }, { unit: 'B', demo: false }, { unit: 'C', demo: false }]
+    state.latest = { A: { ts: NOW }, B: { ts: NOW }, C: { ts: NOW } }
     state.getFaults = vi.fn((unit) => unit === 'B'
       ? Promise.reject(new Error('boom'))
-      : Promise.resolve({ faults: [
-          { ts: NOW - 18 * 60000, fault: '0x0020', state: 'active' },
-          { ts: NOW - 4 * 3600000, fault: '0x0004', state: 'active' },
-          { ts: NOW - 5 * 3600000, fault: '0x0000', state: 'cleared' },
-        ] }))
+      : Promise.resolve({ faults: unit === 'A'
+        ? [
+            { ts: NOW - 18 * 60000, fault: '0x0001', state: 'active' },
+            { ts: NOW - 5 * 3600000, fault: '0x0000', state: 'cleared' },
+          ]
+        : [{ ts: NOW - 4 * 3600000, fault: '0x0003', state: 'active' }] }))
   })
 
   it('defaults to All units and fans out one fault fetch per unit', async () => {
@@ -93,14 +94,15 @@ describe('AlertsPage all units (admin / fm)', () => {
     expect(screen.getByLabelText('Unit').value).toBe('__all__')
     expect(state.getFaults).toHaveBeenCalledWith('A', { start: '-7d', limit: '100' })
     expect(state.getFaults).toHaveBeenCalledWith('B', { start: '-7d', limit: '100' })
-    expect(state.getFaults).toHaveBeenCalledTimes(2)
+    expect(state.getFaults).toHaveBeenCalledWith('C', { start: '-7d', limit: '100' })
+    expect(state.getFaults).toHaveBeenCalledTimes(3)
   })
 
   it('the heading counts faults across units, with no banner', async () => {
     renderPage()
     const h = await screen.findByRole('heading', { name: /Active faults/ })
     expect(h.textContent).toContain('Active faults')
-    expect(screen.getByText('2 across 1 unit')).toBeTruthy()
+    expect(screen.getByText('2 across 2 units')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Fault status' })).toBeNull()
   })
 
@@ -137,7 +139,7 @@ describe('AlertsPage all units (admin / fm)', () => {
   })
 
   it('shows "Unit offline" under Raised when that unit is stale', async () => {
-    state.latest = { A: { ts: NOW - 3600000 }, B: { ts: NOW } }
+    state.latest = { A: { ts: NOW - 3600000 }, B: { ts: NOW }, C: { ts: NOW - 3600000 } }
     renderPage()
     expect(await screen.findAllByText('Unit offline')).toHaveLength(2)
   })
@@ -152,7 +154,7 @@ describe('AlertsPage all units (admin / fm)', () => {
 
   it('switching Preview-as to a single-unit role leaves a unit picker and one unit\'s faults', async () => {
     state.getFaults = vi.fn((unit) => Promise.resolve({ faults: [
-      { ts: NOW - 60000, fault: unit === 'A' ? '0x0020' : '0x0004', state: 'active' },
+      { ts: NOW - 60000, fault: unit === 'A' ? '0x0001' : '0x0003', state: 'active' },
     ] }))
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const ui = () => (
@@ -167,7 +169,7 @@ describe('AlertsPage all units (admin / fm)', () => {
     expect(screen.getByLabelText('Unit').value).toBe('A')
     const table = screen.getByRole('table', { name: 'Active faults' })
     expect(within(table).getByText('Low oil pressure')).toBeTruthy()
-    expect(within(table).queryByText('DC over-voltage')).toBeNull()
+    expect(within(table).queryByText('Low battery')).toBeNull()
     expect(within(table).queryByRole('columnheader', { name: 'Unit' })).toBeNull()
   })
 
