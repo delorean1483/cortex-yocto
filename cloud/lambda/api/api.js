@@ -21,6 +21,7 @@ const { parseReleases, supportsRemoteReboot, REBOOT_MIN_FW }       = require('./
 const { latestFlux, telemetryFlux, unitsFlux, faultsFlux, clampLimit, RELATIVE_RANGE } = require('./flux');
 const { validateLocation, mergeLocations, locationShadowDesired,
         unitSupportsLocation, LOCATION_MIN_FW, scanAllPages }        = require('./locations-view');
+const { parseAlertsBody }                                          = require('./me-alerts');
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const REGION            = process.env.AWS_REGION || 'us-east-1';
@@ -583,6 +584,30 @@ async function handleUpdateUser(event, claims) {
   return resp(200, { email, role, message: 'Role updated.' });
 }
 
+// ── Own email-alerts preference (any role; always the caller's own email) ────
+
+// GET /fleet/me/alerts — off unless the person turned it on
+async function handleGetMyAlerts(claims) {
+  const r = await ddb.send(new GetCommand({ TableName: USERS_TABLE, Key: { email: claims.email } }));
+  return resp(200, { email: claims.email, email_alerts: r.Item?.email_alerts === true });
+}
+
+// PUT /fleet/me/alerts  { email_alerts: boolean }
+// Sets only this attribute, so a login with no users-table item yet gets one
+// without a role (it keeps defaulting to 'eu').
+async function handlePutMyAlerts(event, claims) {
+  const parsed = parseAlertsBody(event.body);
+  if (parsed.error) return err(400, parsed.error);
+  await ddb.send(new UpdateCommand({
+    TableName:                 USERS_TABLE,
+    Key:                       { email: claims.email },
+    UpdateExpression:          'SET #a = :on',
+    ExpressionAttributeNames:  { '#a': 'email_alerts' },
+    ExpressionAttributeValues: { ':on': parsed.email_alerts },
+  }));
+  return resp(200, { email: claims.email, email_alerts: parsed.email_alerts });
+}
+
 // ── Reports ───────────────────────────────────────────────────────────────────
 
 // GET /fleet/reports?start=-7d
@@ -724,6 +749,10 @@ exports.handler = async (event) => {
     // Protected routes
     const claims = await authenticate(event);
 
+    if (path.endsWith('/fleet/me/alerts')) {
+      if (method === 'GET') return await handleGetMyAlerts(claims);
+      if (method === 'PUT') return await handlePutMyAlerts(event, claims);
+    }
     if (method === 'GET'  && path.endsWith('/fleet/units'))    return await handleListUnits();
     if (method === 'GET'  && path.endsWith('/fleet/shadow'))   return await handleGetShadow(event);
     if (method === 'POST' && path.endsWith('/fleet/config'))   return await handleSetConfig(event, claims);
