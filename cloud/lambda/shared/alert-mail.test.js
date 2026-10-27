@@ -1,7 +1,7 @@
 'use strict';
 // Run: node cloud/lambda/shared/alert-mail.test.js
 const assert = require('node:assert');
-const { recipientsFrom, withFooter, sendAlert } = require('./alert-mail');
+const { recipientsFrom, withFooter, sendAlert, sesEmailInput } = require('./alert-mail');
 
 let failed = 0;
 const check = async (name, fn) => {
@@ -73,6 +73,21 @@ const optedIn = (email) => ({ email, email_alerts: true });
   await check('withFooter says why and how to turn alerts off', () => {
     assert.strictEqual(withFooter('T', 'https://d'),
       'T\n\n—\nYou get this because you turned on email alerts in EcoFleet.\nTurn them off: https://d');
+  });
+
+  // Every subject and footer has "—" (U+2014). SES assumes 7-bit ASCII unless a
+  // charset is given, so without UTF-8 the per-person emails arrive garbled.
+  await check('the SES request marks subject and body as UTF-8', () => {
+    assert.deepStrictEqual(
+      sesEmailInput({ from: CFG.alertFrom, to: 'a@x', subject: '[EcoFleet] Low battery — U: 11.42 V', text: 'T —' }),
+      {
+        FromEmailAddress: CFG.alertFrom,
+        Destination: { ToAddresses: ['a@x'] },
+        Content: { Simple: {
+          Subject: { Data: '[EcoFleet] Low battery — U: 11.42 V', Charset: 'UTF-8' },
+          Body: { Text: { Data: 'T —', Charset: 'UTF-8' } },
+        } },
+      });
   });
 
   if (failed) { console.error(`alert-mail.test.js: ${failed} failed`); process.exit(1); }

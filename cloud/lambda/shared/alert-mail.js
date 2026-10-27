@@ -44,4 +44,17 @@ async function sendAlert({ subject, text }, io, cfg) {
   return { via: 'ses', sent: to.length - failed.length, failed };
 }
 
-module.exports = { recipientsFrom, withFooter, sendAlert };
+// SESv2 SendEmail input for one alert. Subjects and footers contain "—", and
+// SES assumes 7-bit ASCII unless told otherwise, so both parts are UTF-8.
+function sesEmailInput({ from, to, subject, text }) {
+  return {
+    FromEmailAddress: from,
+    Destination: { ToAddresses: [to] },
+    Content: { Simple: {
+      Subject: { Data: subject, Charset: 'UTF-8' },
+      Body: { Text: { Data: text, Charset: 'UTF-8' } },
+    } },
+  };
+}
+
+module.exports = { recipientsFrom, withFooter, sendAlert, sesEmailInput };

@@ -6,7 +6,7 @@ const { SESv2Client, SendEmailCommand }               = require('@aws-sdk/client
 const { DynamoDBClient }                              = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, ScanCommand }         = require('@aws-sdk/lib-dynamodb');
 const { InfluxDB, Point }                             = require('@influxdata/influxdb-client');
-const { sendAlert }                                   = require('./alert-mail');
+const { sendAlert, sesEmailInput }                    = require('./alert-mail');
 
 const REGION     = process.env.AWS_REGION || 'us-east-1';
 const INFLUX_URL = `http://${process.env.INFLUX_PRIVATE_IP}:8086`;
@@ -38,11 +38,7 @@ const mailIo = {
     } while (ExclusiveStartKey);
     return items;
   },
-  sendEmail: ({ from, to, subject, text }) => ses.send(new SendEmailCommand({
-    FromEmailAddress: from,
-    Destination: { ToAddresses: [to] },
-    Content: { Simple: { Subject: { Data: subject }, Body: { Text: { Data: text } } } },
-  })),
+  sendEmail: (m) => ses.send(new SendEmailCommand(sesEmailInput(m))),
   publish: ({ subject, text }) => sns.send(new PublishCommand({
     TopicArn: process.env.SNS_TOPIC_ARN, Subject: subject, Message: text,
   })),

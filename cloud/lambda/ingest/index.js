@@ -8,7 +8,7 @@ const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
 const { InfluxDB, Point } = require('@influxdata/influxdb-client');
 const { mapTelemetry } = require('./telemetry-map');
 const { checkBattery } = require('./battery-check');
-const { sendAlert } = require('./alert-mail');
+const { sendAlert, sesEmailInput } = require('./alert-mail');
 
 const REGION     = process.env.AWS_REGION || 'us-east-1';
 const INFLUX_URL = `http://${process.env.INFLUX_PRIVATE_IP}:8086`;
@@ -66,11 +66,7 @@ async function scanUsers() {
 
 const mailIo = {
   scanUsers,
-  sendEmail: ({ from, to, subject, text }) => ses.send(new SendEmailCommand({
-    FromEmailAddress: from,
-    Destination: { ToAddresses: [to] },
-    Content: { Simple: { Subject: { Data: subject }, Body: { Text: { Data: text } } } },
-  })),
+  sendEmail: (m) => ses.send(new SendEmailCommand(sesEmailInput(m))),
   publish: ({ subject, text }) => sns.send(new PublishCommand({
     TopicArn: process.env.SNS_TOPIC_ARN, Subject: subject, Message: text,
   })),
