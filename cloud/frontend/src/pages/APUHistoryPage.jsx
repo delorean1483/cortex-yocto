@@ -115,12 +115,13 @@ export default function APUHistoryPage() {
         )}
       </div>
 
-      {/* Telemetry summary */}
+      {/* Newest readings only (the API's newest 50 in range is a few minutes);
+          trends over the range are on the Telemetry tab. */}
       {tele && tele.length > 0 && (
         <div>
           <div className="sec-hd">
-            <span className="sec-title">Telemetry samples</span>
-            <span className="sec-sub">{tele.length} points</span>
+            <span className="sec-title">Latest readings</span>
+            <span className="sec-sub">Newest {Math.min(tele.length, 20)}</span>
             <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto' }}
               onClick={() => navigate('/units/' + encodeURIComponent(selectedUnit) + '?tab=telemetry')}>
               Open Telemetry tab
