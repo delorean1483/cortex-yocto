@@ -18,7 +18,9 @@ const { validateCommand, authorizeCommand, authorizeConfig, canWrite } = require
 const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./demo');
 const { buildReports, faultCountFlux }                             = require('./reports-view');
 const { parseReleases, supportsRemoteReboot, REBOOT_MIN_FW }       = require('./releases-view');
-const { latestFlux, telemetryFlux, unitsFlux, faultsFlux, clampLimit, RELATIVE_RANGE } = require('./flux');
+const { latestFlux, telemetryFlux, seriesFlux, seriesPoints, unitsFlux, faultsFlux, clampLimit,
+        RELATIVE_RANGE }                                           = require('./flux');
+const { bucketMeans }                                              = require('./series-view');
 const { validateLocation, mergeLocations, locationShadowDesired,
         unitSupportsLocation, LOCATION_MIN_FW, scanAllPages }        = require('./locations-view');
 const { parseAlertsBody }                                          = require('./me-alerts');
@@ -201,7 +203,8 @@ async function handleListUnits() {
   return resp(200, { units: all });
 }
 
-// GET /fleet/units/{unit}/telemetry?start=-1h&limit=200
+// GET /fleet/units/{unit}/telemetry?start=-1h&limit=200      newest raw snapshots
+// GET /fleet/units/{unit}/telemetry?start=-7d&every=1h       chart fields, one mean per bucket
 async function handleGetTelemetry(event) {
   const unit  = (event.pathParameters || {}).unit;
   const qs    = event.queryStringParameters || {};
@@ -210,6 +213,7 @@ async function handleGetTelemetry(event) {
 
   if (!unit) return err(400, 'unit path parameter required');
   if (!RELATIVE_RANGE.test(start)) return err(400, 'start must be a relative range like -1h or -7d');
+  if (qs.every !== undefined) return getTelemetrySeries(unit, start, qs.every);
   if (isDemoUnit(unit)) {
     const n = Math.min(parseInt(qs.limit || '48', 10), 168);
     const series = demoSeries(unit, n);
@@ -223,6 +227,22 @@ async function handleGetTelemetry(event) {
   const telemetry = rows.map(mapTelemetryRow);
 
   return resp(200, { unit, count: telemetry.length, telemetry });
+}
+
+async function getTelemetrySeries(unit, start, every) {
+  let flux;
+  try { flux = seriesFlux(unit, start, every); }
+  catch (e) { return err(400, e.message); }
+  if (isDemoUnit(unit)) {
+    const series = demoSeries(unit, Math.min(seriesPoints(start, every), 168));
+    return resp(200, { unit, every, count: series.length, telemetry: series });
+  }
+
+  await getInfluxToken();
+  const rows = await getInfluxClient().getQueryApi(INFLUX_ORG).collectRows(flux);
+  const telemetry = bucketMeans(rows, start, every, Date.now());
+
+  return resp(200, { unit, every, count: telemetry.length, telemetry });
 }
 
 // GET /fleet/units/{unit}/latest — most recent full snapshot
