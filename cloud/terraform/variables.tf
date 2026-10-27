@@ -55,3 +55,21 @@ variable "influxdb_volume_size" {
   type        = number
   default     = 100
 }
+
+variable "alert_domain" {
+  description = "Domain alert emails are sent from (SES identity, Easy DKIM)"
+  type        = string
+  default     = "goecofleet.com"
+}
+
+variable "alert_from" {
+  description = "Sender for per-person alert emails, e.g. \"EcoFleet Alerts <alerts@goecofleet.com>\". Empty keeps alerts on the SNS topic (alert_email)."
+  type        = string
+  default     = ""
+}
+
+variable "dashboard_url" {
+  description = "Dashboard base URL linked from alert emails"
+  type        = string
+  default     = "https://frontend-murex-xi-74.vercel.app"
+}

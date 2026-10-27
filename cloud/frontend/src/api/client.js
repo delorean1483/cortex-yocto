@@ -134,6 +134,11 @@ export const realApi = {
 
   clearLocation: (unit) =>
     apiFetch(`/fleet/units/${encodeURIComponent(unit)}/location`, { method: 'DELETE' }),
+
+  // The signed-in person's own email-alerts preference.
+  getMyAlerts: () => apiFetch('/fleet/me/alerts'),
+  setMyAlerts: (on) =>
+    apiFetch('/fleet/me/alerts', { method: 'PUT', body: JSON.stringify({ email_alerts: on }) }),
 }
 
 // Dev-only: VITE_MOCK=on selects an in-memory mock so the UI renders without a

@@ -47,3 +47,11 @@ output "iot_endpoint_cmd" {
   description = "AWS CLI command to get the IoT Core ATS endpoint"
   value       = "aws iot describe-endpoint --endpoint-type iot:Data-ATS --query endpointAddress --output text"
 }
+
+output "ses_dkim_records" {
+  description = "DNS records to add to the alert domain so SES can send alert emails"
+  value = [
+    for t in aws_sesv2_email_identity.alerts.dkim_signing_attributes[0].tokens :
+    "${t}._domainkey.${var.alert_domain} CNAME ${t}.dkim.amazonses.com"
+  ]
+}

@@ -9,6 +9,7 @@ import {
 import { useAuth, ROLE_CFG } from '../contexts/AuthContext.jsx'
 import { currentTheme, nextTheme, applyTheme } from '../theme.js'
 import BrandLogo from './BrandLogo.jsx'
+import AlertsSwitch from './AlertsSwitch.jsx'
 import { useNavMode } from './navMode.js'
 
 const NAV = [
@@ -73,21 +74,25 @@ function SidebarContent({ compact, theme, email, role, allowed, pathname, onNav,
         })}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'center', justifyContent: compact ? 'center' : 'flex-start', gap: compact ? 8 : 10, padding: compact ? '10px 0' : '12px 12px 12px 16px', borderTop: '0.5px solid var(--color-border-tertiary)', flexShrink: 0 }}>
-        <div aria-hidden="true" className={ROLE_CFG[role]?.badge}
-          style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
-          {(email || '?').slice(0, 2).toUpperCase()}
-        </div>
-        {!compact && (
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 13, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</span>
-            <span className={ROLE_CFG[role]?.badge} style={{ fontSize: 12, fontWeight: 600, background: 'none' }}>{ROLE_CFG[role]?.lbl}</span>
+      <div style={{ borderTop: '0.5px solid var(--color-border-tertiary)', flexShrink: 0 }}>
+        {!compact && <AlertsSwitch compact={false} email={email} />}
+        <div style={{ display: 'flex', flexDirection: compact ? 'column' : 'row', alignItems: 'center', justifyContent: compact ? 'center' : 'flex-start', gap: compact ? 8 : 10, padding: compact ? '10px 0' : '12px 12px 12px 16px' }}>
+          <div aria-hidden="true" className={ROLE_CFG[role]?.badge}
+            style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600 }}>
+            {(email || '?').slice(0, 2).toUpperCase()}
           </div>
-        )}
-        <button onClick={onLogout} aria-label="Sign out" title="Sign out"
-          style={{ width: 36, height: 36, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', borderRadius: 8, cursor: 'pointer', color: 'var(--color-text-tertiary)' }}>
-          <IconLogout size={19} aria-hidden="true" />
-        </button>
+          {!compact && (
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 13, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</span>
+              <span className={ROLE_CFG[role]?.badge} style={{ fontSize: 12, fontWeight: 600, background: 'none' }}>{ROLE_CFG[role]?.lbl}</span>
+            </div>
+          )}
+          {compact && <AlertsSwitch compact email={email} />}
+          <button onClick={onLogout} aria-label="Sign out" title="Sign out"
+            style={{ width: 36, height: 36, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', borderRadius: 8, cursor: 'pointer', color: 'var(--color-text-tertiary)' }}>
+            <IconLogout size={19} aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </>
   )

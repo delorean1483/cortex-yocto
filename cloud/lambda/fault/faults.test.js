@@ -8,7 +8,7 @@
 // parseInt(bit, 16). Bit values mirror the Gobi APU REG_FAULT word (config.h).
 
 const assert = require('node:assert');
-const { describeFault } = require('./faults.js');
+const { describeFault, faultEmail } = require('./faults.js');
 
 const cases = [
   ['0x0000', 'No fault'],
@@ -35,5 +35,31 @@ for (const [input, expected] of cases) {
   }
 }
 
-console.log(`\n${cases.length - failed}/${cases.length} passed`);
+// faultEmail: the subject and body fault emails have always had, now built in
+// one place so the per-person mailer sends exactly the same text.
+const TS = Date.UTC(2026, 9, 25, 6, 42);
+const emailChecks = [
+  ['fault email subject and body', () => {
+    const { subject, text } = faultEmail('TRUCK-001', '0x0004', 'running', TS);
+    assert.strictEqual(subject, '[EcoFleet] Fault — TRUCK-001: Low battery voltage');
+    assert.strictEqual(text, [
+      'Unit     : TRUCK-001',
+      'Fault    : 0x0004  (Low battery voltage)',
+      'APU state: running',
+      'Time     : 2026-10-25T06:42:00.000Z',
+    ].join('\n'));
+  }],
+  ['fault-cleared email subject and status line', () => {
+    const { subject, text } = faultEmail('TRUCK-001', '0x0000', 'off', TS);
+    assert.strictEqual(subject, '[EcoFleet] Recovered — TRUCK-001: APU fault cleared');
+    assert.ok(text.includes('Status   : fault cleared (0x0000)'), text);
+  }],
+];
+for (const [name, fn] of emailChecks) {
+  try { fn(); console.log(`  [PASS] ${name}`); }
+  catch (e) { failed++; console.error(`  [FAIL] ${name}: ${e.message}`); }
+}
+
+const total = cases.length + emailChecks.length;
+console.log(`\n${total - failed}/${total} passed`);
 process.exit(failed === 0 ? 0 : 1);
