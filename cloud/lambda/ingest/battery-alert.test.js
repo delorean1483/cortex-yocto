@@ -88,6 +88,26 @@ check('recovery after 10 minutes at or above 12 V, then re-arms', () => {
   assert.deepStrictEqual(down.emails, [{ kind: 'low', v: 11.7, at: 23 * MIN }]);
 });
 
+check('a crank reading at the daily reminder neither goes out nor resets the baseline', () => {
+  // Alerting at 11.4 V. The reading that lands at 24 h is a 9.0 V crank dip;
+  // a real drop to 9.3 V comes at 30 h and must still be emailed.
+  const readings = [
+    ...steady(0, DAILY_MS - 10 * MIN, 10 * MIN, 11.4),
+    { at: DAILY_MS, v: 9.0 },
+    ...steady(DAILY_MS + 20000, 30 * 3600000 - 20000, 10 * MIN, 11.4),
+    ...steady(30 * 3600000, 30 * 3600000 + 15 * MIN, 20000, 9.3),
+  ];
+  const { emails } = feed(readings, alertingAt(11.4));
+  assert.deepStrictEqual(emails.map((e) => [e.kind, e.v]), [['daily', 11.4], ['lower', 9.3]]);
+});
+
+check('a glitch reading that completes a run is not the emailed level', () => {
+  const readings = [...steady(0, HOLD_MS - 20000, 20000, 10.4), { at: HOLD_MS, v: 0.0 }];
+  const { emails, state } = feed(readings, alertingAt(11.5));
+  assert.deepStrictEqual(emails, [{ kind: 'lower', v: 10.4, at: HOLD_MS }]);
+  assert.strictEqual(state.lastV, 10.4, 'the next "still falling" is measured from 10.4 V, not 0 V');
+});
+
 check('replayed rows are ignored', () => {
   const at = 100 * MIN;
   const old = stepBattery(null, { v: 11.0, tsMs: at - 6 * MIN }, at);

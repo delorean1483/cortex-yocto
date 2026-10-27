@@ -29,8 +29,8 @@ const sns = new SNSClient({ region: REGION });
 async function loadState(unit) {
   const { Item } = await ddb.send(new GetCommand({ TableName: BATTERY_ALERTS_TABLE, Key: { unit } }));
   if (!Item) return null;
-  const { ver, alerting, lastV, lastSentMs, runKind, runSinceMs } = Item;
-  return { ver, state: { alerting, lastV, lastSentMs, runKind, runSinceMs } };
+  const { unit: _unit, ver, ...state } = Item;  // every rule field, whatever battery-alert.js keeps
+  return { ver, state };
 }
 
 async function saveState(unit, state, prevVer) {
