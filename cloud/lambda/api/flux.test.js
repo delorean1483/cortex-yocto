@@ -1,7 +1,10 @@
 'use strict';
 // Run: node cloud/lambda/api/flux.test.js
 const assert = require('node:assert');
-const { latestFlux, telemetryFlux, unitsFlux, faultsFlux, clampLimit, UNITS_LOOKBACK } = require('./flux');
+const {
+  latestFlux, telemetryFlux, seriesFlux, seriesPoints, unitsFlux, faultsFlux, clampLimit,
+  UNITS_LOOKBACK, SERIES_FIELDS, MAX_SERIES_POINTS,
+} = require('./flux');
 
 // Index of a pipeline stage in the query text (-1 if absent).
 const at = (q, stage) => q.indexOf(stage);
@@ -26,6 +29,50 @@ const at = (q, stage) => q.indexOf(stage);
   assert.ok(at(q, '|> tail(n: 50)') < at(q, '|> pivot('), 'tail before pivot');
   assert.ok(/limit\(n: 50\)/.test(q), 'final global limit kept');
   assert.ok(at(q, '|> sort(columns: ["_time"], desc: true)') > at(q, '|> group()'), 'newest-first across merged series');
+}
+
+// ── series: chart fields averaged into fixed time buckets over the range ────
+{
+  const q = seriesFlux('TRUCK-001', '-7d', '1h');
+  assert.ok(q.includes('range(start: -7d)'));
+  assert.ok(q.includes('r._measurement == "telemetry" and r.unit == "TRUCK-001"'));
+  for (const f of SERIES_FIELDS) assert.ok(q.includes(`r._field == "${f}"`), `reads ${f}`);
+  assert.ok(!q.includes('heater'), 'only the chart fields are read, not all ~50');
+  // Sum and count per series per bucket, both pushed down to storage. Enum tags
+  // split a field into several series; the API adds the partials up, so a bucket
+  // where the state changed is weighted by points, not by series.
+  assert.ok(q.includes('aggregateWindow(every: 1h, fn: sum, createEmpty: false, timeSrc: "_start")'));
+  assert.ok(q.includes('aggregateWindow(every: 1h, fn: count, createEmpty: false, timeSrc: "_start")'));
+  assert.ok(q.includes('set(key: "agg", value: "sum")') && q.includes('set(key: "agg", value: "count")'),
+    'rows say which partial they are');
+  // union() rejects mixed _value types (rpm sums and all counts are int, batt_v
+  // sums are float): InfluxDB 2.7 "schema collision detected".
+  assert.strictEqual(q.split('|> toFloat()').length - 1, 2, 'both partials cast to float before the union');
+  assert.ok(at(q, 'union(') < at(q, '|> toFloat()') && q.lastIndexOf('|> toFloat()') < at(q, '|> keep('),
+    'cast happens inside the union inputs');
+  // A source shared by both partials (a `data =` variable) stops InfluxDB pushing
+  // the window aggregate down to storage: every raw point would reach the Flux
+  // engine. Each partial reads its own source, filtered the same way.
+  assert.strictEqual(q.split('from(bucket: "telemetry")').length - 1, 2, 'one source per partial');
+  assert.strictEqual(q.split('r.unit == "TRUCK-001"').length - 1, 2, 'both sources filtered to the unit');
+  assert.ok(!q.includes('fn: mean'), 'no mean of per-series means');
+  assert.ok(!q.includes('pivot('), 'no pivot: the API folds the partials');
+  assert.ok(!/limit\(/.test(q), 'no row limit: the bucket size bounds the row count');
+}
+
+// ── series: bucket count bounded, inputs validated ──────────────────────────
+{
+  assert.strictEqual(seriesPoints('-1h', '1m'), 60);
+  assert.strictEqual(seriesPoints('-24h', '15m'), 96);
+  assert.strictEqual(seriesPoints('-7d', '1h'), 168);
+  assert.strictEqual(seriesPoints('-30d', '6h'), 120);
+  assert.ok(MAX_SERIES_POINTS >= 168 && MAX_SERIES_POINTS <= 1000);
+  assert.throws(() => seriesFlux('U', '-30d', '1m'), /buckets/, '43,200 buckets is too many');
+  assert.throws(() => seriesFlux('U', '-7d', '1h) |> drop('), /every/, 'bucket size is validated');
+  assert.throws(() => seriesFlux('U', '-7d', '0m'), /every/, 'zero-length bucket');
+  assert.throws(() => seriesFlux('U', '-7d', '30s'), /every/, 'sub-minute buckets not offered');
+  assert.throws(() => seriesFlux('U', '-1h) |> drop(', '1m'), /start/, 'range start is validated');
+  assert.ok(seriesFlux('A"B', '-1h', '1m').includes('r.unit == "AB"'), 'quote stripped');
 }
 
 // ── injection guard: quotes stripped from the unit id, range must be relative ─
