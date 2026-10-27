@@ -75,6 +75,8 @@ const delay = (v) => new Promise((res) => setTimeout(() => res(v), 120))
 // device shadow's reported.heater_desired_seq).
 const HEATER_SEQ = {}
 
+let MY_ALERTS = false
+
 let USERS = [
   { email: 'admin@ecofleet.io', role: 'admin', fleet: '—', status: 'active' },
   { email: 'mgr@fleet1.com', role: 'fm', fleet: 'FLEET-001', status: 'active' },
@@ -206,4 +208,7 @@ export const mockApi = {
     { unit, date: '2026-05-10', type: 'inspection', tech: 'L. Chen', status: 'done' },
   ] }),
   addMaintenance: (rec) => delay({ ok: true, record: rec }),
+
+  getMyAlerts: () => delay({ email: 'admin@ecofleet.io', email_alerts: MY_ALERTS }),
+  setMyAlerts: (on) => { MY_ALERTS = on; return delay({ email: 'admin@ecofleet.io', email_alerts: on }) },
 }

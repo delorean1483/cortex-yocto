@@ -9,6 +9,9 @@ vi.mock('../contexts/AuthContext.jsx', () => ({
   ROLE_CFG: { admin: { lbl: 'EcoFleet Admin', badge: 'rb-admin', nav: ['/', '/map', '/alerts', '/config'] } },
 }))
 
+// The alerts switch needs react-query; it has its own tests (AlertsSwitch.test.jsx).
+vi.mock('./AlertsSwitch.jsx', () => ({ default: () => null }))
+
 import Layout from './Layout.jsx'
 
 function setWidth(w) {

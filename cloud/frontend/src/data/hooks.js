@@ -77,6 +77,22 @@ export function useCommand() {
   })
 }
 
+// The signed-in person's own email-alerts preference (side menu switch).
+export function useMyAlerts() {
+  return useQuery({
+    queryKey: ['me', 'alerts'],
+    queryFn: () => api.getMyAlerts(),
+  })
+}
+
+export function useSetMyAlerts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (on) => api.setMyAlerts(on),
+    onSuccess: (data) => qc.setQueryData(['me', 'alerts'], data),
+  })
+}
+
 // Assigned map locations for every unit (Fleet map).
 export function useLocations() {
   return useQuery({
