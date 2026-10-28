@@ -8,9 +8,10 @@
 //
 //   io = { loadState(unit) -> { state, ver } | null,
 //          saveState(unit, state, prevVer | null) -> true | false (lost the race),
-//          sendAlert({ subject, text }) }
+//          sendAlert({ subject, text }) -> { via, sent, failed } }
 
 const { stepBattery, batteryEmail } = require('./battery-alert');
+const { ALERT_FAILED } = require('./alert-mail');
 
 async function checkBattery(msg, nowMs, io, dashboardUrl) {
   try {
@@ -19,10 +20,10 @@ async function checkBattery(msg, nowMs, io, dashboardUrl) {
     if (!changed) return { email: null };
     if (!(await io.saveState(msg.unit, state, stored ? stored.ver : null))) return { email: null };
     if (!email) return { email: null };
-    await io.sendAlert(batteryEmail(email.kind, msg.unit, email.v, nowMs, dashboardUrl));
-    return { email: email.kind };
+    const delivery = await io.sendAlert(batteryEmail(email.kind, msg.unit, email.v, nowMs, dashboardUrl));
+    return { email: email.kind, delivery };
   } catch (e) {
-    return { email: null, error: `battery alert for ${msg.unit} failed: ${e.message}` };
+    return { email: null, error: `${ALERT_FAILED}: battery alert for ${msg.unit}: ${e.message}` };
   }
 }
 

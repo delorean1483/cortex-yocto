@@ -96,8 +96,8 @@ exports.handler = async (event) => {
     lastFault,
     writeFault,
     sendAlert: async (m) => {
-      const { via, sent } = await sendAlert(m, mailIo, { alertFrom: ALERT_FROM, dashboardUrl: DASHBOARD_URL });
-      console.log(`Fault email "${m.subject}" via=${via} sent=${sent}`);
+      const { via, sent, failed } = await sendAlert(m, mailIo, { alertFrom: ALERT_FROM, dashboardUrl: DASHBOARD_URL });
+      console.log(`Fault email "${m.subject}" via=${via} sent=${sent} failed=${failed.length}`);
     },
   }, DASHBOARD_URL, Date.now());
 };

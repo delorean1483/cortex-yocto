@@ -3,9 +3,12 @@
 const assert = require('node:assert');
 const { checkBattery } = require('./battery-check');
 const { batteryEmail, INITIAL_STATE, HOLD_MS } = require('./battery-alert');
+const { ALERT_FAILED } = require('./alert-mail');
 
 const URL = 'https://dash.example';
 const NOW = Date.UTC(2026, 9, 25, 6, 42);
+// What sendAlert reports back (alert-mail.js).
+const DELIVERY = { via: 'ses', sent: 1, failed: [] };
 
 let failed = 0;
 const check = async (name, fn) => {
@@ -28,7 +31,7 @@ function memoryIo(initial = null) {
         store.item = { state, ver: (prevVer ?? 0) + 1 };
         return true;
       },
-      sendAlert: async (m) => { sent.push(m); },
+      sendAlert: async (m) => { sent.push(m); return DELIVERY; },
     },
   };
 }
@@ -44,7 +47,7 @@ const reading = (batt_v) => ({ unit: 'TRUCK-001', batt_v, ts: NOW });
     assert.deepStrictEqual(sent, [batteryEmail('low', 'TRUCK-001', 11.8, NOW, URL)]);
     assert.strictEqual(store.item.ver, 2);
     assert.strictEqual(store.item.state.alerting, true);
-    assert.deepStrictEqual(res, { email: 'low' });
+    assert.deepStrictEqual(res, { email: 'low', delivery: DELIVERY });
   });
 
   await check('no write when the rule reports no change', async () => {
@@ -72,13 +75,12 @@ const reading = (batt_v) => ({ unit: 'TRUCK-001', batt_v, ts: NOW });
     assert.strictEqual(sent.length, 1);
   });
 
-  await check('failures are swallowed', async () => {
+  await check('failures are swallowed and carry the alarm tag', async () => {
     for (const broken of ['loadState', 'saveState', 'sendAlert']) {
       const { io } = memoryIo(HELD_LOW);
       io[broken] = async () => { throw new Error(`${broken} down`); };
       const res = await checkBattery(reading(11.8), NOW, io, URL);
-      assert.strictEqual(typeof res.error, 'string', broken);
-      assert.ok(res.error.includes(`${broken} down`), res.error);
+      assert.strictEqual(res.error, `${ALERT_FAILED}: battery alert for TRUCK-001: ${broken} down`, broken);
     }
   });
 

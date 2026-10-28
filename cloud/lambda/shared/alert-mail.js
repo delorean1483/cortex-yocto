@@ -13,6 +13,11 @@
 // SES sandbox), alerts go to the SNS topic exactly as fault emails always have.
 // Once it is set, each person who turned email alerts on gets their own copy.
 
+// Every log line about an alert email that may not have gone out starts with
+// this tag. A CloudWatch metric filter counts those lines in both Lambdas'
+// logs and alarms on any (terraform/monitoring.tf, alert_failed_marker).
+const ALERT_FAILED = 'ALERT EMAIL FAILED';
+
 function recipientsFrom(items) {
   const emails = (items || [])
     .filter((u) => u && u.email_alerts === true && typeof u.email === 'string' && u.email)
@@ -38,7 +43,7 @@ async function sendAlert({ subject, text }, io, cfg) {
   results.forEach((r, i) => {
     if (r.status === 'rejected') {
       failed.push(to[i]);
-      console.error(`Alert email to ${to[i]} failed:`, r.reason && r.reason.message);
+      console.error(`${ALERT_FAILED}: to ${to[i]}: ${r.reason && r.reason.message}`);
     }
   });
   return { via: 'ses', sent: to.length - failed.length, failed };
@@ -65,4 +70,4 @@ function centralTime(ms) {
   }).replace(/ /g, ' ');
 }
 
-module.exports = { recipientsFrom, withFooter, sendAlert, sesEmailInput, centralTime };
+module.exports = { recipientsFrom, withFooter, sendAlert, sesEmailInput, centralTime, ALERT_FAILED };

@@ -5,6 +5,7 @@ const assert = require('node:assert');
 const {
   parseFault, faultFields, alertKind, faultEmail, handleFault, STANDBY,
 } = require('./fault-alert');
+const { ALERT_FAILED } = require('./alert-mail');
 
 const URL = 'https://dash.example';
 const TS = Date.UTC(2026, 9, 25, 6, 42);   // Oct 25, 2026, 1:42 AM CDT
@@ -22,6 +23,15 @@ const msg = (error_n, ts = TS, status = 'off') =>
   ({ unit: 'TRUCK-001', ts, error: ERROR_LABEL[error_n] || 'unknown', error_n, status });
 const ev = (code, tsMs = TS) => parseFault(msg(code, tsMs), 0);
 const prev = (code, tsMs = TS - MIN) => ({ code, tsMs });
+
+// The console.error lines logged while fn runs.
+async function errorsDuring(fn) {
+  const lines = [];
+  const original = console.error;
+  console.error = (...args) => lines.push(args.join(' '));
+  try { await fn(); } finally { console.error = original; }
+  return lines;
+}
 
 // The faults bucket for one unit, newest-at-or-before lookups like the Flux query.
 function memoryIo() {
@@ -185,13 +195,15 @@ function memoryIo() {
     assert.deepStrictEqual(res, { dropped: true });
   });
 
-  await check('an email failure keeps the record and does not throw', async () => {
+  await check('an email failure keeps the record, does not throw, and logs the alarm tag', async () => {
     const { io, records } = memoryIo();
     io.sendAlert = async () => { throw new Error('SNS down'); };
-    const res = await handleFault(msg(1), io, URL, 0);
+    let res;
+    const errors = await errorsDuring(async () => { res = await handleFault(msg(1), io, URL, 0); });
     assert.strictEqual(records.length, 1);
     assert.strictEqual(res.email, 'fault');
     assert.ok(res.error.includes('SNS down'), res.error);
+    assert.deepStrictEqual(errors, [`${ALERT_FAILED}: fault email for TRUCK-001: SNS down`]);
   });
 
   await check('a lookup or write failure throws, so the Lambda retries before any email', async () => {
