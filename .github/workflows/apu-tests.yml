@@ -24,6 +24,13 @@ jobs:
       - name: Fault event rule tests
         working-directory: cloud/lambda/fault
         run: node fault-alert.test.js
+      # No npm deps: these only require local files.
+      - name: Alert email tests
+        working-directory: cloud/lambda/shared
+        run: node alert-mail.test.js
+      - name: Low-battery rule tests
+        working-directory: cloud/lambda/ingest
+        run: node battery-alert.test.js && node battery-check.test.js
 
   apu-simulator:
     name: APU simulator matrix (Python)

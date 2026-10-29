@@ -1,6 +1,6 @@
 'use strict';
 
-const { centralTime } = require('./alert-mail');
+const { centralTime, ALERT_FAILED } = require('./alert-mail');
 
 // APU fault events: what gobi-agent publishes on ecofleet/<serial>/faults
 // (cloud/CONTRACT.md §2) -> one InfluxDB record per change, and an email when a
@@ -122,7 +122,7 @@ async function handleFault(msg, io, dashboardUrl, nowMs) {
     await io.sendAlert(faultEmail(kind, ev, prev, dashboardUrl));
     return { email: kind };
   } catch (err) {
-    console.error('Fault email failed (record already written):', err.message);
+    console.error(`${ALERT_FAILED}: fault email for ${ev.unit}: ${err.message}`);  // record already written
     return { email: kind, error: err.message };
   }
 }

@@ -1,13 +1,26 @@
 'use strict';
 // Run: node cloud/lambda/shared/alert-mail.test.js
 const assert = require('node:assert');
-const { recipientsFrom, withFooter, sendAlert, sesEmailInput, centralTime } = require('./alert-mail');
+const fs = require('node:fs');
+const path = require('node:path');
+const {
+  recipientsFrom, withFooter, sendAlert, sesEmailInput, centralTime, ALERT_FAILED,
+} = require('./alert-mail');
 
 let failed = 0;
 const check = async (name, fn) => {
   try { await fn(); console.log(`  [PASS] ${name}`); }
   catch (e) { failed++; console.error(`  [FAIL] ${name}: ${e.message}`); }
 };
+
+// The console.error lines logged while fn runs.
+async function errorsDuring(fn) {
+  const lines = [];
+  const original = console.error;
+  console.error = (...args) => lines.push(args.join(' '));
+  try { await fn(); } finally { console.error = original; }
+  return lines;
+}
 
 // Records every call; `reject` lists addresses whose sendEmail fails.
 function fakeIo(users = [], reject = []) {
@@ -58,9 +71,22 @@ const optedIn = (email) => ({ email, email_alerts: true });
 
   await check('one rejected address does not stop the others', async () => {
     const { io, calls } = fakeIo([optedIn('bad@x'), optedIn('good@x')], ['bad@x']);
-    const res = await sendAlert({ subject: 'S', text: 'T' }, io, CFG);
+    let res;
+    const errors = await errorsDuring(async () => { res = await sendAlert({ subject: 'S', text: 'T' }, io, CFG); });
     assert.strictEqual(calls.sendEmail.length, 2);
     assert.deepStrictEqual(res, { via: 'ses', sent: 1, failed: ['bad@x'] });
+    assert.deepStrictEqual(errors, ['ALERT EMAIL FAILED: to bad@x: MessageRejected']);
+  });
+
+  // terraform/monitoring.tf counts log lines carrying this tag and alarms on
+  // any; if the two drift apart the alarm silently stops firing.
+  await check('the CloudWatch metric filter counts the same tag the code logs', () => {
+    assert.strictEqual(ALERT_FAILED, 'ALERT EMAIL FAILED');
+    const tf = fs.readFileSync(path.join(__dirname, '../../terraform/monitoring.tf'), 'utf8');
+    const marker = tf.match(/alert_failed_marker\s*=\s*"([^"]*)"/);
+    assert.ok(marker, 'alert_failed_marker not found in monitoring.tf');
+    assert.strictEqual(marker[1], ALERT_FAILED);
+    assert.match(tf, /pattern\s*=\s*"\\"\$\{local\.alert_failed_marker\}\\""/);
   });
 
   await check('nobody opted in sends nothing', async () => {

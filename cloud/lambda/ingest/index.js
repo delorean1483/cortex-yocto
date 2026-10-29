@@ -128,5 +128,8 @@ exports.handler = async (event) => {
   // IoT retry a reading that is already stored.
   const battery = await checkBattery(msg, Date.now(), batteryIo, DASHBOARD_URL);
   if (battery.error) console.error(battery.error);
-  else if (battery.email) console.log(`Battery alert sent: unit=${msg.unit} kind=${battery.email}`);
+  else if (battery.email) {
+    const { via, sent, failed } = battery.delivery;
+    console.log(`Battery alert: unit=${msg.unit} kind=${battery.email} via=${via} sent=${sent} failed=${failed.length}`);
+  }
 };
