@@ -6,6 +6,7 @@ import ConfirmDialog from '../components/ConfirmDialog.jsx'
 import FilterChips from '../components/FilterChips.jsx'
 import SearchInput from '../components/SearchInput.jsx'
 import { userStatusView, assignableRoles } from '../api/contract.js'
+import { passwordProblem, generatePassword, PASSWORD_HINT } from '../api/password.js'
 
 const ROLE_ORDER = ['admin', 'fm', 'maint', 'eu']
 
@@ -21,6 +22,8 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState('all')
   const [roleEdit, setRoleEdit] = useState(null)   // { email, role } pending role change
   const [roleSaving, setRoleSaving] = useState(false)
+  const [pwEdit, setPwEdit]     = useState(null)   // { email, password } pending password reset
+  const [pwSaving, setPwSaving] = useState(false)
 
   // Create form
   const [fEmail, setFEmail]     = useState('')
@@ -77,6 +80,22 @@ export default function UsersPage() {
     }
   }
 
+  async function doSetPassword() {
+    const { email, password } = pwEdit
+    setPwSaving(true)
+    setMsg('')
+    try {
+      await api.setUserPassword(email, password)
+      setMsg(`Password for ${email} updated. Share it with them directly.`)
+      setTimeout(() => setMsg(''), 6000)
+    } catch (err) {
+      setMsg(`Error: ${err.message}`)
+    } finally {
+      setPwSaving(false)
+      setPwEdit(null)
+    }
+  }
+
   async function doDelete() {
     const email = delEmail
     setDeleting(true)
@@ -93,6 +112,8 @@ export default function UsersPage() {
       setDelEmail(null)
     }
   }
+
+  const pwProblem = pwEdit ? passwordProblem(pwEdit.password) : null
 
   const needle = q.trim().toLowerCase()
   const visible = users.filter(u =>
@@ -201,6 +222,10 @@ export default function UsersPage() {
                               onClick={() => setRoleEdit({ email: u.email, role: u.role })}>
                               Change role
                             </button>
+                            <button className="btn btn-sm" aria-label={`Reset password for ${u.email}`}
+                              onClick={() => setPwEdit({ email: u.email, password: generatePassword() })}>
+                              Reset password
+                            </button>
                             <button className="btn btn-sm btn-red" aria-label={`Delete ${u.email}`}
                               onClick={() => setDelEmail(u.email)}>
                               <IconTrash size={16} />
@@ -233,6 +258,39 @@ export default function UsersPage() {
         pending={roleSaving}
         onConfirm={doRoleChange}
         onCancel={() => setRoleEdit(null)}
+      />
+
+      <ConfirmDialog
+        open={!!pwEdit}
+        title="Reset password"
+        body={pwEdit && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="field">
+              <label htmlFor="pw-edit">New password</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input id="pw-edit" className="control" type="text" autoComplete="off" spellCheck={false}
+                  style={{ flex: 1, minWidth: 0 }} value={pwEdit.password}
+                  onChange={e => setPwEdit({ ...pwEdit, password: e.target.value })} />
+                <button type="button" className="btn"
+                  onClick={() => setPwEdit({ ...pwEdit, password: generatePassword() })}>
+                  Generate
+                </button>
+              </div>
+            </div>
+            <div style={{ fontSize: 14, color: pwProblem ? 'var(--err)' : 'var(--color-text-tertiary)' }}>
+              {pwProblem || PASSWORD_HINT}
+            </div>
+            <div>
+              For {pwEdit.email}. Works right away; copy it and share it with them directly.
+              They can choose their own later with "Forgot password?" on the sign-in page.
+            </div>
+          </div>
+        )}
+        confirmLabel="Set password"
+        confirmDisabled={!!pwProblem}
+        pending={pwSaving}
+        onConfirm={doSetPassword}
+        onCancel={() => setPwEdit(null)}
       />
 
       <ConfirmDialog

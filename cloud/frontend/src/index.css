@@ -219,6 +219,8 @@ button { font-family: inherit; }
 .panel { flex-shrink: 0; }
 .panel-x { overflow-x: auto; }
 a.btn, a.btn:hover { text-decoration: none; }
+.text-link { background: none; border: 0; padding: 0; font: inherit; font-size: 14px; font-weight: 500; color: var(--accent-text); text-decoration: none; cursor: pointer; }
+.text-link:hover { text-decoration: underline; }
 .attn-row { display: flex; align-items: center; gap: 16px; padding: 12px 18px; border-top: 1px solid var(--color-border-tertiary); }
 .attn-row:first-child { border-top: 0; }
 .attn-title { font-size: 15px; font-weight: 600; }

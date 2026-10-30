@@ -75,6 +75,12 @@ export const realApi = {
   login: (email, password) =>
     apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 
+  // Forgot password: Cognito emails a code, then the code sets a new password.
+  forgotPassword: (email) =>
+    apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: ({ email, code, password }) =>
+    apiFetch('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email, code, password }) }),
+
   listUnits: () => apiFetch('/fleet/units'),
 
   getTelemetry: (unit, params = {}) => {
@@ -119,6 +125,9 @@ export const realApi = {
 
   updateUser: (email, patch) =>
     apiFetch(`/fleet/users/${encodeURIComponent(email)}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+
+  setUserPassword: (email, password) =>
+    apiFetch(`/fleet/users/${encodeURIComponent(email)}/password`, { method: 'POST', body: JSON.stringify({ password }) }),
 
   getReports: (params = {}) => {
     const qs = new URLSearchParams(params).toString()
