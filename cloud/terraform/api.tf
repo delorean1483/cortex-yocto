@@ -32,6 +32,19 @@ resource "aws_apigatewayv2_route" "auth_refresh" {
   target    = "integrations/${aws_apigatewayv2_integration.api.id}"
 }
 
+# Forgot password: email a code, then the code + a new password (no sign-in)
+resource "aws_apigatewayv2_route" "auth_forgot_password" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /auth/forgot-password"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "auth_reset_password" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /auth/reset-password"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
 resource "aws_apigatewayv2_route" "fleet_units" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "GET /fleet/units"
@@ -139,6 +152,12 @@ resource "aws_apigatewayv2_route" "fleet_users_update" {
 resource "aws_apigatewayv2_route" "fleet_users_delete" {
   api_id    = aws_apigatewayv2_api.main.id
   route_key = "DELETE /fleet/users/{email}"
+  target    = "integrations/${aws_apigatewayv2_integration.api.id}"
+}
+
+resource "aws_apigatewayv2_route" "fleet_users_password" {
+  api_id    = aws_apigatewayv2_api.main.id
+  route_key = "POST /fleet/users/{email}/password"
   target    = "integrations/${aws_apigatewayv2_integration.api.id}"
 }
 

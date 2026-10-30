@@ -24,3 +24,28 @@ describe('api.sendCommand', () => {
     expect(JSON.parse(opts.body)).toEqual({ heater: { on: 1 } })
   })
 })
+
+describe('password reset calls', () => {
+  it('forgotPassword POSTs the email', async () => {
+    await api.forgotPassword('a@b.co')
+    const [url, opts] = global.fetch.mock.calls[0]
+    expect(url).toMatch(/\/auth\/forgot-password$/)
+    expect(opts.method).toBe('POST')
+    expect(JSON.parse(opts.body)).toEqual({ email: 'a@b.co' })
+  })
+
+  it('resetPassword POSTs email, code and new password', async () => {
+    await api.resetPassword({ email: 'a@b.co', code: '123456', password: 'Abcdefgh123!' })
+    const [url, opts] = global.fetch.mock.calls[0]
+    expect(url).toMatch(/\/auth\/reset-password$/)
+    expect(JSON.parse(opts.body)).toEqual({ email: 'a@b.co', code: '123456', password: 'Abcdefgh123!' })
+  })
+
+  it('setUserPassword POSTs to the user, email encoded in the path', async () => {
+    await api.setUserPassword('a+x@b.co', 'Abcdefgh123!')
+    const [url, opts] = global.fetch.mock.calls[0]
+    expect(url).toMatch(/\/fleet\/users\/a%2Bx%40b\.co\/password$/)
+    expect(opts.method).toBe('POST')
+    expect(JSON.parse(opts.body)).toEqual({ password: 'Abcdefgh123!' })
+  })
+})

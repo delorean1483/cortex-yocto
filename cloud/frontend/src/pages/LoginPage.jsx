@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api/client.js'
 import { useAuth } from '../contexts/AuthContext.jsx'
-import { IconAlertCircle } from '@tabler/icons-react'
-import BrandLogo from '../components/BrandLogo.jsx'
+import AuthCard, { AuthError, AuthNotice } from '../components/AuthCard.jsx'
 
 export default function LoginPage() {
-  const [email, setEmail]       = useState('')
+  // Arriving from a password reset: { notice, email }
+  const { state } = useLocation()
+  const [email, setEmail]       = useState(state?.email || '')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
@@ -29,45 +30,39 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-background-secondary)' }}>
-      <div style={{ width: 400, maxWidth: 'calc(100vw - 32px)', background: 'var(--color-background-primary)', border: '1px solid var(--color-border-secondary)', borderRadius: 14, padding: '36px 36px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-          <BrandLogo height={60} />
-          <div style={{ fontSize: 15, color: 'var(--color-text-secondary)' }}>Fleet management dashboard</div>
+    <AuthCard subtitle="Fleet management dashboard">
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {state?.notice && !error && <AuthNotice>{state.notice}</AuthNotice>}
+
+        <div className="field">
+          <label htmlFor="login-email">Email</label>
+          <input
+            id="login-email" className="control" style={{ minHeight: 44 }}
+            type="email" required autoFocus
+            value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="login-password">Password</label>
+          <input
+            id="login-password" className="control" style={{ minHeight: 44 }}
+            type="password" required
+            value={password} onChange={e => setPassword(e.target.value)}
+            placeholder="••••••••"
+          />
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className="field">
-            <label htmlFor="login-email">Email</label>
-            <input
-              id="login-email" className="control" style={{ minHeight: 44 }}
-              type="email" required autoFocus
-              value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="login-password">Password</label>
-            <input
-              id="login-password" className="control" style={{ minHeight: 44 }}
-              type="password" required
-              value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-            />
-          </div>
+        {error && <AuthError>{error}</AuthError>}
 
-          {error && (
-            <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'var(--err)', padding: '10px 12px', background: 'var(--err-soft)', borderRadius: 8 }}>
-              <IconAlertCircle size={18} stroke={1.75} style={{ flexShrink: 0 }} />
-              <span>{error}</span>
-            </div>
-          )}
+        <button type="submit" disabled={loading} className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center' }}>
+          {loading ? 'Signing in…' : 'Sign in'}
+        </button>
 
-          <button type="submit" disabled={loading} className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center' }}>
-            {loading ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
-      </div>
-    </div>
+        <Link to="/forgot-password" state={{ email }} className="text-link" style={{ alignSelf: 'center' }}>
+          Forgot password?
+        </Link>
+      </form>
+    </AuthCard>
   )
 }

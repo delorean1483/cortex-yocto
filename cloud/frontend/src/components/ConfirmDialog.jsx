@@ -1,5 +1,5 @@
 // In-app confirmation modal for write actions (no browser confirm()/alert()).
-export default function ConfirmDialog({ open, title, body, confirmLabel = 'Confirm', danger, onConfirm, onCancel, pending }) {
+export default function ConfirmDialog({ open, title, body, confirmLabel = 'Confirm', danger, onConfirm, onCancel, pending, confirmDisabled }) {
   if (!open) return null
   return (
     <div onClick={onCancel} style={{
@@ -12,7 +12,7 @@ export default function ConfirmDialog({ open, title, body, confirmLabel = 'Confi
         <div style={{ fontSize: 15, color: 'var(--color-text-secondary)', marginBottom: 20, lineHeight: 1.5 }}>{body}</div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button className="btn" onClick={onCancel} disabled={pending}>Cancel</button>
-          <button className={`btn ${danger ? 'btn-red' : 'btn-primary'}`} onClick={onConfirm} disabled={pending}>
+          <button className={`btn ${danger ? 'btn-red' : 'btn-primary'}`} onClick={onConfirm} disabled={pending || confirmDisabled}>
             {pending ? 'Sending…' : confirmLabel}
           </button>
         </div>

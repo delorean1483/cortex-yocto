@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx'
 import Layout from './components/Layout.jsx'
 import LoginPage from './pages/LoginPage.jsx'
+import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
 import { lazyPage } from './components/lazyPage.js'
 
 // Each page is its own chunk, so the first load only fetches the shell and the
@@ -30,6 +31,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/*" element={
             <Protected>
               <Layout>

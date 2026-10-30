@@ -66,7 +66,9 @@ resource "aws_iam_role_policy" "lambda" {
         Action = [
           "cognito-idp:GetUser",
           "cognito-idp:AdminGetUser",
-          "cognito-idp:InitiateAuth"
+          "cognito-idp:InitiateAuth",
+          "cognito-idp:ForgotPassword",
+          "cognito-idp:ConfirmForgotPassword"
         ]
         Resource = aws_cognito_user_pool.main.arn
       }

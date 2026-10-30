@@ -13,8 +13,8 @@ vi.mock('../contexts/AuthContext.jsx', () => ({
 import { api } from '../api/client.js'
 import LoginPage from './LoginPage.jsx'
 
-function setup() {
-  return render(<MemoryRouter><LoginPage /></MemoryRouter>)
+function setup(state) {
+  return render(<MemoryRouter initialEntries={[{ pathname: '/login', state }]}><LoginPage /></MemoryRouter>)
 }
 
 describe('LoginPage', () => {
@@ -34,5 +34,16 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('Incorrect username or password.')
+  })
+
+  it('has a Forgot password? link to the reset page', () => {
+    setup()
+    expect(screen.getByRole('link', { name: 'Forgot password?' }).getAttribute('href')).toBe('/forgot-password')
+  })
+
+  it('after a reset, shows the notice and fills in the email', () => {
+    setup({ notice: 'Password changed. Sign in with your new password.', email: 'a@b.co' })
+    expect(screen.getByRole('status').textContent).toContain('Password changed.')
+    expect(screen.getByLabelText('Email').value).toBe('a@b.co')
   })
 })

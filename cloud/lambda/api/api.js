@@ -2,6 +2,7 @@
 
 const { SecretsManagerClient, GetSecretValueCommand }             = require('@aws-sdk/client-secrets-manager');
 const { CognitoIdentityProviderClient, InitiateAuthCommand,
+        ForgotPasswordCommand, ConfirmForgotPasswordCommand,
         AdminCreateUserCommand, AdminDeleteUserCommand,
         AdminSetUserPasswordCommand, ListUsersCommand }            = require('@aws-sdk/client-cognito-identity-provider');
 const { IoTDataPlaneClient, GetThingShadowCommand,
@@ -24,6 +25,9 @@ const { bucketMeans }                                              = require('./
 const { validateLocation, mergeLocations, locationShadowDesired,
         unitSupportsLocation, LOCATION_MIN_FW, scanAllPages }        = require('./locations-view');
 const { parseAlertsBody }                                          = require('./me-alerts');
+const { parseForgotBody, parseResetBody, parseSetPasswordBody,
+        forgotErrorReply, resetErrorReply, setPasswordErrorReply,
+        FORGOT_SENT }                                               = require('./password-reset');
 
 // ── Environment ───────────────────────────────────────────────────────────────
 const REGION            = process.env.AWS_REGION || 'us-east-1';
@@ -187,6 +191,40 @@ async function handleRefresh(event) {
   const token  = jwt.sign({ email, sub: email, role }, secret, { expiresIn: JWT_EXPIRY });
 
   return resp(200, { token, expires_in: 3600 });
+}
+
+// POST /auth/forgot-password — Cognito emails the person a reset code
+async function handleForgotPassword(event) {
+  const parsed = parseForgotBody(event.body);
+  if (parsed.error) return err(400, parsed.error);
+  try {
+    await cognito.send(new ForgotPasswordCommand({ ClientId: CLIENT_ID, Username: parsed.email }));
+  } catch (e) {
+    const r = forgotErrorReply(e);
+    if (!r) throw e;
+    if (r.status === 200) console.warn('forgot-password not sent:', e.name);
+    return resp(r.status, r.body);
+  }
+  return resp(200, FORGOT_SENT);
+}
+
+// POST /auth/reset-password — the emailed code + a new password
+async function handleResetPassword(event) {
+  const parsed = parseResetBody(event.body);
+  if (parsed.error) return err(400, parsed.error);
+  try {
+    await cognito.send(new ConfirmForgotPasswordCommand({
+      ClientId:         CLIENT_ID,
+      Username:         parsed.email,
+      ConfirmationCode: parsed.code,
+      Password:         parsed.password,
+    }));
+  } catch (e) {
+    const r = resetErrorReply(e);
+    if (!r) throw e;
+    return resp(r.status, r.body);
+  }
+  return resp(200, { message: 'Password changed.' });
 }
 
 // GET /fleet/units
@@ -560,6 +598,30 @@ async function handleCreateUser(event, claims) {
   return resp(201, { email, role, message: 'User created.' });
 }
 
+// POST /fleet/users/{email}/password  (admin only) — set someone's password
+async function handleSetUserPassword(event, claims) {
+  requireRole(claims, 'admin');
+
+  const email = decodeURIComponent((event.pathParameters || {}).email || '');
+  if (!email) return err(400, 'email path parameter required');
+  const parsed = parseSetPasswordBody(event.body);
+  if (parsed.error) return err(400, parsed.error);
+
+  try {
+    await cognito.send(new AdminSetUserPasswordCommand({
+      UserPoolId: POOL_ID,
+      Username:   email,
+      Password:   parsed.password,
+      Permanent:  true,
+    }));
+  } catch (e) {
+    const r = setPasswordErrorReply(e);
+    if (!r) throw e;
+    return resp(r.status, r.body);
+  }
+  return resp(200, { email, message: 'Password updated.' });
+}
+
 // DELETE /fleet/users/{email}  (admin only)
 async function handleDeleteUser(event, claims) {
   requireRole(claims, 'admin');
@@ -765,6 +827,8 @@ exports.handler = async (event) => {
     // Public routes
     if (method === 'POST' && path.endsWith('/auth/login'))   return await handleLogin(event);
     if (method === 'POST' && path.endsWith('/auth/refresh')) return await handleRefresh(event);
+    if (method === 'POST' && path.endsWith('/auth/forgot-password')) return await handleForgotPassword(event);
+    if (method === 'POST' && path.endsWith('/auth/reset-password'))  return await handleResetPassword(event);
 
     // Protected routes
     const claims = await authenticate(event);
@@ -796,6 +860,7 @@ exports.handler = async (event) => {
     }
 
     if (path.includes('/fleet/users/')) {
+      if (method === 'POST' && path.endsWith('/password')) return await handleSetUserPassword(event, claims);
       if (method === 'DELETE') return await handleDeleteUser(event, claims);
       if (method === 'PATCH')  return await handleUpdateUser(event, claims);
     }

@@ -113,6 +113,8 @@ export const mockApi = {
   clearLocation: (unit) => { delete LOCATIONS[unit]; return delay({ unit, cleared: true }) },
   login: (email) => delay({ token: fakeJwt(email || 'demo@ecofleet.io', 'admin'),
     refresh_token: 'mock-rt', expires_in: 3600 }),
+  forgotPassword: () => delay({ message: 'If that email has an account, a reset code is on its way.' }),
+  resetPassword: () => delay({ message: 'Password changed.' }),
 
   listUnits: () => delay({ units: [
     { unit: REAL_UNIT, demo: false },
@@ -202,6 +204,7 @@ export const mockApi = {
   createUser: (u) => { USERS = [...USERS, { status: 'invited', fleet: '—', ...u }]; return delay({ ok: true }) },
   updateUser: (email, patch) => { USERS = USERS.map((x) => x.email === email ? { ...x, ...patch } : x); return delay({ ok: true }) },
   deleteUser: (email) => { USERS = USERS.filter((x) => x.email !== email); return delay({ ok: true }) },
+  setUserPassword: (email) => delay({ email, message: 'Password updated.' }),
 
   getMaintenance: (unit) => delay({ unit, records: [
     { unit, date: '2026-05-24', type: 'oil_change', tech: 'R. Holt', status: 'done' },
