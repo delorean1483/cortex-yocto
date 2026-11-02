@@ -142,7 +142,16 @@
  * the SoM's SN65DSI84. R1 pulls SELB (pin 28) high and wires all 4 lanes:
  * 8-bit VESA. The panel takes 23-27 MHz and the bridge driver rejects modes
  * under 25 MHz; 26 MHz is what the LCDIF makes almost exactly (video PLL
- * 1039.5 MHz / 40). Porches and syncs are the datasheet's typical values. */
+ * 1039.5 MHz / 40).
+ *
+ * Horizontal timing is NOT the datasheet's typical 8/4/8. In video mode the
+ * SN65DSI84 starts each LVDS line (HSYNC + back porch) before that line's
+ * pixels have arrived over DSI unless sync + back porch is long enough
+ * (bench, 2026-11-02, 26 MHz, 4 lanes): 4+8 and 8+40 gave a white screen or
+ * the panel's self-test colour cycle, 8+48 a black screen, 48+30 and 48+40 a
+ * correct picture. The bridge's own test pattern (0x3C) worked throughout.
+ * 48/40/8 keeps the line period at the datasheet's 896 maximum (58 Hz). The
+ * panel ignores the 48 px sync width (above its 8 max): it times from DE. */
 &panel_lvds {
 	compatible = "panel-lvds";
 	data-mapping = "vesa-24";
@@ -154,11 +163,11 @@
 		clock-frequency = <26000000>;
 		hactive = <800>;
 		vactive = <480>;
-		hback-porch = <8>;
+		hback-porch = <40>;
 		hfront-porch = <8>;
 		vback-porch = <8>;
 		vfront-porch = <8>;
-		hsync-len = <4>;
+		hsync-len = <48>;
 		vsync-len = <4>;
 		hsync-active = <0>;
 		vsync-active = <0>;
@@ -277,13 +286,14 @@
 		line-name = "LCD_STB";
 	};
 
-	/* Scan direction: left to right, top to bottom (the datasheet's normal
-	 * picture, connector at the bottom). Flip here if the panel is mounted
-	 * rotated, and invert the touch axes to match. */
+	/* Scan direction. L/R low, U/D low gives a correct (unmirrored, upright)
+	 * picture on R1 (bench, 2026-11-02); L/R high, the datasheet's "left to
+	 * right", shows it mirrored. Flip here if the panel is mounted rotated,
+	 * and invert the touch axes to match. */
 	lcd-flip-lr-hog {
 		gpio-hog;
 		gpios = <6 GPIO_ACTIVE_HIGH>;
-		output-high;
+		output-low;
 		line-name = "LCD_FLIP_LR";
 	};
 

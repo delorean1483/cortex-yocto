@@ -122,15 +122,20 @@ inr() { [ "$2" -ge "$3" ] && [ "$2" -le "$4" ] && ok "$1 = $2 ($3-$4)" || bad "$
 [ "$(t hactive)" = 800 ] && [ "$(t vactive)" = 480 ] && ok "800x480" || bad "active area $(t hactive)x$(t vactive)"
 inr hfront-porch "$(t hfront-porch)" 4 48
 inr hback-porch "$(t hback-porch)" 4 48
-inr hsync-len "$(t hsync-len)" 2 8
+# hsync-len is above the panel's 2-8: the panel times from DE, and the
+# SN65DSI84 needs HSYNC + back porch long enough for DSI pixels to arrive
+# (bench 2026-11-02: 56 black, 78 and 88 good). See the DTS comment.
+inr hsync-len "$(t hsync-len)" 2 64
+inr "hsync + back porch" $(( $(t hsync-len) + $(t hback-porch) )) 78 112
 inr vfront-porch "$(t vfront-porch)" 4 12
 inr vback-porch "$(t vback-porch)" 4 12
 inr vsync-len "$(t vsync-len)" 2 8
 inr "line period" $(( $(t hactive) + $(t hfront-porch) + $(t hback-porch) + $(t hsync-len) )) 808 896
 inr "frame period" $(( $(t vactive) + $(t vfront-porch) + $(t vback-porch) + $(t vsync-len) )) 488 504
-# Scan direction: L/R high = left to right, U/D low = top to bottom.
+# Scan direction on R1 (bench 2026-11-02): L/R low and U/D low give a correct
+# picture; L/R high (the datasheet's "left to right") shows it mirrored.
 G1=$(sym gpio1 || true)
-has "$G1/lcd-flip-lr-hog" output-high && ok "panel scans left to right" || bad "lcd-flip-lr-hog (GPIO1_IO6 output-high)"
+has "$G1/lcd-flip-lr-hog" output-low && ok "panel not mirrored (L/R low)" || bad "lcd-flip-lr-hog (GPIO1_IO6 output-low)"
 has "$G1/lcd-flip-ud-hog" output-low && ok "panel scans top to bottom" || bad "lcd-flip-ud-hog (GPIO1_IO8 output-low)"
 # ILI2132A touch on I2C2 @0x41, INT active low on GPIO1_IO10. Its reset is the
 # panel's LCD_dRST, held by a hog, so the touch node must not claim it.

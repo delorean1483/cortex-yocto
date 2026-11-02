@@ -122,11 +122,11 @@ watchdog come along unchanged. Root `model = "EcoFleet EF-MX8MM Cortex Controlle
 | `uart2` | RS-485 mode enabled at boot: `rts-gpios` = GPIO3_IO21, DE high only while sending (kernel waits for TX complete before dropping DE); `/RE` tied to DE, so no echo |
 | `uart3` | disabled (no CAN controller) |
 | `i2c2` | touch controller node: ILI2132A at 0x41 (`ilitek,ili2132`, from the Riverdi datasheet; bench I2C scan confirms); IRQ GPIO1_IO10 level low; no reset GPIO (shared with the panel, see LCD lines) |
-| LCD lines | `LCD_dRST` and `LCD_STB` hogged inactive; `LCD_FLIP_L/R` high, `LCD_FLIP_U/D` low (the datasheet's normal scan: left to right, top to bottom); the bench confirms the picture is upright in the enclosure |
+| LCD lines | `LCD_dRST` and `LCD_STB` hogged inactive; `LCD_FLIP_L/R` low, `LCD_FLIP_U/D` low (bench 2026-11-02: L/R high, the datasheet's "left to right", shows the picture mirrored) |
 | `i2c3` | add MCP7940N (`microchip,mcp7940x`, rtc-ds1307 driver) and BR24G04 (`atmel,24c04`, at24) |
 | `snvs_rtc` | disabled, so the MCP7940N is `rtc0` (as the dev kit does with its DS1337) |
 | `sai3`, WM8904 sound card | **disabled**: R1 uses the SAI3 pads as GPIOs (`ETH_dReset`, `ETH_INT`, `RTC_WKUP`, `EZURIO_WAKE`); left on, SAI3 would own the Ethernet PHY's reset pin |
-| `panel_lvds` | Riverdi 800×480 from its datasheet (RVT50HQLNWC00-B V2.0A rev 1.0): `vesa-24` (SELB pulled high, 4 lanes), 26 MHz (panel 23–27 MHz, SN65DSI84 driver ≥ 25 MHz, LCDIF 1039.5 MHz / 40), porches 8, syncs 4; `backlight` = `pwm-backlight` on PWM1 (GPIO1_IO01), 1 kHz to start |
+| `panel_lvds` | Riverdi 800×480 from its datasheet (RVT50HQLNWC00-B V2.0A rev 1.0): `vesa-24` (SELB pulled high, 4 lanes), 26 MHz (panel 23–27 MHz, SN65DSI84 driver ≥ 25 MHz, LCDIF 1039.5 MHz / 40), H front/sync/back 8/48/40 (line 896, 58 Hz: the SN65DSI84 needs HSYNC + back porch ≥ ~78 in video mode, bench 2026-11-02), V 8/4/8; `backlight` = `pwm-backlight` on PWM1 (GPIO1_IO01), 1 kHz to start |
 | `fec1` | `rgmii-id`, the SoM's `ethphy0` node and `phy-supply` removed, PHY reset GPIO4_IO31, MDIO scan. **Off on R1** (decided 2026-10-14) until finding 3 is fixed: `status = "disabled"` and the KSZ9031 held in reset by a GPIO hog, so it never drives 3.3 V RGMII into the 1.8 V SoC pads |
 | `usbotg1` | `dr_mode = "peripheral"` (USB-C is a device port) |
 | `usbotg2` | host; USB2422 reset (GPIO4_IO26) hogged released |
