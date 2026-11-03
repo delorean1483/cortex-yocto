@@ -95,12 +95,16 @@
 	status = "okay";
 
 	/* ILI2132A on the Riverdi's 10-pin touch connector (SOK5). Its reset is
-	 * LCD_dRST, shared with the panel and held by lcd-rst-hog. */
+	 * LCD_dRST, shared with the panel and held by lcd-rst-hog. With the panel
+	 * scan set for an unmirrored picture (lcd-flip-lr-hog low), touch reports
+	 * rotated 180 degrees: both axes inverted (bench, 2026-11-02). */
 	touchscreen@41 {
 		compatible = "ilitek,ili2132";
 		reg = <0x41>;
 		interrupt-parent = <&gpio1>;
 		interrupts = <10 IRQ_TYPE_LEVEL_LOW>;
+		touchscreen-inverted-x;
+		touchscreen-inverted-y;
 	};
 };
 

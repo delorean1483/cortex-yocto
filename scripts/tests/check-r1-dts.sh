@@ -144,6 +144,9 @@ T=$(sym i2c2 || true)/touchscreen@41
 [ "$(prop "$T" interrupt-parent)" = "$(fdtget "$DTB" "$G1" phandle 2>/dev/null)" ] \
     && [ "$(prop "$T" interrupts)" = "10 8" ] && ok "touch IRQ GPIO1_IO10 level low" || bad "touch interrupts: $(prop "$T" interrupts)"
 has "$T" reset-gpios && bad "touch must not own LCD_dRST (shared with the panel)" || ok "touch leaves LCD_dRST to the hog"
+# Touch is rotated 180 degrees relative to the unmirrored picture (bench 2026-11-02).
+has "$T" touchscreen-inverted-x && has "$T" touchscreen-inverted-y \
+    && ok "touch axes inverted to match the panel" || bad "touchscreen@41 needs touchscreen-inverted-x and -y"
 
 grep -q "file://$NAME.dts" "$BBAPPEND" && ok "kernel bbappend ships $NAME.dts" || bad "bbappend SRC_URI"
 grep -q "freescale/$NAME.dtb" "$BBAPPEND" && ok "kernel bbappend builds $NAME.dtb" || bad "bbappend KERNEL_DEVICETREE"
