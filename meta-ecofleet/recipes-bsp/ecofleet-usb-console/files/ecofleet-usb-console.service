@@ -1,0 +1,16 @@
+[Unit]
+Description=Login console on the USB-C port (EF-MX8MM)
+# R1 only. The dev kit has its own USB console adapter, and its USB-C port is OTG.
+ConditionFirmware=device-tree-compatible(ecofleet,ef-mx8mm)
+After=sys-kernel-config.mount
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/ecofleet-usb-console
+# Not Wants=: a unit skipped by its condition still pulls in its Wants=, and
+# the getty would then wait for a ttyGS0 that never appears on the dev kit.
+ExecStartPost=/usr/bin/systemctl --no-block start serial-getty@ttyGS0.service
+
+[Install]
+WantedBy=multi-user.target
