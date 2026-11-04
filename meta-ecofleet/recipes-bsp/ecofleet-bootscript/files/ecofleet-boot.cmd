@@ -96,14 +96,19 @@ for try in 1 2; do
                 # SoC's Ethernet I/O voltages match (finding 3: SOK1-31
                 # NVCC_ENET fed 3.3 V). Set with `fw_setenv ecofleet_eth 1`
                 # only after metering it: on an unreworked board the PHY would
-                # drive 3.3 V into the SoC's 1.8 V pads. Turns the FEC on and
-                # drops the reset hog so the FEC driver can release the PHY.
+                # drive 3.3 V into the SoC's 1.8 V pads. Turns the FEC on,
+                # drops the reset hog and releases the PHY here: NXP's U-Boot
+                # deletes the FEC's phy-reset-gpios before Linux starts
+                # (imx8m soc.c cleanup_nodes_for_efi), so the kernel never
+                # would (bench 2026-11-04: PHY stuck in reset, MDIO all zeros).
+                # It has been held low since the R1 hold above.
                 if test "${ecofleet_eth}" = "1"; then
                     echo "==> EcoFleet: Ethernet on (ecofleet_eth=1)"
                     fdt addr ${fdt_addr}
                     fdt resize 1024
                     fdt set /soc@0/bus@30800000/ethernet@30be0000 status okay
                     fdt rm /soc@0/bus@30000000/gpio@30230000/eth-rst-hog
+                    gpio set GPIO4_31
                 fi
             fi
         fi

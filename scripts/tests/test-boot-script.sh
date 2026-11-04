@@ -62,8 +62,9 @@ n_r1if2=$(echo "$code" | grep -n -F 'if test "${ecofleet_board}" = "r1"' | cut -
 
 # R1 Ethernet opt-in: Ethernet stays off on R1 (finding 3) unless a board whose
 # Ethernet I/O voltages were reworked to match sets ecofleet_eth=1. Then, on the
-# R1 DTB only, the FEC is switched on and the reset hog dropped so the FEC
-# driver can release the PHY. Unset or any other value = off.
+# R1 DTB only, the FEC is switched on, the reset hog dropped and the PHY released
+# from U-Boot (NXP's U-Boot deletes the FEC's phy-reset-gpios before Linux
+# starts, so the kernel can't). Unset or any other value = off.
 n_eth=$(line 'if test "${ecofleet_eth}" = "1"')
 n_eon=$(line 'fdt set /soc@0/bus@30800000/ethernet@30be0000 status okay')
 n_ehog=$(line 'fdt rm /soc@0/bus@30000000/gpio@30230000/eth-rst-hog')
@@ -75,6 +76,9 @@ n_eresize=$(echo "$code" | grep -n -F 'fdt resize' | cut -d: -f1 | awk -v a="$n_
     && [ "$n_eon" -lt "$n_dk" ] && [ "$n_ehog" -lt "$n_dk" ] \
     && ok "opt-in: fdt resize, FEC on, eth-rst-hog removed" || bad "opt-in must fdt resize, set the FEC okay and rm eth-rst-hog inside the ecofleet_eth block"
 [ "$(echo "$code" | grep -c -F 'ethernet@30be0000 status okay')" = 1 ] && ok "FEC switched on in one place only" || bad "FEC status okay must appear exactly once"
+n_eset=$(line 'gpio set GPIO4_31')
+[ -n "$n_eset" ] && [ "$(echo "$code" | grep -c -F 'gpio set GPIO4_31')" = 1 ] && [ "$n_eth" -lt "$n_eset" ] && [ "$n_eset" -lt "$n_dk" ] \
+    && ok "opt-in releases the PHY reset (and nothing else does)" || bad "gpio set GPIO4_31 must appear once, inside the ecofleet_eth block"
 
 grep -q "freescale/$R1_DTB" "$ROOT/meta-ecofleet/recipes-kernel/linux/linux-variscite-fslc-imx_%.bbappend" 2>/dev/null \
     && ok "kernel bbappend builds $R1_DTB" || bad "kernel bbappend does not build $R1_DTB"
