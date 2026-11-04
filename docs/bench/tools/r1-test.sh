@@ -292,8 +292,15 @@ for w in /sys/class/watchdog/watchdog*; do [ -e $w/identity ] && echo "$(basenam
 h "On/off button (PB2 -> ONOFF -> snvs_pwrkey)"
 grep -B1 -A5 -i "snvs" /proc/bus/input/devices | grep -E "Name|Handlers"
 
-h "Touch ILI2132A raw replies (needs a panel on SOK5)"
-if i2ctransfer -y 1 w1@0x41 0x42 >/dev/null 2>&1; then
+h "Touch ILI2132A (needs a panel on SOK5)"
+# A bound ilitek_ts owns 0x41 (i2cdetect shows UU), so plain i2ctransfer fails
+# there; its probe only succeeds once the chip has answered. The raw replies
+# are for when the probe failed (no chip, or the driver rejected its answers).
+TD=/sys/bus/i2c/devices/1-0041
+if [ -e $TD/driver ]; then
+    EV=$(ls $TD/input/input*/ 2>/dev/null | grep -m1 '^event')
+    pass "touch: $(basename $(readlink $TD/driver)) bound to 1-0041, /dev/input/${EV:-none}"
+elif i2ctransfer -y 1 w1@0x41 0x42 >/dev/null 2>&1; then
     q() { i2ctransfer -y 1 w1@0x41 $1 >/dev/null 2>&1 || { echo "cmd $1: write NACK"; return; }; usleep $3; echo "cmd $1 (+$(( $3 / 1000 )) ms): $(i2ctransfer -y 1 r$2@0x41 2>&1)"; }
     for dly in 5000 50000; do q 0x42 3 $dly; q 0x61 32 $dly; q 0x40 8 $dly; q 0x21 8 $dly; q 0x20 21 $dly; q 0xc0 2 $dly; done
 else
