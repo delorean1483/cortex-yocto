@@ -70,8 +70,12 @@ Item {
             // stale wins even when the colors match
             telemetry.stale = true
             compare(s.statusText(), "G0B1 offline, will apply when it reconnects")
+            // light gone: offline even when applied == requested
+            telemetry.stale = false; telemetry.ledPresent = false
+            compare(s.statusText(), "Light offline, will apply when it reconnects")
+            telemetry.ledPresent = true
             // not stale, nothing chosen yet
-            telemetry.stale = false; led.hasColor = false
+            led.hasColor = false
             compare(s.statusText(), "Not set. Tap the wheel to choose a color")
             // light fitted but not answering
             led.hasColor = true; telemetry.ledOk = false

@@ -58,5 +58,7 @@ private:
     double        m_val = 1.0;
     bool          m_hasColor = false;
     bool          m_dirty = false;      // changed since last save
+    bool          m_haveSent = false;   // m_lastSent is valid
+    int           m_lastSent[3] = {0, 0, 0};
     bool          m_pending = false;    // a throttled send is waiting for the trailing timer
 };

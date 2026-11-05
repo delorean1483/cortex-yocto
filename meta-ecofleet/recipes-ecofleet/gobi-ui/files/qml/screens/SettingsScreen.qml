@@ -57,7 +57,7 @@ Item {
             radius: Theme.radius; color: ledArea.pressed ? Theme.surface2 : Theme.surface
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 14; spacing: 14
-                Icon { name: "bell"; size: 24; color: Theme.accent }
+                Icon { name: "sun"; size: 24; color: Theme.accent }
                 Text { Layout.fillWidth: true; text: "External LED Color"; color: Theme.text
                     font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold; elide: Text.ElideRight }
                 Rectangle { Layout.preferredWidth: 24; Layout.preferredHeight: 24; radius: 12
@@ -67,13 +67,15 @@ Item {
             MouseArea { id: ledArea; anchors.fill: parent; onClicked: page.open(ledC) }
         }
 
-        Rectangle { Layout.fillWidth: true; implicitHeight: 2 * 32 + 2 * 4
+        Rectangle { id: infoCard
+            readonly property int rowH: telemetry.ledPresent ? 32 : 44   // compact only when the light row is shown
+            Layout.fillWidth: true; implicitHeight: 2 * rowH + 2 * 4
             radius: Theme.radius; color: Theme.surface
             ColumnLayout { anchors.fill: parent; anchors.leftMargin: Theme.pad; anchors.rightMargin: Theme.pad
                 anchors.topMargin: 4; anchors.bottomMargin: 4; spacing: 0
                 Repeater {
                     model: [ {k: "Firmware", v: devinfo.fwVersion}, {k: "Serial", v: devinfo.serial} ]
-                    Item { Layout.fillWidth: true; Layout.preferredHeight: 32
+                    Item { Layout.fillWidth: true; Layout.preferredHeight: infoCard.rowH
                         Rectangle { visible: index > 0; width: parent.width; height: 1; color: Theme.border; opacity: 0.6 }
                         Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                             text: modelData.k; color: Theme.textDim; font.pixelSize: 15 }

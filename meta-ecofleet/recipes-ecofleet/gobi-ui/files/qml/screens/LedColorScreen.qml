@@ -14,8 +14,9 @@ Item {
 
     function statusText() {
         if (telemetry.stale) return "G0B1 offline, will apply when it reconnects"
+        if (!telemetry.ledPresent) return "Light offline, will apply when it reconnects"
         if (!led.hasColor) return "Not set. Tap the wheel to choose a color"
-        if (telemetry.ledPresent && !telemetry.ledOk) return "Light not responding"
+        if (!telemetry.ledOk) return "Light not responding"
         if (telemetry.ledR === led.r && telemetry.ledG === led.g && telemetry.ledB === led.b) return "Applied"
         return "Sending…"
     }
@@ -39,11 +40,12 @@ Item {
                         ctx.reset()
                         var c = width / 2
                         // 1-degree wedges; red (h = 0) is drawn at -90 deg, i.e. 12 o'clock,
-                        // and hue runs clockwise. A hair of overlap hides the seams.
+                        // and hue runs clockwise. Each wedge reaches 0.6 deg past its
+                        // neighbours on both sides so antialiased edges leave no seams.
                         for (var h = 0; h < 360; h++) {
                             ctx.beginPath()
                             ctx.moveTo(c, c)
-                            ctx.arc(c, c, c, (h - 90) * Math.PI / 180, (h - 88.5) * Math.PI / 180)
+                            ctx.arc(c, c, c, (h - 90.6) * Math.PI / 180, (h - 88.4) * Math.PI / 180)
                             ctx.closePath()
                             ctx.fillStyle = "hsl(" + h + ",100%,50%)"
                             ctx.fill()
@@ -53,6 +55,9 @@ Item {
                         g.addColorStop(1, "rgba(255,255,255,0)")
                         ctx.fillStyle = g
                         ctx.beginPath(); ctx.arc(c, c, c, 0, 2 * Math.PI); ctx.fill()
+                        // small solid center hides where every wedge edge converges
+                        ctx.fillStyle = "white"
+                        ctx.beginPath(); ctx.arc(c, c, 4, 0, 2 * Math.PI); ctx.fill()
                     }
                 }
                 // brightness dims the wheel
@@ -78,6 +83,7 @@ Item {
                     }
                     onPositionChanged: (m) => { if (pressed) pick(m) }
                     onReleased: led.release()
+                    onCanceled: led.release()
                 }
             }
 

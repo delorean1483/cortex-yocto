@@ -113,6 +113,19 @@ private slots:
         QVERIFY(QFileInfo(cfg()).permissions() & QFileDevice::ReadOther);
     }
 
+    void test_tap_sends_once()
+    {
+        LedModel m(cfg(), cmd());
+        m.pickAt(10, 0, 10);                       // A, sent immediately
+        QFile::remove(cmd());
+        m.release();                               // same RGB: no second write
+        QVERIFY(!QFile::exists(cmd()));
+        QVERIFY(QFile::exists(cfg()));             // still saved
+        m.pickAt(0, 10, 10);                       // B, throttled (pending)
+        m.release();                               // differs from last sent: sent
+        QCOMPARE(sent(), (QList<int>{0, 255, 255}));
+    }
+
     void test_flush_saves_only_when_dirty()
     {
         LedModel m(cfg(), cmd());

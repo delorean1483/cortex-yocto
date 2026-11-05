@@ -86,7 +86,12 @@ void LedModel::sendNow()
     m_trailing.stop();
     m_pending = false;
     const ledcolor::Rgb c = ledcolor::hsvToRgb(m_hue, m_sat, m_val);
+    // A tap (press then release) or a tiny drag would resend the same color.
+    if (m_haveSent && m_lastSent[0] == c.r && m_lastSent[1] == c.g && m_lastSent[2] == c.b)
+        return;
     mergeCommandKey(m_cmdPath, QStringLiteral("led_rgb"), QJsonArray{c.r, c.g, c.b});
+    m_lastSent[0] = c.r; m_lastSent[1] = c.g; m_lastSent[2] = c.b;
+    m_haveSent = true;
     m_sinceSend.restart();
 }
 
