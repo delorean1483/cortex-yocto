@@ -53,6 +53,8 @@ target_sources(gobi-agent PRIVATE
     ota_status.c
     ota_offer.c
     net_info.c
+    cmdfile.c
+    led_ctl.c
 )
 
 target_include_directories(gobi-agent PRIVATE

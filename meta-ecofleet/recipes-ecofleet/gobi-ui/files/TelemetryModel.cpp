@@ -1,4 +1,5 @@
 #include "TelemetryModel.h"
+#include "CommandFile.h"
 
 #include <cmath>
 #include <QFile>
@@ -12,25 +13,9 @@ static constexpr const char *COMMAND_PATH = "/var/lib/ecofleet/command.json";
 static constexpr int         POLL_MS      = 2000;
 static constexpr qint64      STALE_MS     = 30000; /* 30 s without a fresh snapshot */
 
-/* Merge one key into command.json (atomic). Merging — rather than overwriting —
- * lets several quick taps (e.g. temp then mode) accumulate before the agent
- * consumes the file on its next cycle. */
 static void writeCommand(const QString &key, const QJsonValue &value)
 {
-    QJsonObject obj;
-    QFile in(QString::fromLatin1(COMMAND_PATH));
-    if (in.open(QIODevice::ReadOnly)) {
-        const auto doc = QJsonDocument::fromJson(in.readAll());
-        if (doc.isObject()) obj = doc.object();
-        in.close();
-    }
-    obj.insert(key, value);
-
-    QSaveFile out(QString::fromLatin1(COMMAND_PATH));
-    if (out.open(QIODevice::WriteOnly)) {
-        out.write(QJsonDocument(obj).toJson(QJsonDocument::Compact));
-        out.commit();   /* atomic rename */
-    }
+    mergeCommandKey(QString::fromLatin1(COMMAND_PATH), key, value);
 }
 
 TelemetryModel::TelemetryModel(QObject *parent) : QObject(parent)
@@ -84,6 +69,11 @@ void TelemetryModel::poll()
     m_cloudLastAckMs = static_cast<qint64>(o[u"cloud_last_ack_ms"].toDouble());
 
     m_heaterPresent      = o[u"heater_present"].toBool();
+    m_ledPresent         = o[u"led_present"].toBool();
+    m_ledOk              = o[u"led_ok"].toBool();
+    m_ledR               = static_cast<int>(o[u"led_r"].toDouble());
+    m_ledG               = static_cast<int>(o[u"led_g"].toDouble());
+    m_ledB               = static_cast<int>(o[u"led_b"].toDouble());
     m_heaterState        = o[u"heater_state"].toString(QStringLiteral("off"));
     m_heaterTargetLevel  = static_cast<int>(o[u"heater_target_level"].toDouble());
     m_heaterActiveLevel  = static_cast<int>(o[u"heater_active_level"].toDouble());

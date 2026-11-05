@@ -12,6 +12,8 @@
 #include "config.h"
 #include "shadow.h"
 #include "reboot_guard.h"
+#include "cmdfile.h"
+#include "led_ctl.h"
 #include "event_log.h"
 #include "stm32_flash_task.h"
 #include "heater_fields.h"
@@ -138,6 +140,8 @@ typedef struct {
     uint16_t heater_phase;        /* reg 71                           */
     uint16_t heater_vendor_state; /* reg 72                           */
     uint16_t heater_cmd_result;   /* reg 75                           */
+
+    led_hw_t led;                 /* external RGB light, fw regs 76..79 */
 
     uint64_t ts_ms;
 } telemetry_t;
@@ -699,6 +703,14 @@ static uint16_t modbus_read_reg_besteffort(modbus_t *ctx, int wire_addr, uint16_
  * are never attempted on older firmware. Telemetry thread only. */
 static bool g_heater_ext = false;
 
+/* External RGB light: the color the agent keeps applied (command or saved
+ * file), and whether the "no external light" line was already logged. */
+static led_color_t g_led_desired;
+static bool g_led_absent_logged = false;
+static led_hw_t g_led_prev;            /* last published LED state (led_settle) */
+static int  g_led_fails = 0;           /* consecutive failed LED block reads */
+static bool g_link_ok = false;         /* last main telemetry read succeeded */
+
 static void modbus_read_besteffort(telemetry_t *t)
 {
     t->diag_mode    = (uint8_t)  modbus_read_reg_besteffort(g_modbus, REG_DIAG_MODE,   0);
@@ -740,6 +752,17 @@ static void modbus_read_besteffort(telemetry_t *t)
     t->heater_valid_frames = modbus_read_reg_besteffort(g_modbus, REG_HEATER_VALID_FR,    0);
     t->heater_csum_fail    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_CSUM_FAIL,   0);
     t->heater_xport_err    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_XPORT_ERR,   0);
+
+    /* External RGB light (fw 76..79): one block read. Older firmware answers
+     * with an exception, which only means "not present" -- never a link
+     * failure, so no reconnect. */
+    uint16_t lv[4];
+    if (modbus_read_registers(g_modbus, REG_LED_RED, 4, lv) == 4) {
+        t->led.read_ok = true;
+        t->led.r = lv[0]; t->led.g = lv[1]; t->led.b = lv[2]; t->led.status = lv[3];
+    } else {
+        t->led.read_ok = false;
+    }
 }
 
 /* ── JSON payload builders ───────────────────────────────────────────────── */
@@ -891,6 +914,12 @@ static char *build_latest_json(const telemetry_t *t)
     cJSON *root = telemetry_object(t);
     cJSON_AddBoolToObject  (root, "cloud_connected",   g_mqtt_connected);
     cJSON_AddNumberToObject(root, "cloud_last_ack_ms", (double)g_cloud_last_ack_ms);
+    /* External RGB light: local only (not in the MQTT telemetry). */
+    cJSON_AddBoolToObject  (root, "led_present", led_present(&t->led));
+    cJSON_AddBoolToObject  (root, "led_ok",      (t->led.status & LED_ST_APPLY_OK) != 0);
+    cJSON_AddNumberToObject(root, "led_r",       t->led.r);
+    cJSON_AddNumberToObject(root, "led_g",       t->led.g);
+    cJSON_AddNumberToObject(root, "led_b",       t->led.b);
     /* System-update progress so the screen can show an "updating, don't power
      * off" notice (the dashboard gets the same line via reported.ota_status). */
     char ota[64];
@@ -984,17 +1013,66 @@ static int mb_write_reg(int reg1based, int value, const char *what)
     return -1;
 }
 
+/* Write the external light's color (fw 76..78) in one request, retrying like
+ * mb_write_reg(). On success re-read 76..79 into *readback so the caller sees
+ * the applied color. Returns 0 on success, -1 if all attempts fail. */
+static int mb_write_led(const led_color_t *c, led_hw_t *readback)
+{
+    uint16_t vals[3] = { c->r, c->g, c->b };
+    int attempt;
+    for (attempt = 1; attempt <= MB_WRITE_ATTEMPTS; attempt++) {
+        if (modbus_write_registers(g_modbus, REG_LED_RED, 3, vals) == 3) {
+            syslog(LOG_DEBUG, "control: led_rgb -> %u,%u,%u%s",
+                   c->r, c->g, c->b, attempt > 1 ? " (retried)" : "");
+            uint16_t lv[4];
+            if (readback && modbus_read_registers(g_modbus, REG_LED_RED, 4, lv) == 4) {
+                readback->read_ok = true;
+                readback->r = lv[0]; readback->g = lv[1];
+                readback->b = lv[2]; readback->status = lv[3];
+            }
+            return 0;
+        }
+        syslog(LOG_WARNING, "control: led_rgb write failed (attempt %d/%d): %s",
+               attempt, MB_WRITE_ATTEMPTS, modbus_strerror(errno));
+        if (attempt < MB_WRITE_ATTEMPTS)
+            modbus_flush(g_modbus);
+    }
+    return -1;
+}
+
+/* Log "no external light" once until a light is seen again. */
+static void led_note_absent(void)
+{
+    if (g_led_absent_logged) return;
+    g_led_absent_logged = true;
+    syslog(LOG_INFO, "led: no external light reported; color kept for later");
+}
+
+/* Load the saved color: first file led_parse_saved accepts wins. */
+static void led_load_saved(void)
+{
+    const char *paths[2] = { LED_SAVED_PATH, LED_SAVED_FALLBACK };
+    for (int i = 0; i < 2; i++) {
+        char buf[256];
+        FILE *f = fopen(paths[i], "r");
+        if (!f) continue;
+        size_t n = fread(buf, 1, sizeof buf - 1, f);
+        fclose(f);
+        buf[n] = '\0';
+        led_color_t c;
+        if (led_parse_saved(buf, &c)) {
+            g_led_desired = c;
+            syslog(LOG_INFO, "led: saved color %u,%u,%u from %s", c.r, c.g, c.b, paths[i]);
+            return;
+        }
+    }
+}
+
 static void apply_command_file(void)
 {
-    FILE *f = fopen(COMMAND_JSON_PATH, "r");
-    if (!f) return;   /* no pending command (the common case) */
-
-    char buf[256];
-    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
-    fclose(f);
-    unlink(COMMAND_JSON_PATH);          /* consume it regardless of outcome */
-    if (n == 0) return;
-    buf[n] = '\0';
+    char buf[1024];
+    long n = cmdfile_take(COMMAND_JSON_PATH, buf, sizeof buf);
+    if (n <= 0) return;   /* no pending command (the common case) */
 
     cJSON *root = cJSON_Parse(buf);
     if (!root) {
@@ -1080,6 +1158,24 @@ static void apply_command_file(void)
                                    cJSON_IsNumber(hcf) && (int)hcf->valuedouble == 1,
                                    g_heater_ext, hw);
         for (int i = 0; i < n; i++) mb_write_reg(hw[i].reg, hw[i].value, hw[i].what);
+    }
+
+    /* led_rgb: [r,g,b] -> remember it, and apply now if a light is present */
+    const cJSON *led = cJSON_GetObjectItemCaseSensitive(root, "led_rgb");
+    if (led) {
+        led_color_t c;
+        if (led_parse_cmd(led, &c)) {
+            g_led_desired = c;
+            if (g_link_ok && led_present(&g_last_t.led)) {
+                mb_write_led(&c, &g_last_t.led);
+                char *lj = build_latest_json(&g_last_t);
+                if (lj) { write_latest_snapshot(lj); free(lj); }
+            } else {
+                led_note_absent();
+            }
+        } else {
+            syslog(LOG_WARNING, "control: bad led_rgb, ignoring");
+        }
     }
 
     /* ota_check: 1 -> fetch releases/latest.json (never installs anything) */
@@ -1226,6 +1322,7 @@ int main(void)
     syslog(LOG_INFO, "event log: %s (%d events)", g_events_path, g_events.count);
 
     uint8_t prev_error = 0;   /* control_error_t; 0 = ERR_NONE */
+    led_load_saved();
 
     while (g_running) {
         /* Read poll interval from shadow config (updated live by delta msgs) */
@@ -1235,6 +1332,18 @@ int main(void)
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
             modbus_read_besteffort(&t);
+            g_link_ok = true;
+            led_settle(&t.led, &g_led_prev, &g_led_fails);
+            g_led_prev = t.led;
+            /* External light: restore/keep the desired color. At most one
+             * write per cycle; nothing is written while no light is present. */
+            if (led_present(&t.led)) {
+                g_led_absent_logged = false;
+                if (led_should_write(&g_led_desired, &t.led))
+                    mb_write_led(&g_led_desired, &t.led);
+            } else if (g_led_desired.have) {
+                led_note_absent();
+            }
             /* Remote STM32 APU-firmware flash request (peek → arm → ack),
              * mirrors the apu_command idiom on this same thread. main.c re-arms
              * the flash task from the shadow desired each cycle (0 = no
@@ -1273,7 +1382,7 @@ int main(void)
                 }
             }
 
-            /* (Touchscreen commands are applied in the 1 Hz wait loop below, in
+            /* (Touchscreen commands are applied in the 200 ms wait loop below, in
              * this same thread — the libmodbus context is never touched
              * concurrently. Remote shadow commands — heater and whole-APU
              * apu_command — are applied further down in this same branch, also
@@ -1447,6 +1556,7 @@ int main(void)
 
         } else {
             /* Modbus read failed — try reconnecting the serial port */
+            g_link_ok = false;
             syslog(LOG_WARNING, "Modbus read failed — reconnecting...");
             modbus_close(g_modbus);
             sleep(2);
@@ -1458,10 +1568,11 @@ int main(void)
         db_flush("faults",    g_topic_faults);
 
         /* Wait out the poll interval, but check the touchscreen command file
-         * every second so a button press lands within ~1 s instead of waiting
-         * a whole telemetry cycle. */
-        for (int slept = 0; slept < poll_s && g_running; slept++) {
-            sleep(1);
+         * every CMD_POLL_MS so a button press lands within ~200 ms instead of
+         * waiting a whole telemetry cycle. */
+        for (int ms = 0; ms < poll_s * 1000 && g_running; ms += CMD_POLL_MS) {
+            struct timespec nap = { 0, CMD_POLL_MS * 1000000L };
+            nanosleep(&nap, NULL);
             apply_command_file();
             /* A panel check/install changed the OTA state: publish it now from
              * the last good snapshot (zeros + ts 0 if the APU link never came

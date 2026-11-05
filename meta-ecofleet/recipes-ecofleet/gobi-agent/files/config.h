@@ -104,6 +104,15 @@
 #define REG_HEATER_DETECT      72   /* fw 73 detect_result<<8|line_sense     R  */
 #define REG_HEATER_COMMAND     74   /* fw 75 write 3 = clear fault; read = result RW */
 
+/* External RGB light (fw 76..79; absent on firmware before it, v1.1.6). */
+#define REG_LED_RED            75   /* fw 76 led_red 0-255                   RW */
+#define REG_LED_GREEN          76   /* fw 77 led_green 0-255                 RW */
+#define REG_LED_BLUE           77   /* fw 78 led_blue 0-255                  RW */
+#define REG_LED_STATUS         78   /* fw 79 bit0 present, bit1 apply OK, bit2 pending R */
+/* Saved color, restored after a reboot (the slot-shared /data first). */
+#define LED_SAVED_PATH         "/data/ecofleet/led.json"
+#define LED_SAVED_FALLBACK     "/var/lib/gobi-ui/led.json"
+
 /* ── SQLite offline buffer ───────────────────────────────────────────────── */
 #define SQLITE_DB_PATH      "/var/lib/ecofleet/telemetry.db"
 /* Always-current telemetry snapshot for the local display (gobi-ui), written
@@ -112,15 +121,17 @@
 #define LATEST_JSON_PATH    "/var/lib/ecofleet/latest.json"
 
 /* Local control channel: gobi-ui (the touchscreen) writes a small JSON command
- * here; the agent applies it to the Modbus holding registers each poll cycle,
- * then removes it. gobi-ui can't drive Modbus itself — the agent is the sole
+ * here; the agent checks it every CMD_POLL_MS, applies it to the Modbus holding
+ * registers, then removes it. gobi-ui can't drive Modbus itself — the agent is the sole
  * RTU master on the serial port. Keys (any subset): "mode" (off|climate|
  * battery), "setpoint_f" (int), "fan" (0-100), "fan_auto" (0|1, reg 9),
  * "batt_setpoint" (int, centivolts 1000-1500 = 10.0-15.0V, reg 13 — battery
  * auto-charge threshold; firmware auto-starts the APU to charge below it),
  * "reset_oil" (true), "diag_mode" (0|1 → enter/exit Component Test, reg 49),
- * "diag_out" (int (index<<8)|state → actuate one output, reg 50). */
+ * "diag_out" (int (index<<8)|state → actuate one output, reg 50),
+ * "led_rgb" ([r,g,b] 0-255 → external RGB light, regs 76-78). */
 #define COMMAND_JSON_PATH   "/var/lib/ecofleet/command.json"
+#define CMD_POLL_MS         200   /* how often the agent checks for a UI command */
 #define SQLITE_MAX_ROWS     8640    /* ~12 h at 5 s poll — then oldest is dropped */
 #define SQLITE_FLUSH_BATCH  50      /* rows to flush per MQTT reconnect cycle     */
 

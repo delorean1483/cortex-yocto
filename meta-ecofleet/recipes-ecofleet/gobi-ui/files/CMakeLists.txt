@@ -29,6 +29,12 @@ qt_add_executable(gobi-ui
     WpaCtrl.cpp
     WifiModel.h
     WifiModel.cpp
+    LedColor.h
+    LedColor.cpp
+    CommandFile.h
+    CommandFile.cpp
+    LedModel.h
+    LedModel.cpp
 )
 
 target_link_libraries(gobi-ui PRIVATE

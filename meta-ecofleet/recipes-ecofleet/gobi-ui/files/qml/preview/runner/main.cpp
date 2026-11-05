@@ -34,6 +34,7 @@ int main(int argc, char **argv) {
         engine.rootContext()->setContextProperty("devinfo",   mocks->property("devinfo").value<QObject*>());
         engine.rootContext()->setContextProperty("eventlog",  mocks->property("eventlog").value<QObject*>());
     engine.rootContext()->setContextProperty("display",   mocks->property("display").value<QObject*>());
+        engine.rootContext()->setContextProperty("led",       mocks->property("led").value<QObject*>());
         engine.rootContext()->setContextProperty("wifi",      mocks->property("wifi").value<QObject*>());
         engine.load(QUrl::fromLocalFile(qmlDir + "/" + harness));
         if (engine.rootObjects().isEmpty()) return 1;
@@ -53,6 +54,7 @@ int main(int argc, char **argv) {
     view.rootContext()->setContextProperty("devinfo",   mocks->property("devinfo").value<QObject*>());
     view.rootContext()->setContextProperty("eventlog",  mocks->property("eventlog").value<QObject*>());
     view.rootContext()->setContextProperty("display",   mocks->property("display").value<QObject*>());
+    view.rootContext()->setContextProperty("led",       mocks->property("led").value<QObject*>());
     view.rootContext()->setContextProperty("wifi",      mocks->property("wifi").value<QObject*>());
     view.rootContext()->setContextProperty("shotDir",   outDir);
     QObject::connect(view.engine(), &QQmlEngine::quit, &app, &QGuiApplication::quit);

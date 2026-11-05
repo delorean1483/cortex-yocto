@@ -5,6 +5,8 @@ import ".."
 import "../atoms"
 Item {
     id: page
+    Component { id: ledC; LedColorScreen {} }
+    function open(c) { if (page.StackView.view) page.StackView.view.push(c) }
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 14; spacing: Theme.gap
         ScreenHeader { title: "Settings"; onBack: if (page.StackView.view) page.StackView.view.pop() }
@@ -48,13 +50,32 @@ Item {
                 color: Theme.textDim; font.pixelSize: 14 }
         }
 
-        Rectangle { Layout.fillWidth: true; implicitHeight: 2 * 44 + 2 * 4
+        // External RGB light on the G0B1; only offered while the agent sees one.
+        Rectangle { objectName: "ledRow"
+            visible: telemetry.ledPresent
+            Layout.fillWidth: true; Layout.preferredHeight: 60
+            radius: Theme.radius; color: ledArea.pressed ? Theme.surface2 : Theme.surface
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 14; spacing: 14
+                Icon { name: "sun"; size: 24; color: Theme.accent }
+                Text { Layout.fillWidth: true; text: "External LED Color"; color: Theme.text
+                    font.pixelSize: Theme.fsBody; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                Rectangle { Layout.preferredWidth: 24; Layout.preferredHeight: 24; radius: 12
+                    color: led.hasColor ? Qt.rgba(led.r / 255, led.g / 255, led.b / 255, 1) : Theme.textMute }
+                Icon { name: "chevron-right"; size: 20; color: Theme.textDim }
+            }
+            MouseArea { id: ledArea; anchors.fill: parent; onClicked: page.open(ledC) }
+        }
+
+        Rectangle { id: infoCard
+            readonly property int rowH: telemetry.ledPresent ? 32 : 44   // compact only when the light row is shown
+            Layout.fillWidth: true; implicitHeight: 2 * rowH + 2 * 4
             radius: Theme.radius; color: Theme.surface
             ColumnLayout { anchors.fill: parent; anchors.leftMargin: Theme.pad; anchors.rightMargin: Theme.pad
                 anchors.topMargin: 4; anchors.bottomMargin: 4; spacing: 0
                 Repeater {
                     model: [ {k: "Firmware", v: devinfo.fwVersion}, {k: "Serial", v: devinfo.serial} ]
-                    Item { Layout.fillWidth: true; Layout.preferredHeight: 44
+                    Item { Layout.fillWidth: true; Layout.preferredHeight: infoCard.rowH
                         Rectangle { visible: index > 0; width: parent.width; height: 1; color: Theme.border; opacity: 0.6 }
                         Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                             text: modelData.k; color: Theme.textDim; font.pixelSize: 15 }
