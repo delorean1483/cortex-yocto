@@ -104,6 +104,15 @@
 #define REG_HEATER_DETECT      72   /* fw 73 detect_result<<8|line_sense     R  */
 #define REG_HEATER_COMMAND     74   /* fw 75 write 3 = clear fault; read = result RW */
 
+/* External RGB light (fw 76..79; absent on firmware before it, v1.1.6). */
+#define REG_LED_RED            75   /* fw 76 led_red 0-255                   RW */
+#define REG_LED_GREEN          76   /* fw 77 led_green 0-255                 RW */
+#define REG_LED_BLUE           77   /* fw 78 led_blue 0-255                  RW */
+#define REG_LED_STATUS         78   /* fw 79 bit0 present, bit1 apply OK, bit2 pending R */
+/* Saved color, restored after a reboot (the slot-shared /data first). */
+#define LED_SAVED_PATH         "/data/ecofleet/led.json"
+#define LED_SAVED_FALLBACK     "/var/lib/gobi-ui/led.json"
+
 /* ── SQLite offline buffer ───────────────────────────────────────────────── */
 #define SQLITE_DB_PATH      "/var/lib/ecofleet/telemetry.db"
 /* Always-current telemetry snapshot for the local display (gobi-ui), written
