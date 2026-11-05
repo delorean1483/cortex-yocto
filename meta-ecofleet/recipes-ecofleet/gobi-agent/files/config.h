@@ -121,6 +121,7 @@
  * "reset_oil" (true), "diag_mode" (0|1 → enter/exit Component Test, reg 49),
  * "diag_out" (int (index<<8)|state → actuate one output, reg 50). */
 #define COMMAND_JSON_PATH   "/var/lib/ecofleet/command.json"
+#define CMD_POLL_MS         200   /* how often the agent checks for a UI command */
 #define SQLITE_MAX_ROWS     8640    /* ~12 h at 5 s poll — then oldest is dropped */
 #define SQLITE_FLUSH_BATCH  50      /* rows to flush per MQTT reconnect cycle     */
 

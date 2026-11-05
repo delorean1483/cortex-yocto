@@ -12,6 +12,7 @@
 #include "config.h"
 #include "shadow.h"
 #include "reboot_guard.h"
+#include "cmdfile.h"
 #include "event_log.h"
 #include "stm32_flash_task.h"
 #include "heater_fields.h"
@@ -986,15 +987,9 @@ static int mb_write_reg(int reg1based, int value, const char *what)
 
 static void apply_command_file(void)
 {
-    FILE *f = fopen(COMMAND_JSON_PATH, "r");
-    if (!f) return;   /* no pending command (the common case) */
-
-    char buf[256];
-    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
-    fclose(f);
-    unlink(COMMAND_JSON_PATH);          /* consume it regardless of outcome */
-    if (n == 0) return;
-    buf[n] = '\0';
+    char buf[1024];
+    long n = cmdfile_take(COMMAND_JSON_PATH, buf, sizeof buf);
+    if (n <= 0) return;   /* no pending command (the common case) */
 
     cJSON *root = cJSON_Parse(buf);
     if (!root) {
@@ -1458,10 +1453,11 @@ int main(void)
         db_flush("faults",    g_topic_faults);
 
         /* Wait out the poll interval, but check the touchscreen command file
-         * every second so a button press lands within ~1 s instead of waiting
-         * a whole telemetry cycle. */
-        for (int slept = 0; slept < poll_s && g_running; slept++) {
-            sleep(1);
+         * every CMD_POLL_MS so a button press lands within ~200 ms instead of
+         * waiting a whole telemetry cycle. */
+        for (int ms = 0; ms < poll_s * 1000 && g_running; ms += CMD_POLL_MS) {
+            struct timespec nap = { 0, CMD_POLL_MS * 1000000L };
+            nanosleep(&nap, NULL);
             apply_command_file();
             /* A panel check/install changed the OTA state: publish it now from
              * the last good snapshot (zeros + ts 0 if the APU link never came

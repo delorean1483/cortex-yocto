@@ -173,3 +173,12 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -L"$cjson/lib" -lcjson -lpthread \
    -o "$here/test_shadow_network"
 "$here/test_shadow_network"
+
+# Host test runner for the atomic command-file take (no cJSON dependency).
+cc -std=c11 -Wall -Wextra -Wpedantic -g \
+   -fsanitize=address,undefined \
+   -I"$files" \
+   "$here/test_cmdfile.c" "$files/cmdfile.c" \
+   -o "$here/test_cmdfile"
+
+"$here/test_cmdfile"
