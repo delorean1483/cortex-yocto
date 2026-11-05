@@ -22,5 +22,10 @@ bool led_parse_cmd(const cJSON *item, led_color_t *out);
 bool led_parse_saved(const char *json, led_color_t *out);
 /* read_ok && (status & LED_ST_PRESENT) */
 bool led_present(const led_hw_t *hw);
+/* Decide the LED state to publish this cycle. cur = this cycle's read, prev =
+ * the previous cycle's published state, *fails = consecutive failed reads.
+ * One failed best-effort read keeps prev for a cycle; the second in a row
+ * reports absent. A successful read is taken as is (bit 0 clear = absent now). */
+void led_settle(led_hw_t *cur, const led_hw_t *prev, int *fails);
 /* desired->have, driver present, and applied rgb differs from desired. */
 bool led_should_write(const led_color_t *desired, const led_hw_t *hw);

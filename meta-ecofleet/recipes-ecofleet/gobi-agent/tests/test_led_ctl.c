@@ -63,7 +63,29 @@ static void test_should_write_needs_present_read(void){
     CHECK(!led_should_write(&d,&hw));            /* nothing desired */
 }
 
+static void test_settle_keeps_one_failed_read(void){
+    led_hw_t prev = {true,1,2,3,LED_ST_PRESENT|LED_ST_APPLY_OK};
+    led_hw_t cur = {false,0,0,0,0};
+    int fails = 0;
+    led_settle(&cur,&prev,&fails);               /* first failed read: keep */
+    CHECK(led_present(&cur) && cur.r==1 && cur.status==prev.status && fails==1);
+    cur = (led_hw_t){false,0,0,0,0};
+    led_settle(&cur,&prev,&fails);               /* second in a row: absent */
+    CHECK(!led_present(&cur) && fails==2);
+    cur = (led_hw_t){true,4,5,6,LED_ST_PRESENT};
+    led_settle(&cur,&prev,&fails);               /* good read resets */
+    CHECK(led_present(&cur) && cur.r==4 && fails==0);
+    cur = (led_hw_t){true,4,5,6,0};
+    led_settle(&cur,&prev,&fails);               /* read ok, bit0 clear: absent now */
+    CHECK(!led_present(&cur) && fails==0);
+    prev = (led_hw_t){false,0,0,0,0};
+    cur = (led_hw_t){false,0,0,0,0}; fails = 0;
+    led_settle(&cur,&prev,&fails);               /* nothing to keep */
+    CHECK(!led_present(&cur));
+}
+
 int main(void){
+    test_settle_keeps_one_failed_read();
     test_parse_cmd_ok();
     test_parse_cmd_rejects();
     test_parse_saved_ok();

@@ -707,6 +707,9 @@ static bool g_heater_ext = false;
  * file), and whether the "no external light" line was already logged. */
 static led_color_t g_led_desired;
 static bool g_led_absent_logged = false;
+static led_hw_t g_led_prev;            /* last published LED state (led_settle) */
+static int  g_led_fails = 0;           /* consecutive failed LED block reads */
+static bool g_link_ok = false;         /* last main telemetry read succeeded */
 
 static void modbus_read_besteffort(telemetry_t *t)
 {
@@ -1019,7 +1022,7 @@ static int mb_write_led(const led_color_t *c, led_hw_t *readback)
     int attempt;
     for (attempt = 1; attempt <= MB_WRITE_ATTEMPTS; attempt++) {
         if (modbus_write_registers(g_modbus, REG_LED_RED, 3, vals) == 3) {
-            syslog(LOG_INFO, "control: led_rgb -> %u,%u,%u%s",
+            syslog(LOG_DEBUG, "control: led_rgb -> %u,%u,%u%s",
                    c->r, c->g, c->b, attempt > 1 ? " (retried)" : "");
             uint16_t lv[4];
             if (readback && modbus_read_registers(g_modbus, REG_LED_RED, 4, lv) == 4) {
@@ -1163,7 +1166,7 @@ static void apply_command_file(void)
         led_color_t c;
         if (led_parse_cmd(led, &c)) {
             g_led_desired = c;
-            if (led_present(&g_last_t.led)) {
+            if (g_link_ok && led_present(&g_last_t.led)) {
                 mb_write_led(&c, &g_last_t.led);
                 char *lj = build_latest_json(&g_last_t);
                 if (lj) { write_latest_snapshot(lj); free(lj); }
@@ -1329,6 +1332,9 @@ int main(void)
         telemetry_t t = {0};
         if (modbus_read_telemetry(&t) == 0) {
             modbus_read_besteffort(&t);
+            g_link_ok = true;
+            led_settle(&t.led, &g_led_prev, &g_led_fails);
+            g_led_prev = t.led;
             /* External light: restore/keep the desired color. At most one
              * write per cycle; nothing is written while no light is present. */
             if (led_present(&t.led)) {
@@ -1376,7 +1382,7 @@ int main(void)
                 }
             }
 
-            /* (Touchscreen commands are applied in the 1 Hz wait loop below, in
+            /* (Touchscreen commands are applied in the 200 ms wait loop below, in
              * this same thread — the libmodbus context is never touched
              * concurrently. Remote shadow commands — heater and whole-APU
              * apu_command — are applied further down in this same branch, also
@@ -1550,6 +1556,7 @@ int main(void)
 
         } else {
             /* Modbus read failed — try reconnecting the serial port */
+            g_link_ok = false;
             syslog(LOG_WARNING, "Modbus read failed — reconnecting...");
             modbus_close(g_modbus);
             sleep(2);

@@ -121,14 +121,15 @@
 #define LATEST_JSON_PATH    "/var/lib/ecofleet/latest.json"
 
 /* Local control channel: gobi-ui (the touchscreen) writes a small JSON command
- * here; the agent applies it to the Modbus holding registers each poll cycle,
- * then removes it. gobi-ui can't drive Modbus itself — the agent is the sole
+ * here; the agent checks it every CMD_POLL_MS, applies it to the Modbus holding
+ * registers, then removes it. gobi-ui can't drive Modbus itself — the agent is the sole
  * RTU master on the serial port. Keys (any subset): "mode" (off|climate|
  * battery), "setpoint_f" (int), "fan" (0-100), "fan_auto" (0|1, reg 9),
  * "batt_setpoint" (int, centivolts 1000-1500 = 10.0-15.0V, reg 13 — battery
  * auto-charge threshold; firmware auto-starts the APU to charge below it),
  * "reset_oil" (true), "diag_mode" (0|1 → enter/exit Component Test, reg 49),
- * "diag_out" (int (index<<8)|state → actuate one output, reg 50). */
+ * "diag_out" (int (index<<8)|state → actuate one output, reg 50),
+ * "led_rgb" ([r,g,b] 0-255 → external RGB light, regs 76-78). */
 #define COMMAND_JSON_PATH   "/var/lib/ecofleet/command.json"
 #define CMD_POLL_MS         200   /* how often the agent checks for a UI command */
 #define SQLITE_MAX_ROWS     8640    /* ~12 h at 5 s poll — then oldest is dropped */

@@ -51,3 +51,10 @@ bool led_should_write(const led_color_t *desired, const led_hw_t *hw)
     if (!desired || !desired->have || !led_present(hw)) return false;
     return hw->r != desired->r || hw->g != desired->g || hw->b != desired->b;
 }
+
+void led_settle(led_hw_t *cur, const led_hw_t *prev, int *fails)
+{
+    if (cur->read_ok) { *fails = 0; return; }
+    if (*fails < 1000) (*fails)++;
+    if (*fails < 2 && led_present(prev)) *cur = *prev;
+}
