@@ -28,6 +28,7 @@ Item {
     Component { id: alertsC;    AlertsScreen {} }
     Component { id: logC;       ErrorLogScreen {} }
     Component { id: settingsC;  SettingsScreen {} }
+    Component { id: ledC;       LedColorScreen {} }
     Component { id: cloudC;     CloudScreen {} }
     Component { id: lockC;      ScreenLockScreen {} }
     Component { id: maintC;     MaintenanceScreen {} }
@@ -110,6 +111,7 @@ Item {
         ["10-errorlog",      function() { telemetry.hasError = false; telemetry.error = "none"; eventlog.events = []; eventlog.activeCount = 0; root.poke(); root.sub(logC) }],
         ["10b-errorlog-events", function() { eventlog.sample(); root.sub(logC) }],
         ["11-settings",      function() { root.sub(settingsC) }],
+        ["12-led-color",     function() { root.sub(ledC) }],
         ["12-cloud",         function() { root.sub(cloudC) }],
         ["12b-cloud-offline", function() { telemetry.cloudConnected = false
                                            telemetry.cloudLastAckMs = Date.now() - 7 * 60000

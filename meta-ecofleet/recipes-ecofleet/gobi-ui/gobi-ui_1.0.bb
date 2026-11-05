@@ -1,6 +1,6 @@
 SUMMARY = "EcoFleet Gobi APU touchscreen dashboard"
 LICENSE = "CLOSED"
-PR = "r15"
+PR = "r16"
 
 SRC_URI = " \
     file://CMakeLists.txt \
@@ -15,6 +15,12 @@ SRC_URI = " \
     file://EventLogModel.cpp \
     file://DisplayModel.h \
     file://DisplayModel.cpp \
+    file://LedModel.h \
+    file://LedModel.cpp \
+    file://LedColor.h \
+    file://LedColor.cpp \
+    file://CommandFile.h \
+    file://CommandFile.cpp \
     file://UpdateNotice.h \
     file://UpdateNotice.cpp \
     file://WpaParse.h \
@@ -67,6 +73,7 @@ SRC_URI = " \
     file://qml/screens/AlertsScreen.qml \
     file://qml/screens/ErrorLogScreen.qml \
     file://qml/screens/SettingsScreen.qml \
+    file://qml/screens/LedColorScreen.qml \
     file://qml/screens/CloudScreen.qml \
     file://qml/screens/ScreenLockScreen.qml \
     file://qml/screens/MaintenanceScreen.qml \

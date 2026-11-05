@@ -18,6 +18,8 @@ QtObject {
         property string controlStatus: "off"
         property string error: "none";    property bool   hasError: false
         property string oilChange: "good"; property bool  stale: false
+        property bool   ledPresent: true;  property bool ledOk: true
+        property int    ledR: 38;          property int  ledG: 148;  property int ledB: 191
         property real   tsMs: 1
         property bool   diagActive: false; property int   diagOutputs: 0
         property int    apuFwVersion: 10104
@@ -81,6 +83,16 @@ QtObject {
     property QtObject display: QtObject {
         property int    brightness: 80;   property int  sleepMinutes: 10
         property bool   keepAwake: false; property string state: "on"
+    }
+    // led mock — mirrors LedModel (HSV wheel state; r/g/b derived)
+    property QtObject led: QtObject {
+        signal changed()
+        property real hue: 200;  property real saturation: 0.8; property real brightness: 0.75
+        property int  r: 38;     property int  g: 148;           property int  b: 191
+        property bool hasColor: true
+        function pickAt(dx, dy, radius) {}
+        function release() {}
+        function flush() {}
     }
     property QtObject devinfo: QtObject {
         property string serial: "TRUCK-001";     property string hostname: "imx8mm-var-dart"
