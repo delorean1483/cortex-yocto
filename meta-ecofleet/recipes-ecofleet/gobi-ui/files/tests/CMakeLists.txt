@@ -42,3 +42,10 @@ add_executable(tst_ledcolor tst_ledcolor.cpp ../LedColor.h ../LedColor.cpp)
 target_link_libraries(tst_ledcolor PRIVATE Qt6::Core Qt6::Test)
 target_compile_options(tst_ledcolor PRIVATE -Wall -Wextra)
 add_test(NAME tst_ledcolor COMMAND tst_ledcolor)
+
+add_executable(tst_ledmodel tst_ledmodel.cpp
+    ../LedModel.h ../LedModel.cpp ../LedColor.h ../LedColor.cpp ../CommandFile.h ../CommandFile.cpp)
+target_link_libraries(tst_ledmodel PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+target_compile_options(tst_ledmodel PRIVATE -Wall -Wextra)
+add_test(NAME tst_ledmodel COMMAND tst_ledmodel)
+set_tests_properties(tst_ledmodel PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

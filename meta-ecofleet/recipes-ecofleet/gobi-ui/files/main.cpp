@@ -10,6 +10,7 @@
 #include "WeatherModel.h"
 #include "EventLogModel.h"
 #include "DisplayModel.h"
+#include "LedModel.h"
 #include "WifiModel.h"
 
 int main(int argc, char *argv[])
@@ -40,6 +41,7 @@ int main(int argc, char *argv[])
     WeatherModel    weather;
     EventLogModel   eventlog;
     DisplayModel    display(DisplayModel::defaultBacklightDir(), DisplayModel::defaultConfigPath());
+    LedModel        led(LedModel::defaultConfigPath(), QStringLiteral("/var/lib/ecofleet/command.json"));
     WifiModel       wifi;
     app.installEventFilter(&display);   // touches drive the sleep timer / wake the panel
     wifi.start();
@@ -50,6 +52,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("weather"),   &weather);
     engine.rootContext()->setContextProperty(QStringLiteral("eventlog"),  &eventlog);
     engine.rootContext()->setContextProperty(QStringLiteral("display"),   &display);
+    engine.rootContext()->setContextProperty(QStringLiteral("led"),       &led);
     engine.rootContext()->setContextProperty(QStringLiteral("wifi"),      &wifi);
     engine.load(QUrl::fromLocalFile(QStringLiteral("/usr/share/gobi-ui/qml/main.qml")));
 

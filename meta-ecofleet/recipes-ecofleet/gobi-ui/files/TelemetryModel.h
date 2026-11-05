@@ -39,6 +39,11 @@ class TelemetryModel : public QObject
     Q_PROPERTY(int     apuFwVersion  READ apuFwVersion  NOTIFY dataChanged)
     Q_PROPERTY(bool    cloudConnected READ cloudConnected NOTIFY dataChanged)
     Q_PROPERTY(qint64  cloudLastAckMs READ cloudLastAckMs NOTIFY dataChanged)
+    Q_PROPERTY(bool    ledPresent         READ ledPresent         NOTIFY dataChanged)
+    Q_PROPERTY(bool    ledOk              READ ledOk              NOTIFY dataChanged)
+    Q_PROPERTY(int     ledR               READ ledR               NOTIFY dataChanged)
+    Q_PROPERTY(int     ledG               READ ledG               NOTIFY dataChanged)
+    Q_PROPERTY(int     ledB               READ ledB               NOTIFY dataChanged)
     Q_PROPERTY(bool    heaterPresent      READ heaterPresent      NOTIFY dataChanged)
     Q_PROPERTY(QString heaterState        READ heaterState        NOTIFY dataChanged)
     Q_PROPERTY(int     heaterTargetLevel  READ heaterTargetLevel  NOTIFY dataChanged)
@@ -125,6 +130,11 @@ public:
     int     apuFwVersion()  const { return m_apuFwVersion; }
     bool    cloudConnected() const { return m_cloudConnected; }   // MQTT link to AWS IoT up
     qint64  cloudLastAckMs() const { return m_cloudLastAckMs; }   // epoch ms of last AWS ack, 0 = none
+    bool    ledPresent()         const { return m_ledPresent; }
+    bool    ledOk()              const { return m_ledOk; }
+    int     ledR()               const { return m_ledR; }
+    int     ledG()               const { return m_ledG; }
+    int     ledB()               const { return m_ledB; }
     bool    heaterPresent()      const { return m_heaterPresent; }
     QString heaterState()        const { return m_heaterState; }
     int     heaterTargetLevel()  const { return m_heaterTargetLevel; }
@@ -185,6 +195,11 @@ private:
     bool    m_cloudConnected = false;
     qint64  m_cloudLastAckMs = 0;
 
+    bool    m_ledPresent         = false;
+    bool    m_ledOk              = false;
+    int     m_ledR               = 0;
+    int     m_ledG               = 0;
+    int     m_ledB               = 0;
     bool    m_heaterPresent      = false;
     QString m_heaterState        = QStringLiteral("off");
     int     m_heaterTargetLevel  = 0;
