@@ -34,7 +34,7 @@ Paths: `A/` = `meta-ecofleet/recipes-ecofleet/gobi-agent/`, `U/` = `meta-ecoflee
   - HSV converts to RGB rounded to 0-255.
 - **UI:**
   - The Settings row "External LED Color" is visible only while `telemetry.ledPresent` is true.
-  - Status strings, exactly, highest priority first: `G0B1 offline, will apply when it reconnects` (`telemetry.stale`), `Not set. Tap the wheel to choose a color` (`!led.hasColor`), `Light not responding` (present and not OK), `Applied` (applied RGB == requested RGB), otherwise `Sending…`.
+  - Status strings, exactly, highest priority first: `G0B1 offline, will apply when it reconnects` (`telemetry.stale`), `Light offline, will apply when it reconnects` (`!telemetry.ledPresent`), `Not set. Tap the wheel to choose a color` (`!led.hasColor`), `Light not responding` (present and `!ledOk`), `Applied` (applied RGB == requested RGB), otherwise `Sending…`.
 - **Restore:** the agent's desired color starts from `led.json`. With no valid saved color it sends nothing.
 - **Not in this plan:** no shadow or cloud changes, and no Qt5Compat.
 

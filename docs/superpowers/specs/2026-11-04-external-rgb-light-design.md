@@ -200,11 +200,13 @@ It is lighting, not a status signal: nothing assigns colors from APU state.
     - Reopening the page restores the marker, slider and preview from the
       saved values.
     - A status line distinguishes "Applied", "Sending…", "Light not
-      responding" (driver present, last apply failed), and "G0B1 offline,
-      will apply when it reconnects". The UI compares its requested RGB with
-      the applied RGB in `latest.json`, reads the status bits, and uses
-      `telemetry.stale` for offline. If the driver disappears while the page
-      is open, the page stays usable and shows offline rather than closing.
+      responding" (driver present, last apply failed), "Light offline, will
+      apply when it reconnects" (driver gone), "Not set. Tap the wheel to
+      choose a color", and "G0B1 offline, will apply when it reconnects". The
+      UI compares its requested RGB with the applied RGB in `latest.json`,
+      reads the status bits, and uses `telemetry.stale` for G0B1 offline. If
+      the driver disappears while the page is open, the page stays usable and
+      shows "Light offline" rather than closing.
 
 ## Restore behavior (decided)
 
