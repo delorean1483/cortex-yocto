@@ -182,3 +182,10 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -o "$here/test_cmdfile"
 
 "$here/test_cmdfile"
+
+# External RGB light: led_rgb command / saved-color parse and reconcile decision.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" -I"$cjson/include" \
+   "$here/test_led_ctl.c" "$files/led_ctl.c" \
+   -L"$cjson/lib" -lcjson -o "$here/test_led_ctl"
+"$here/test_led_ctl"

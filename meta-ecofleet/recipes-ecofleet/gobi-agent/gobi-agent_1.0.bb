@@ -23,6 +23,8 @@ SRC_URI = " \
     file://net_info.c \
     file://cmdfile.h \
     file://cmdfile.c \
+    file://led_ctl.c \
+    file://led_ctl.h \
     file://weather.h \
     file://weather.c \
     file://location.h \
