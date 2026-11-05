@@ -130,7 +130,13 @@ It is lighting, not a status signal: nothing assigns colors from APU state.
    atomic at the lamp.
 4. **Sharing I2C2 with the heater client.** Both run in the same superloop, so
    their transactions never overlap. An RGB update is about 8 bytes plus the
-   latch (roughly 1 ms at 100 kHz) and only happens when the color changes.
+   latch (roughly 1 ms at 100 kHz) and happens when the color changes, plus a
+   quiet refresh every 10 s (configuration and PWM rewritten without the reset,
+   so no flicker; about 2 ms of bus time). The refresh exists because a chip
+   that loses power and comes back while idle would otherwise stay dark while
+   every status said "applied" (added after the Plan 1 final review). A failed
+   refresh takes the apply-failure path, so the page shows "Light not
+   responding".
 
 ### Cortex agent (`gobi-agent`)
 
@@ -210,6 +216,7 @@ It is lighting, not a status signal: nothing assigns colors from APU state.
 | G0B1 reset with the Cortex up | Off at G0B1 init, back to the saved color within a poll cycle |
 | RS-485 link down | Keeps its last color; the page shows offline; reconciled when the link returns |
 | G0B1 hangs | Keeps its last color (no hardware shutdown line, see above) |
+| Lamp driver loses power and comes back, G0B1 running | Back to the applied color at the next 10 s refresh |
 
 ## Verification
 
