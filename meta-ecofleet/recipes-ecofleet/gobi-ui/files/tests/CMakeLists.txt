@@ -37,3 +37,8 @@ add_executable(tst_wifimodel tst_wifimodel.cpp FakeWpa.h
 target_link_libraries(tst_wifimodel PRIVATE Qt6::Core Qt6::Network Qt6::Test)
 target_compile_options(tst_wifimodel PRIVATE -Wall -Wextra)
 add_test(NAME tst_wifimodel COMMAND tst_wifimodel)
+
+add_executable(tst_ledcolor tst_ledcolor.cpp ../LedColor.h ../LedColor.cpp)
+target_link_libraries(tst_ledcolor PRIVATE Qt6::Core Qt6::Test)
+target_compile_options(tst_ledcolor PRIVATE -Wall -Wextra)
+add_test(NAME tst_ledcolor COMMAND tst_ledcolor)
