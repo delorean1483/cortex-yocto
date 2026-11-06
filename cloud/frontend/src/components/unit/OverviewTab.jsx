@@ -5,7 +5,7 @@ import {
 } from '@tabler/icons-react'
 import {
   fmt, apuVersionLabel, unitView, modeLabel, engineRunning, heaterStateLabel,
-  heaterExt, heaterPhaseLabel, networkView,
+  heaterExt, heaterPhaseLabel, networkView, isStandby,
 } from '../../api/contract.js'
 import { useCommand, useShadow } from '../../data/hooks.js'
 import { useCan } from '../../components/RoleGate.jsx'
@@ -30,7 +30,8 @@ function bannerCopy(tele, view) {
   if (view.tone === 'err') return { title: view.headline, sub: context, tab: ['history', 'View fault history'] }
   if (view.tone === 'warn') return { title: `Warning: ${view.headline}`, sub: context, tab: ['telemetry', 'View telemetry'] }
   // Healthy: the title already names the mode.
-  const doing = modeLabel(tele) === 'Off' && !running ? 'APU off' : modeLabel(tele)
+  const doing = isStandby(tele) ? 'truck engine on'
+    : modeLabel(tele) === 'Off' && !running ? 'APU off' : modeLabel(tele)
   return { title: `${view.status}: ${doing}`, sub: engine.charAt(0).toUpperCase() + engine.slice(1), tab: ['telemetry', 'View telemetry'] }
 }
 

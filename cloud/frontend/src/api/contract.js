@@ -2,7 +2,7 @@
 
 export function unitStatus(tele) {
   if (!tele) return 'off'
-  if (Number(tele.error_n) !== 0) return 'err'
+  if (hasFault(tele)) return 'err'
   if ((tele.batt_v != null && Number(tele.batt_v) < 12.0) || tele.oil_ok === false) return 'warn'
   return 'ok'
 }
@@ -219,14 +219,19 @@ export function unitView(tele, now = Date.now()) {
       seen: `Last report ${ageText(age)}`, stale: true, attention: true }
   }
   const seen = `Reported ${ageText(age)}`
-  if (Number(tele.error_n) !== 0) {
-    return { tone: 'err', status: 'Fault', headline: tele.error || 'Fault reported', seen, stale: false, attention: true }
+  if (hasFault(tele)) {
+    // tele.error is the firmware enum label (low_oil): show the code's name.
+    const headline = FAULT_CODES[Number(tele.error_n)]?.name || tele.error || 'Fault reported'
+    return { tone: 'err', status: 'Fault', headline, seen, stale: false, attention: true }
   }
   if (tele.batt_v != null && Number(tele.batt_v) < 12.0) {
     return { tone: 'warn', status: 'Warning', headline: `Low battery · ${fmt.volts(tele.batt_v)}`, seen, stale: false, attention: true }
   }
   if (tele.oil_ok === false) {
     return { tone: 'warn', status: 'Warning', headline: 'Low oil pressure', seen, stale: false, attention: true }
+  }
+  if (isStandby(tele)) {
+    return { tone: 'ok', status: 'Standby', headline: 'Truck engine on · APU on standby', seen, stale: false, attention: false }
   }
   const running = engineRunning(tele)
   const mode = modeLabel(tele)
@@ -264,6 +269,15 @@ const FAULT_CODES = {
 }
 // The APU stops itself while the truck's engine runs: normal, not a fault.
 const STANDBY = 7
+
+export function isStandby(tele) {
+  return !!tele && Number(tele.error_n) === STANDBY
+}
+
+// A fault in effect (any code but none and standby).
+function hasFault(tele) {
+  return Number(tele.error_n) !== 0 && !isStandby(tele)
+}
 
 function faultCode(fault) {
   if (fault == null || fault === '') return 0
