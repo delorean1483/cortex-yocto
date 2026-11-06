@@ -127,6 +127,20 @@ updates key by key. Absent on firmware older than the network report
 `firmware_version` is older than 1.2.82: an agent rolled back to one never
 sends the key, so the shadow keeps the newer agent's last value.
 
+`reported.apu_link` (every report): `"ok"` | `"down"` — whether this cycle's
+Modbus read of the APU controller answered. `apu_link_since` is the epoch ms
+of the last change (it restarts with the agent), `heartbeat_ts` the epoch ms
+of the report. While the APU is silent the agent sends **no telemetry** but
+keeps reporting the shadow every cycle, leaving out the APU-derived keys
+(`apu_state`, `dc_v`, `batt_soc`, `fault`, `last_seen_ts`, `heater`) so they
+keep their last real values; `network`, `ota_status` and one-shot clears still
+go out. `GET /fleet/units/{unit}/latest` returns these as
+`link: {apu, since, heartbeat_ts}` (or `null`) next to `latest`. The dashboard
+shows **No APU data** when telemetry is over 60 s old, `apu` is `"down"` and the
+heartbeat is under 60 s old; otherwise a stale unit is **Offline**. A stale
+heartbeat (older agent, or one rolled back) is ignored, so the rule needs no
+version gate.
+
 ---
 
 ## 4. OTA
