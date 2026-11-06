@@ -90,6 +90,8 @@ export function useSetMyAlerts() {
   return useMutation({
     mutationFn: (on) => api.setMyAlerts(on),
     onSuccess: (data) => qc.setQueryData(['me', 'alerts'], data),
+    // A failed save may still have landed (lost response): re-read it.
+    onError: () => qc.invalidateQueries({ queryKey: ['me', 'alerts'] }),
   })
 }
 

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { setTokens, clearTokens, loadRefreshToken, onTokenRefresh } from '../api/client.js'
 
 function parseJwtPayload(token) {
@@ -22,6 +23,7 @@ export function AuthProvider({ children }) {
   const [realRole, setRealRole]       = useState(null)
   const [selectedUnit, setSelectedUnit] = useState(null)
   const [loading, setLoading]         = useState(true)
+  const queryClient                   = useQueryClient()
 
   useEffect(() => {
     const rt = loadRefreshToken()
@@ -79,6 +81,8 @@ export function AuthProvider({ children }) {
 
   function logout() {
     clearTokens()
+    // The next person to sign in here must not see this one's cached fleet data.
+    queryClient.clear()
     localStorage.removeItem('eco_real_role')
     setRealRole(null)
     setUser(null)

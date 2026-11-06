@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from './AuthContext.jsx'
 import { realApi } from '../api/client.js'
 
@@ -11,8 +12,10 @@ function Probe() {
   return <div data-testid="p">{`${auth.role}|${auth.realRole}|${auth.canPreview}`}</div>
 }
 
+let qc
 function mount() {
-  return render(<AuthProvider><Probe /></AuthProvider>)
+  qc = new QueryClient()
+  return render(<QueryClientProvider client={qc}><AuthProvider><Probe /></AuthProvider></QueryClientProvider>)
 }
 
 // An API call that 401s, gets a token with `payload` from /auth/refresh, then
@@ -108,5 +111,20 @@ describe('AuthContext real role', () => {
     expect(auth.canPreview).toBe(false)
     expect(localStorage.getItem('eco_role')).toBe('eu')
     expect(localStorage.getItem('eco_real_role')).toBeNull()
+  })
+})
+
+describe('AuthContext logout', () => {
+  beforeEach(() => { localStorage.clear() })
+
+  // The next person to sign in on this browser must not see the last one's
+  // fleet data, even for the moment before their own queries load.
+  it('drops every cached query', () => {
+    mount()
+    act(() => { auth.login(jwt({ email: 'a@b.c', role: 'fm' }), 'rt') })
+    qc.setQueryData(['latest', 'APU-1'], { latest: { ts: 1 } })
+    qc.setQueryData(['units'], { units: [{ unit: 'APU-1' }] })
+    act(() => { auth.logout() })
+    expect(qc.getQueryCache().getAll()).toHaveLength(0)
   })
 })

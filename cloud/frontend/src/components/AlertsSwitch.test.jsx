@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
 const mutate = vi.fn()
-const mocks = vi.hoisted(() => ({ data: undefined, loading: false, pending: false, error: false }))
+const refetch = vi.fn()
+const mocks = vi.hoisted(() => ({ data: undefined, loading: false, pending: false, error: false, loadError: false }))
 vi.mock('../data/hooks.js', () => ({
-  useMyAlerts: () => ({ data: mocks.data, isLoading: mocks.loading }),
+  useMyAlerts: () => ({ data: mocks.data, isLoading: mocks.loading, isError: mocks.loadError, refetch }),
   useSetMyAlerts: () => ({ mutate, isPending: mocks.pending, isError: mocks.error }),
 }))
 
@@ -16,7 +17,8 @@ const setStored = (on) => { mocks.data = { email: EMAIL, email_alerts: on } }
 describe('AlertsSwitch', () => {
   beforeEach(() => {
     mutate.mockClear()
-    Object.assign(mocks, { loading: false, pending: false, error: false })
+    refetch.mockClear()
+    Object.assign(mocks, { loading: false, pending: false, error: false, loadError: false })
     setStored(false)
   })
 
@@ -61,6 +63,27 @@ describe('AlertsSwitch', () => {
     setStored(true)
     render(<AlertsSwitch compact email={EMAIL} />)
     expect(screen.getByRole('button', { name: 'Email alerts: on' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  // A failed load must not read as "off": the stored value is unknown, and a
+  // click would save a guess.
+  it('load failed: says so, offers a retry, never saves a guess', () => {
+    mocks.loadError = true
+    mocks.data = undefined
+    render(<AlertsSwitch compact={false} email={EMAIL} />)
+    expect(screen.getByRole('switch', { name: 'Email alerts' }).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: "Couldn't load. Retry" }))
+    expect(refetch).toHaveBeenCalled()
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it('load failed, narrow menu: the bell retries instead of saving', () => {
+    mocks.loadError = true
+    mocks.data = undefined
+    render(<AlertsSwitch compact email={EMAIL} />)
+    fireEvent.click(screen.getByRole('button', { name: "Email alerts: couldn't load. Retry" }))
+    expect(refetch).toHaveBeenCalled()
+    expect(mutate).not.toHaveBeenCalled()
   })
 
   it('is disabled while the preference loads', () => {
