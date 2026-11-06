@@ -15,6 +15,7 @@ const { InfluxDB }                                                 = require('@i
 const jwt                                                          = require('jsonwebtoken');
 const { randomUUID }                                               = require('crypto');
 const { mapTelemetryRow }                                          = require('./telemetry-view');
+const { linkView }                                                 = require('./link-view');
 const { validateCommand, authorizeCommand, authorizeConfig, canWrite } = require('./permissions');
 const { isDemoUnit, listDemoUnits, demoLatest, demoSeries }        = require('./demo');
 const { buildReports, faultCountFlux }                             = require('./reports-view');
@@ -287,14 +288,27 @@ async function getTelemetrySeries(unit, start, every) {
 async function handleGetLatest(event) {
   const unit = (event.pathParameters || {}).unit;
   if (!unit) return err(400, 'unit path parameter required');
-  if (isDemoUnit(unit)) return resp(200, { unit, latest: demoLatest(unit) });
+  if (isDemoUnit(unit)) return resp(200, { unit, latest: demoLatest(unit), link: null });
   await getInfluxToken();
   const queryApi = getInfluxClient().getQueryApi(INFLUX_ORG);
   // See flux.js: last() before pivot, and group() before sort/limit because
   // the enum fields are tags (state changes split the data into series).
-  const rows = await queryApi.collectRows(latestFlux(unit));
-  if (!rows.length) return resp(200, { unit, latest: null });
-  return resp(200, { unit, latest: mapTelemetryRow(rows[0]) });
+  const [rows, link] = await Promise.all([queryApi.collectRows(latestFlux(unit)), readLink(unit)]);
+  return resp(200, { unit, latest: rows.length ? mapTelemetryRow(rows[0]) : null, link });
+}
+
+// APU-link report from the unit's shadow (see link-view.js), or null. Never
+// fails /latest: the telemetry is the main payload, and without the link the
+// dashboard just falls back to telemetry age.
+async function readLink(unit) {
+  try {
+    const res = await iotdata.send(new GetThingShadowCommand({ thingName: `gobi-apu-${unit}` }));
+    const shadow = JSON.parse(Buffer.from(res.payload).toString('utf8'));
+    return linkView(shadow.state?.reported);
+  } catch (e) {
+    if (e.name !== 'ResourceNotFoundException') console.warn(`latest: shadow read for ${unit} failed: ${e.message}`);
+    return null;
+  }
 }
 
 // GET /fleet/units/{unit}/faults?start=-7d&limit=100
