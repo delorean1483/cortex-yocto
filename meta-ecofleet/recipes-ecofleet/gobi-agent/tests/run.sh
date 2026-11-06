@@ -185,6 +185,13 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -o "$here/test_shadow_apu_link"
 "$here/test_shadow_apu_link"
 
+# "APU not responding" fault event: when to raise it, its JSON, last-fault file.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" -I"$cjson/include" \
+   "$here/test_apu_silence.c" "$files/apu_silence.c" \
+   -L"$cjson/lib" -lcjson -o "$here/test_apu_silence"
+"$here/test_apu_silence"
+
 # Host test runner for the atomic command-file take (no cJSON dependency).
 cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -fsanitize=address,undefined \

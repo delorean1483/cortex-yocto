@@ -95,6 +95,14 @@ bucket (`fault` = the code in hex, `state` = `active` / `cleared` / `standby`)
 and emails when a fault starts or clears. Code 7 (`standby`: the APU stopped
 because the truck's engine is running) is recorded but is not a fault.
 
+Code **256** (`apu_no_reply`, status `no_reply`) is the agent's own, outside the
+firmware's byte range: the APU controller has not answered Modbus for a minute
+(`gobi-agent/files/apu_silence.h`). It is an active, critical fault named
+"APU not responding". The first good read afterwards publishes the APU's real
+code, which clears it. The agent keeps the last code it published in
+`/data/ecofleet/last-fault`, so a restarted agent still publishes that clear,
+and an ordinary restart publishes nothing.
+
 ---
 
 ## 3. Device shadow — control plane

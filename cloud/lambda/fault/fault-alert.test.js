@@ -158,6 +158,33 @@ function memoryIo() {
     assert.ok(faultEmail('fault', parseFault(msg(1, TS, 'mystery'), 0), null, URL).text.includes('APU      : mystery'));
   });
 
+  // ── APU not responding (agent-only code 256, gobi-agent apu_silence.h) ─────
+  const silent = (ts = TS) => ({ unit: 'TRUCK-001', ts, error: 'apu_no_reply', error_n: 256, status: 'no_reply' });
+
+  await check('APU not responding is an active fault record', () => {
+    assert.deepStrictEqual(faultFields(parseFault(silent(), 0)), {
+      fault: '0x0100', error: 'apu_no_reply', error_n: 256, description: 'APU not responding',
+      state: 'active', status: 'no_reply', active: true,
+    });
+  });
+
+  await check('APU not responding email', () => {
+    const { subject, text } = faultEmail('fault', parseFault(silent(), 0), null, URL);
+    assert.strictEqual(subject, '[EcoFleet] Fault — TRUCK-001: APU not responding');
+    assert.ok(text.includes('APU      : Not answering'));
+  });
+
+  await check('APU silent, agent restarts, APU answers: one fault and one recovery email', async () => {
+    const { io, sent } = memoryIo();
+    await handleFault(silent(TS), io, URL, 0);
+    await handleFault(silent(TS + 5 * MIN), io, URL, 0);   // raised again after an agent restart
+    await handleFault(msg(0, TS + 9 * MIN), io, URL, 0);
+    assert.deepStrictEqual(sent.map((m) => m.subject), [
+      '[EcoFleet] Fault — TRUCK-001: APU not responding',
+      '[EcoFleet] Recovered — TRUCK-001: APU not responding cleared',
+    ]);
+  });
+
   // ── handleFault ─────────────────────────────────────────────────────────────
   await check('looks up the previous record before writing, then emails', async () => {
     const { io, records, sent, calls } = memoryIo();
