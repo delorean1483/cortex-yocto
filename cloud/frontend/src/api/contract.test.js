@@ -30,6 +30,7 @@ describe('unitStatus', () => {
   it('warn on low battery', () => expect(unitStatus({ error_n: 0, batt_v: 11.4, oil_ok: true })).toBe('warn'))
   it('warn on oil not ok', () => expect(unitStatus({ error_n: 0, batt_v: 13, oil_ok: false })).toBe('warn'))
   it('ok otherwise', () => expect(unitStatus({ error_n: 0, batt_v: 12.7, oil_ok: true })).toBe('ok'))
+  it('ok in standby (code 7: truck engine on)', () => expect(unitStatus({ error_n: 7, batt_v: 13.9, oil_ok: true })).toBe('ok'))
 })
 
 describe('statusDotClass', () => {
@@ -225,6 +226,20 @@ describe('unitView', () => {
   it('fault -> err with the fault text as headline', () => {
     const v = unitView({ ...base, error: 'Low oil pressure', error_n: 1 }, NOW)
     expect(v).toMatchObject({ tone: 'err', status: 'Fault', headline: 'Low oil pressure', attention: true })
+  })
+  it('fault headline names the code, not the agent\'s raw label', () => {
+    expect(unitView({ ...base, error: 'low_oil', error_n: 1 }, NOW).headline).toBe('Low oil pressure')
+    expect(unitView({ ...base, error: 'starting_failure', error_n: 6 }, NOW).headline).toBe('Engine failed to start')
+  })
+  it('unknown fault code falls back to the raw label', () => {
+    expect(unitView({ ...base, error: 'mystery', error_n: 42 }, NOW)).toMatchObject({ tone: 'err', headline: 'mystery' })
+  })
+  it('standby (code 7: truck engine on) is not a fault', () => {
+    const v = unitView({ ...base, error: 'standby', error_n: 7, batt_v: 13.9 }, NOW)
+    expect(v).toMatchObject({ tone: 'ok', status: 'Standby', headline: 'Truck engine on · APU on standby', attention: false })
+  })
+  it('standby still warns on low battery', () => {
+    expect(unitView({ ...base, error: 'standby', error_n: 7, batt_v: 11.6 }, NOW)).toMatchObject({ tone: 'warn', headline: 'Low battery · 11.6 V' })
   })
   it('low battery -> warn', () => {
     const v = unitView({ ...base, batt_v: 11.6 }, NOW)

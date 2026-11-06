@@ -55,6 +55,12 @@ describe('OverviewTab', () => {
     expect(screen.queryByRole('heading', { name: /Fault:/ })).toBeNull()
   })
 
+  it('standby (code 7): says the truck engine is on, not a fault', () => {
+    renderTab({ ...BASE, error: 'standby', error_n: 7, batt_v: 13.9 })
+    expect(screen.getByRole('heading', { name: 'Standby: truck engine on' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /fault history/i })).toBeNull()
+  })
+
   it('groups readings by system', () => {
     renderTab(BASE)
     for (const g of ['Power', 'Climate', 'Engine', 'Diesel heater', 'Quick actions', 'Unit info']) {
