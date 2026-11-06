@@ -8,6 +8,7 @@ const { DynamoDBDocumentClient, ScanCommand }         = require('@aws-sdk/lib-dy
 const { InfluxDB, Point, flux }                       = require('@influxdata/influxdb-client');
 const { sendAlert, sesEmailInput }                    = require('./alert-mail');
 const { handleFault }                                 = require('./fault-alert');
+const { AWS_CLIENT_OPTS }                             = require('./net-limits');
 
 const REGION     = process.env.AWS_REGION || 'us-east-1';
 const INFLUX_URL = `http://${process.env.INFLUX_PRIVATE_IP}:8086`;
@@ -18,10 +19,12 @@ const USERS_TABLE   = process.env.USERS_TABLE   || 'ecofleet-prod-users';
 const ALERT_FROM    = process.env.ALERT_FROM    || '';
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'https://frontend-murex-xi-74.vercel.app';
 
-const sm  = new SecretsManagerClient({ region: REGION });
-const sns = new SNSClient({ region: REGION });
-const ses = new SESv2Client({ region: REGION });
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: REGION }));
+// Every AWS call has a time limit (net-limits.js): a stall fails, and is
+// logged, inside the 30 s Lambda timeout.
+const sm  = new SecretsManagerClient({ region: REGION, ...AWS_CLIENT_OPTS });
+const sns = new SNSClient({ region: REGION, ...AWS_CLIENT_OPTS });
+const ses = new SESv2Client({ region: REGION, ...AWS_CLIENT_OPTS });
+const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: REGION, ...AWS_CLIENT_OPTS }));
 
 // Delivery for alert-mail.js: SNS topic until ALERT_FROM is set, then SES to
 // every users-table item with email_alerts = true.
