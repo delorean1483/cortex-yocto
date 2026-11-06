@@ -34,7 +34,7 @@ const thousands = (n) => Math.round(n).toLocaleString('en-US')
 
 function UnitCard({ u, tele, view }) {
   return (
-    <Link to={unitHref(u.unit)} className={`ucard c-${view.tone}`} aria-label={`Open ${u.unit}`}
+    <Link to={unitHref(u.unit)} className={`ucard c-${view.tone}${view.stale ? ' stale' : ''}`} aria-label={`Open ${u.unit}`}
       style={{ textDecoration: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span className="ucard-name">{u.unit}</span>

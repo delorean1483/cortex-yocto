@@ -231,7 +231,8 @@ a.btn, a.btn:hover { text-decoration: none; }
 .ucard:hover, .ucard:focus-visible { border-color: var(--accent); outline: none; }
 .ucard.c-err { border: 2px solid var(--err); padding: 17px 19px; }
 .ucard.c-warn { border: 2px solid var(--warn); padding: 17px 19px; }
-.ucard.c-off .kv-val { color: var(--color-text-tertiary); }
+/* last-known readings (unit offline, or its APU silent) */
+.ucard.stale .kv-val { color: var(--color-text-tertiary); }
 .ucard-name { font-size: 18px; font-weight: 600; }
 .ucard-head { font-size: 16px; font-weight: 600; }
 .kv4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 12px 0; border-top: 1px solid var(--color-border-tertiary); border-bottom: 1px solid var(--color-border-tertiary); }

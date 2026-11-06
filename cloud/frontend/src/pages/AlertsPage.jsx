@@ -76,7 +76,13 @@ export default function AlertsPage() {
 
   const { byUnit, pending } = useFleetLatest(units.map(u => u.unit))
   const now = Date.now()
-  const offline = (unit) => !pending[unit] && byUnit[unit] !== undefined && unitView(byUnit[unit], now).stale
+  // Why a unit's fault may be old news: the unit is offline, or it reports but
+  // its APU controller is silent.
+  const staleNote = (unit) => {
+    if (pending[unit] || byUnit[unit] === undefined) return null
+    const v = unitView(byUnit[unit], now)
+    return !v.stale ? null : v.status === 'No APU data' ? 'No APU data' : 'Unit offline'
+  }
 
   const { active, log, failed } = results ? fleetFaultRows(results) : { active: [], log: [], failed: [] }
   const counts = severityCounts(active)
@@ -163,7 +169,7 @@ export default function AlertsPage() {
                     {allMode && (
                       <td>
                         {ageText(now - f.ts)}
-                        {offline(f.unit) && <div className="subline">Unit offline</div>}
+                        {staleNote(f.unit) && <div className="subline">{staleNote(f.unit)}</div>}
                       </td>
                     )}
                     {allMode && (

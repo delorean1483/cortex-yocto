@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
   heaterExt, heaterPhaseLabel, heaterTypeLabel,
          heaterFlags, diagOutputs, connLabel, otaStatusView,
-         chronological, ageText, modeLabel, unitView, byAttention,
+         chronological, ageText, modeLabel, unitView, byAttention, apuSilent, latestWithLink,
          activeFaults, faultInfo, reportView, userStatusView, assignableRoles, rangeLabel, shortWhen, faultStateView, toneCounts, filterRows, fleetFaultRows, severityCounts, reportRangeText } from './contract.js'
 
 describe('otaStatusView', () => {
@@ -237,6 +237,58 @@ describe('unitView', () => {
     const v = unitView({ ...base, ts: NOW - (2 * 60 + 14) * 60000, error: 'Low oil pressure', error_n: 1 }, NOW)
     expect(v).toMatchObject({ tone: 'off', status: 'Offline', stale: true, attention: true,
       headline: 'Not reporting · last known values', seen: 'Last report 2 h 14 min ago' })
+  })
+
+  // The unit still reports (shadow heartbeat) but its APU controller is silent.
+  const silent = (ago, link = {}) => ({ ...base, ts: NOW - ago,
+    link: { apu: 'down', since: NOW - ago + 5000, heartbeat_ts: NOW - 8000, ...link } })
+
+  it('APU silent, unit reporting -> err / No APU data, dated by the last APU data', () => {
+    const v = unitView(silent((2 * 60 + 14) * 60000), NOW)
+    expect(v).toMatchObject({ tone: 'err', status: 'No APU data', stale: true, attention: true,
+      headline: 'APU stopped answering 2 h 14 min ago', seen: 'Unit reported 8s ago' })
+  })
+  it('APU silent with no telemetry in range -> dated by when the link dropped', () => {
+    const v = unitView({ link: { apu: 'down', since: NOW - 3 * 86400000, heartbeat_ts: NOW - 8000 } }, NOW)
+    expect(v).toMatchObject({ tone: 'err', status: 'No APU data', headline: 'APU stopped answering 3 d ago' })
+  })
+  it('APU silent, no dates at all -> plain headline', () => {
+    expect(unitView({ link: { apu: 'down', since: null, heartbeat_ts: NOW - 8000 } }, NOW).headline).toBe('APU not answering')
+  })
+  it('unit itself silent too (old heartbeat) -> Offline', () => {
+    expect(unitView(silent(10 * 60000, { heartbeat_ts: NOW - 5 * 60000 }), NOW).status).toBe('Offline')
+  })
+  it('fresh telemetry wins over a down link (one missed read)', () => {
+    expect(unitView(silent(6000), NOW)).toMatchObject({ tone: 'ok', status: 'Standby' })
+  })
+  it('link ok but telemetry stale -> still Offline', () => {
+    expect(unitView(silent(10 * 60000, { apu: 'ok' }), NOW).status).toBe('Offline')
+  })
+})
+
+describe('apuSilent', () => {
+  const NOW = 1_000_000_000
+  it('down + fresh heartbeat', () => expect(apuSilent({ link: { apu: 'down', heartbeat_ts: NOW - 59000 } }, NOW)).toBe(true))
+  it('down + old heartbeat', () => expect(apuSilent({ link: { apu: 'down', heartbeat_ts: NOW - 61000 } }, NOW)).toBe(false))
+  it('down + no heartbeat', () => expect(apuSilent({ link: { apu: 'down', heartbeat_ts: null } }, NOW)).toBe(false))
+  it('no link (older agent)', () => expect(apuSilent({ ts: NOW - 120000 }, NOW)).toBe(false))
+  it('nothing', () => expect(apuSilent(undefined, NOW)).toBe(false))
+})
+
+describe('latestWithLink', () => {
+  const link = { apu: 'down', since: 1, heartbeat_ts: 2 }
+  it('latest only: unchanged', () => {
+    const latest = { ts: 5, batt_v: 12 }
+    expect(latestWithLink({ unit: 'A', latest, link: null })).toBe(latest)
+  })
+  it('link rides along on the telemetry', () => {
+    expect(latestWithLink({ unit: 'A', latest: { ts: 5 }, link })).toEqual({ ts: 5, link })
+  })
+  it('link without telemetry still gives an object', () => {
+    expect(latestWithLink({ unit: 'A', latest: null, link })).toEqual({ link })
+  })
+  it('neither: null', () => {
+    expect(latestWithLink({ unit: 'A', latest: null })).toBe(null)
   })
 })
 

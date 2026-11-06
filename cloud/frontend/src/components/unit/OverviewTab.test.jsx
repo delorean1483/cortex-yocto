@@ -107,6 +107,17 @@ describe('OverviewTab', () => {
     expect(screen.getByText(/offline/i, { selector: '.actions-note' })).toBeTruthy()
   })
 
+  it('APU silent, unit online: says so instead of Offline, still blocks starts', () => {
+    renderTab({ ...BASE, ts: Date.now() - 2 * 3600000,
+      link: { apu: 'down', since: Date.now() - 2 * 3600000, heartbeat_ts: Date.now() - 8000 } })
+    expect(screen.getByRole('heading', { name: 'APU stopped answering 2 h ago' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: /Offline/ })).toBeNull()
+    expect(screen.getByText(/unit is online but its APU controller is not answering/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /start climate/i }).disabled).toBe(true)
+    expect(screen.getByRole('button', { name: /stop apu/i }).disabled).toBe(false)
+    expect(screen.getByText(/APU is not answering/, { selector: '.actions-note' })).toBeTruthy()
+  })
+
   it('offline: the reason renders before the action buttons', () => {
     renderTab({ ...BASE, ts: Date.now() - 2 * 3600000 })
     const note = screen.getByText(/offline/i, { selector: '.actions-note' })

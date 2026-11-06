@@ -112,6 +112,20 @@ describe('DashboardPage', () => {
     expect(within(attn).getByText('Offline')).toBeTruthy()
   })
 
+  it('a reporting unit with a silent APU: No APU data, counted as a fault, readings marked old', () => {
+    state.latest['APU-1'] = { ...OK, ts: Date.now() - 2 * 3600000,
+      link: { apu: 'down', since: Date.now() - 2 * 3600000, heartbeat_ts: Date.now() - 5000 } }
+    renderPage()
+    const attn = screen.getByRole('region', { name: /^needs attention$/i })
+    expect(within(attn).getByText('No APU data')).toBeTruthy()
+    expect(within(attn).getByText('APU stopped answering 2 h ago')).toBeTruthy()
+    expect(within(attn).queryByText('Offline')).toBeNull()
+    expect(screen.getByRole('button', { name: /^Fault\s*1/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Offline\s*0/ })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Open APU-1' }).className).toMatch(/\bstale\b/)
+    expect(screen.getByRole('link', { name: 'Open APU-DEMO-01' }).className).not.toMatch(/\bstale\b/)
+  })
+
   it('shows engine speeds of 1,000 rpm and up (thousands separator must not break the value)', () => {
     state.latest['APU-DEMO-01'] = { ...OK, engine_status: 'running', rpm: 1850, batt_v: 13.9, ts: FRESH() }
     renderPage()

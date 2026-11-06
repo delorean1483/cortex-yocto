@@ -26,6 +26,9 @@ function bannerCopy(tele, view) {
   const engine = `engine ${running ? `running at ${rpmText(tele.rpm)}` : 'off'} · cabin ${fmt.tempF(tele.cabin_temp_f)}`
   const context = `Mode ${modeLabel(tele).toLowerCase()} · ${engine}`
   if (view.status === 'No data') return { title: 'No data yet', sub: 'This unit has not reported telemetry.', tab: null }
+  if (view.status === 'No APU data') return { title: view.headline,
+    sub: 'The unit is online but its APU controller is not answering. Values below are the last ones received. Check the APU controller’s power and its cable to the unit.',
+    tab: ['history', 'View history'] }
   if (view.stale) return { title: 'Offline: not reporting', sub: 'Values below are the last ones received.', tab: ['history', 'View history'] }
   if (view.tone === 'err') return { title: view.headline, sub: context, tab: ['history', 'View fault history'] }
   if (view.tone === 'warn') return { title: `Warning: ${view.headline}`, sub: context, tab: ['telemetry', 'View telemetry'] }

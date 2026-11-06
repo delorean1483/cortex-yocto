@@ -1333,6 +1333,8 @@ int main(void)
         if (modbus_read_telemetry(&t) == 0) {
             modbus_read_besteffort(&t);
             g_link_ok = true;
+            if (shadow_note_apu_link(true, t.ts_ms))
+                syslog(LOG_INFO, "APU link up");
             led_settle(&t.led, &g_led_prev, &g_led_fails);
             g_led_prev = t.led;
             /* External light: restore/keep the desired color. At most one
@@ -1557,10 +1559,21 @@ int main(void)
         } else {
             /* Modbus read failed — try reconnecting the serial port */
             g_link_ok = false;
+            if (shadow_note_apu_link(false, now_ms()))
+                syslog(LOG_WARNING, "APU link down — reporting apu_link down to the shadow");
             syslog(LOG_WARNING, "Modbus read failed — reconnecting...");
             modbus_close(g_modbus);
             sleep(2);
             modbus_connect(g_modbus);
+
+            /* Keep reporting while the APU is silent. No telemetry goes out,
+             * so without this the dashboard reads the whole unit as offline.
+             * shadow.c leaves the APU keys out and sends apu_link "down" plus
+             * a heartbeat; network, OTA status and one-shot clears still go. */
+            shadow_reported_t srep = {0};
+            read_ota_status(srep.ota_status, sizeof(srep.ota_status));
+            net_info_read(&srep.network);
+            shadow_publish_reported(g_mosq, &srep);
         }
 
         /* Flush offline buffer in small batches each cycle */
