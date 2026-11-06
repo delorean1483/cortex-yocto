@@ -138,6 +138,11 @@ describe('AlertsPage all units (admin / fm)', () => {
     expect(heads).toEqual(['When', 'Unit', 'Fault', 'State'])
   })
 
+  it('lists APU not responding among the monitored faults', async () => {
+    renderPage()
+    expect(await screen.findByText('APU not responding')).toBeTruthy()
+  })
+
   it('shows "Unit offline" under Raised when that unit is stale', async () => {
     state.latest = { A: { ts: NOW - 3600000 }, B: { ts: NOW }, C: { ts: NOW - 3600000 } }
     renderPage()

@@ -309,6 +309,9 @@ describe('faultInfo', () => {
     expect(faultInfo({ fault: '0x0003' })).toMatchObject({ name: 'Low battery', tone: 'warn', severity: 'Warning' })
     expect(faultInfo({ fault: '0x0009' })).toMatchObject({ name: 'No engine RPM', tone: 'err' })
   })
+  it('names the agent-only APU not responding code as critical', () => {
+    expect(faultInfo({ fault: '0x0100' })).toMatchObject({ name: 'APU not responding', tone: 'err', severity: 'Critical', code: '0x0100' })
+  })
   it('prefers the description the cloud recorded', () => {
     expect(faultInfo({ fault: '0x0001', description: 'Oil pressure switch open' }).name).toBe('Oil pressure switch open')
   })

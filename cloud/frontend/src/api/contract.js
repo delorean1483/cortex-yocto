@@ -290,6 +290,9 @@ const FAULT_CODES = {
   8: { name: 'Engine stalled', critical: true },
   9: { name: 'No engine RPM', critical: true },
   10: { name: 'High A/C pressure', critical: true },
+  // Agent-only: the APU controller stopped answering for a minute (gobi-agent
+  // apu_silence.h). Firmware codes fit in a byte, so this never collides.
+  256: { name: 'APU not responding', critical: true },
 }
 // The APU stops itself while the truck's engine runs: normal, not a fault.
 const STANDBY = 7

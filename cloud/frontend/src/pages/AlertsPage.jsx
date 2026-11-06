@@ -12,13 +12,15 @@ import FilterChips from '../components/FilterChips.jsx'
 
 const WINDOW_LABEL = 'last 7 days'
 
-// Reference only — trip points live in the APU controller firmware.
+// Reference only — trip points live in the APU controller firmware, except
+// APU not responding, which the unit raises when that controller goes silent.
 const MONITORED = [
   { name: 'Low oil pressure',  trigger: 'Engine oil-pressure switch open', critical: true },
   { name: 'High engine temp',  trigger: 'Coolant or engine over-temperature', critical: true },
   { name: 'Low battery',       trigger: 'Battery voltage below the safe threshold', critical: false },
   { name: 'A/C pressure',      trigger: 'Refrigerant pressure out of range (low or high)', critical: true },
   { name: 'Start / RPM fault', trigger: 'Failed to start, engine stalled, or no RPM', critical: true },
+  { name: 'APU not responding', trigger: 'APU controller silent for a minute (no reply to the unit)', critical: true },
 ]
 
 function SeverityBadge({ info }) {
