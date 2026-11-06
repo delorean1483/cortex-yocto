@@ -18,13 +18,14 @@ Item {
     Header { id: hdr; anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
              onWifiTapped: shell.openWifi(); onFaultTapped: shell.openAlerts() }
     Component { id: wifiC; WifiScreen {} }
-    function openWifi() {
-        if (stack.currentItem && stack.currentItem.isWifiScreen === true) return   // already there
-        selectRail(2); stack.push(wifiC)
-    }
     Component { id: alertsC; AlertsScreen {} }
     Component { id: modeC; ModeScreen {} }
-    // Over the current screen, so Back returns there (e.g. Home's fault strip).
+    // Over the current screen, so Back returns there (e.g. Home's fault strip,
+    // the header's WiFi icon).
+    function openWifi() {
+        if (stack.currentItem && stack.currentItem.isWifiScreen === true) return   // already there
+        stack.push(wifiC)
+    }
     function openAlerts() {
         if (stack.currentItem && stack.currentItem.isAlertsScreen === true) return
         stack.push(alertsC)
