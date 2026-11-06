@@ -1,6 +1,6 @@
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client.js'
-import { chronological } from '../api/contract.js'
+import { chronological, latestWithLink } from '../api/contract.js'
 
 export function useUnits() {
   return useQuery({
@@ -26,7 +26,7 @@ export function useUnitLatest(unit) {
     queryFn: () => api.getLatest(unit),
     refetchInterval: LATEST_POLL_MS,
     refetchOnWindowFocus: true,
-    select: (d) => d.latest,
+    select: latestWithLink,   // telemetry + the shadow's APU link (unitView)
   })
 }
 
@@ -126,7 +126,7 @@ export function useFleetLatest(units) {
       queryKey: ['latest', unit],
       queryFn: () => api.getLatest(unit),
       refetchInterval: LATEST_POLL_MS,
-      select: (d) => d.latest,
+      select: latestWithLink,
     })),
   })
   const byUnit = {}

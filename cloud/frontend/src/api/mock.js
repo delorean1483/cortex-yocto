@@ -5,6 +5,8 @@
 const REAL_UNIT = 'APU-000123'
 const DEMO_UNITS = ['APU-DEMO-01', 'APU-DEMO-02', 'APU-DEMO-03']
 const STALE_UNITS = new Set(['APU-DEMO-02'])
+// Reports, but its APU controller has stopped answering (shadow apu_link down).
+const APU_SILENT_UNIT = 'APU-000124'
 
 function baseSnapshot(unit, over = {}) {
   return {
@@ -118,6 +120,7 @@ export const mockApi = {
 
   listUnits: () => delay({ units: [
     { unit: REAL_UNIT, demo: false },
+    { unit: APU_SILENT_UNIT, demo: false },
     ...DEMO_UNITS.map((u) => ({ unit: u, demo: true })),
   ] }),
 
@@ -125,8 +128,13 @@ export const mockApi = {
   // unit would read Offline); STALE_UNITS keep an old one to demo that state.
   getLatest: (unit) => {
     const snap = SNAPSHOTS[unit] || baseSnapshot(unit)
-    const ts = STALE_UNITS.has(unit) ? Date.now() - (2 * 60 + 14) * 60000 : Date.now()
-    return delay({ unit, latest: { ...snap, ts } })
+    const old = Date.now() - (2 * 60 + 14) * 60000
+    if (unit === APU_SILENT_UNIT) {
+      return delay({ unit, latest: { ...snap, ts: old },
+        link: { apu: 'down', since: old + 20000, heartbeat_ts: Date.now() } })
+    }
+    const ts = STALE_UNITS.has(unit) ? old : Date.now()
+    return delay({ unit, latest: { ...snap, ts }, link: null })
   },
 
   getTelemetry: (unit, params = {}) => {
