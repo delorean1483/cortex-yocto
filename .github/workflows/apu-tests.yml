@@ -31,6 +31,14 @@ jobs:
       - name: Low-battery rule tests
         working-directory: cloud/lambda/ingest
         run: node battery-alert.test.js && node battery-check.test.js
+      # Real SDK clients against a server that never answers: catches an SDK
+      # upgrade that changes how the time limits apply (shared/net-limits.js).
+      - name: Install ingest Lambda deps
+        working-directory: cloud/lambda/ingest
+        run: npm ci
+      - name: AWS call time limits
+        working-directory: cloud/lambda/ingest
+        run: node net-limits.test.js
 
   apu-simulator:
     name: APU simulator matrix (Python)

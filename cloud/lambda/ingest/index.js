@@ -9,6 +9,7 @@ const { InfluxDB, Point } = require('@influxdata/influxdb-client');
 const { mapTelemetry } = require('./telemetry-map');
 const { checkBattery } = require('./battery-check');
 const { sendAlert, sesEmailInput } = require('./alert-mail');
+const { AWS_CLIENT_OPTS } = require('./net-limits');
 
 const REGION     = process.env.AWS_REGION || 'us-east-1';
 const INFLUX_URL = `http://${process.env.INFLUX_PRIVATE_IP}:8086`;
@@ -20,10 +21,12 @@ const USERS_TABLE          = process.env.USERS_TABLE          || 'ecofleet-prod-
 const ALERT_FROM           = process.env.ALERT_FROM           || '';
 const DASHBOARD_URL        = process.env.DASHBOARD_URL        || 'https://frontend-murex-xi-74.vercel.app';
 
-const sm  = new SecretsManagerClient({ region: REGION });
-const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: REGION }));
-const ses = new SESv2Client({ region: REGION });
-const sns = new SNSClient({ region: REGION });
+// Every AWS call has a time limit (net-limits.js): a stall fails, and is
+// logged, inside the 30 s Lambda timeout.
+const sm  = new SecretsManagerClient({ region: REGION, ...AWS_CLIENT_OPTS });
+const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: REGION, ...AWS_CLIENT_OPTS }));
+const ses = new SESv2Client({ region: REGION, ...AWS_CLIENT_OPTS });
+const sns = new SNSClient({ region: REGION, ...AWS_CLIENT_OPTS });
 
 // ── Low-battery alert I/O (rule + versioning live in battery-check.js) ───────
 async function loadState(unit) {
