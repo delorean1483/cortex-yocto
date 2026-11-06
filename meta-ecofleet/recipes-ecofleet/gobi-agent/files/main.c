@@ -1160,13 +1160,16 @@ static void apply_command_file(void)
         for (int i = 0; i < n; i++) mb_write_reg(hw[i].reg, hw[i].value, hw[i].what);
     }
 
-    /* led_rgb: [r,g,b] -> remember it, and apply now if a light is present */
+    /* Queue the latest requested color in the G0B1 even while its lamp is
+     * absent. A successful LED block read proves these command registers
+     * exist; the cached PRESENT bit may be stale for a whole telemetry cycle.
+     * The G0B1 retains the request and retries the physical lamp itself. */
     const cJSON *led = cJSON_GetObjectItemCaseSensitive(root, "led_rgb");
     if (led) {
         led_color_t c;
         if (led_parse_cmd(led, &c)) {
             g_led_desired = c;
-            if (g_link_ok && led_present(&g_last_t.led)) {
+            if (g_link_ok && g_last_t.led.read_ok) {
                 mb_write_led(&c, &g_last_t.led);
                 char *lj = build_latest_json(&g_last_t);
                 if (lj) { write_latest_snapshot(lj); free(lj); }
