@@ -55,6 +55,7 @@ target_sources(gobi-agent PRIVATE
     net_info.c
     cmdfile.c
     led_ctl.c
+    apu_silence.c
 )
 
 target_include_directories(gobi-agent PRIVATE

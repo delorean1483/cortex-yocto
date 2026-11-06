@@ -6,13 +6,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 const state = vi.hoisted(() => ({
   faults: [], role: 'maint', selectedUnit: 'TRUCK-001', setSelectedUnit: null,
   units: [{ unit: 'TRUCK-001', demo: false }],
-  byUnit: {}, latest: {}, getFaults: null, listUnits: null,
+  byUnit: {}, latest: {}, link: {}, getFaults: null, listUnits: null,
 }))
 vi.mock('../api/client.js', () => ({
   api: {
     listUnits: () => state.listUnits(),
     getFaults: (...a) => state.getFaults(...a),
-    getLatest: (unit) => Promise.resolve({ latest: state.latest[unit] }),
+    getLatest: (unit) => Promise.resolve({ latest: state.latest[unit], link: state.link[unit] ?? null }),
   },
 }))
 vi.mock('../contexts/AuthContext.jsx', () => ({
@@ -36,7 +36,7 @@ describe('AlertsPage single unit (maint / eu)', () => {
     state.setSelectedUnit = vi.fn()
     state.listUnits = () => Promise.resolve({ units: state.units })
     state.units = [{ unit: 'TRUCK-001', demo: false }]
-    state.latest = {}
+    state.latest = {}; state.link = {}
     state.getFaults = () => Promise.resolve({ faults: state.faults })
   })
 
@@ -77,7 +77,7 @@ describe('AlertsPage all units (admin / fm)', () => {
     state.setSelectedUnit = vi.fn()
     state.listUnits = () => Promise.resolve({ units: state.units })
     state.units = [{ unit: 'A', demo: false }, { unit: 'B', demo: false }, { unit: 'C', demo: false }]
-    state.latest = { A: { ts: NOW }, B: { ts: NOW }, C: { ts: NOW } }
+    state.latest = { A: { ts: NOW }, B: { ts: NOW }, C: { ts: NOW } }; state.link = {}
     state.getFaults = vi.fn((unit) => unit === 'B'
       ? Promise.reject(new Error('boom'))
       : Promise.resolve({ faults: unit === 'A'
@@ -138,10 +138,23 @@ describe('AlertsPage all units (admin / fm)', () => {
     expect(heads).toEqual(['When', 'Unit', 'Fault', 'State'])
   })
 
+  it('lists APU not responding among the monitored faults', async () => {
+    renderPage()
+    expect(await screen.findByText('APU not responding')).toBeTruthy()
+  })
+
   it('shows "Unit offline" under Raised when that unit is stale', async () => {
     state.latest = { A: { ts: NOW - 3600000 }, B: { ts: NOW }, C: { ts: NOW - 3600000 } }
     renderPage()
     expect(await screen.findAllByText('Unit offline')).toHaveLength(2)
+  })
+
+  it('shows "No APU data" instead when the unit reports but its APU is silent', async () => {
+    state.latest = { A: { ts: NOW - 3600000 }, B: { ts: NOW }, C: { ts: NOW - 3600000 } }
+    state.link = { C: { apu: 'down', since: NOW - 3600000, heartbeat_ts: NOW - 5000 } }
+    renderPage()
+    expect(await screen.findAllByText('No APU data')).toHaveLength(1)
+    expect(screen.getAllByText('Unit offline')).toHaveLength(1)
   })
 
   it('picking a unit switches to single-unit mode and updates AuthContext', async () => {

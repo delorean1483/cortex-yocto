@@ -14,6 +14,7 @@
 #include "reboot_guard.h"
 #include "cmdfile.h"
 #include "led_ctl.h"
+#include "apu_silence.h"
 #include "event_log.h"
 #include "stm32_flash_task.h"
 #include "heater_fields.h"
@@ -409,6 +410,14 @@ static uint64_t now_ms(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
+    return (uint64_t)ts.tv_sec * 1000u + (uint64_t)(ts.tv_nsec / 1000000);
+}
+
+/* For measuring how long something has lasted: unaffected by NTP steps. */
+static uint64_t mono_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000u + (uint64_t)(ts.tv_nsec / 1000000);
 }
 
@@ -1321,7 +1330,13 @@ int main(void)
     event_log_load(g_events_path, &g_events);
     syslog(LOG_INFO, "event log: %s (%d events)", g_events_path, g_events.count);
 
-    uint8_t prev_error = 0;   /* control_error_t; 0 = ERR_NONE */
+    /* Last fault code published: control_error_t, or APU_NO_REPLY_CODE. Kept
+     * in a state file so a restarted agent still publishes the clear of a
+     * fault raised before the restart (apu_silence.h). */
+    const char *last_fault_path = access("/data/ecofleet", W_OK) == 0
+                                ? LAST_FAULT_PATH : LAST_FAULT_FALLBACK_PATH;
+    unsigned prev_error = last_fault_load(last_fault_path);
+    uint64_t apu_down_since = mono_ms();   /* when the APU last went silent */
     led_load_saved();
 
     while (g_running) {
@@ -1333,6 +1348,8 @@ int main(void)
         if (modbus_read_telemetry(&t) == 0) {
             modbus_read_besteffort(&t);
             g_link_ok = true;
+            if (shadow_note_apu_link(true, t.ts_ms))
+                syslog(LOG_INFO, "APU link up");
             led_settle(&t.led, &g_led_prev, &g_led_fails);
             g_led_prev = t.led;
             /* External light: restore/keep the desired color. At most one
@@ -1436,6 +1453,8 @@ int main(void)
                 else
                     syslog(LOG_INFO, "APU error cleared");
                 prev_error = t.error;
+                if (last_fault_save(last_fault_path, prev_error) != 0)
+                    syslog(LOG_WARNING, "could not save %s", last_fault_path);
             }
 
             /* ── Shadow reported update (existing schema, best-effort) ────── */
@@ -1557,10 +1576,41 @@ int main(void)
         } else {
             /* Modbus read failed — try reconnecting the serial port */
             g_link_ok = false;
+            uint64_t mono = mono_ms();
+            if (shadow_note_apu_link(false, now_ms())) {
+                syslog(LOG_WARNING, "APU link down — reporting apu_link down to the shadow");
+                apu_down_since = mono;
+            }
             syslog(LOG_WARNING, "Modbus read failed — reconnecting...");
             modbus_close(g_modbus);
             sleep(2);
             modbus_connect(g_modbus);
+
+            /* Keep reporting while the APU is silent. No telemetry goes out,
+             * so without this the dashboard reads the whole unit as offline.
+             * shadow.c leaves the APU keys out and sends apu_link "down" plus
+             * a heartbeat; network, OTA status and one-shot clears still go. */
+            shadow_reported_t srep = {0};
+            read_ota_status(srep.ota_status, sizeof(srep.ota_status));
+            net_info_read(&srep.network);
+            shadow_publish_reported(g_mosq, &srep);
+
+            /* A minute of silence: raise "APU not responding" as a fault event
+             * so the cloud records it and emails. The first good read then
+             * publishes the APU's real code (prev_error differs), clearing it. */
+            if (apu_silence_should_raise(prev_error, apu_down_since, mono)) {
+                uint64_t ts = now_ms();
+                char *fault_json = apu_silence_fault_json(g_unit_serial, ts);
+                if (fault_json) {
+                    publish_or_buffer(g_topic_faults, "faults", ts, fault_json);
+                    free(fault_json);
+                    syslog(LOG_WARNING, "APU silent for %u s — raised APU not responding",
+                           APU_SILENT_RAISE_MS / 1000);
+                    prev_error = APU_NO_REPLY_CODE;
+                    if (last_fault_save(last_fault_path, prev_error) != 0)
+                        syslog(LOG_WARNING, "could not save %s", last_fault_path);
+                }
+            }
         }
 
         /* Flush offline buffer in small batches each cycle */

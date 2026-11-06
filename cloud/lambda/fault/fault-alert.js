@@ -28,12 +28,16 @@ const FAULT_NAMES = {
   8: 'Engine stalled',
   9: 'No engine RPM',
   10: 'High A/C pressure',
+  // Agent-only (gobi-agent apu_silence.h): the APU controller stopped answering
+  // Modbus for a minute. Cleared by the APU's real code once it answers again.
+  256: 'APU not responding',
 };
 
 // control_status_t labels, as the panel shows them (gobi-ui StatusLabels.qml).
 const STATUS_LABELS = {
   off: 'Off', warming_up: 'Warming up', starting: 'Starting', running: 'Running',
   defrost: 'Defrost', charging: 'Charging', cooling: 'Cooling', chillin: 'At target',
+  no_reply: 'Not answering',   // sent with code 256
 };
 
 const isFault = (code) => code !== 0 && code !== STANDBY;

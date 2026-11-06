@@ -4,12 +4,13 @@ const seen = vi.hoisted(() => [])
 const qc = vi.hoisted(() => ({ setQueryData: vi.fn(), invalidateQueries: vi.fn() }))
 vi.mock('@tanstack/react-query', () => ({
   useQuery: (opts) => { seen.push(opts); return {} },
+  useQueries: ({ queries }) => { seen.push(...queries); return queries.map(() => ({})) },
   useMutation: (opts) => { seen.push(opts); return {} },
   useQueryClient: () => qc,
 }))
 vi.mock('../api/client.js', () => ({ api: {} }))
 
-import { useUnitLatest, useSetMyAlerts, LATEST_POLL_MS } from './hooks.js'
+import { useUnitLatest, useFleetLatest, useSetMyAlerts, LATEST_POLL_MS } from './hooks.js'
 
 describe('useUnitLatest', () => {
   it('polls every 15s — each poll is an InfluxDB query per unit per open tab', () => {
@@ -26,5 +27,19 @@ describe('useSetMyAlerts', () => {
     useSetMyAlerts()
     seen.at(-1).onError(new Error('HTTP 502'))
     expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['me', 'alerts'] })
+  })
+})
+
+// The shadow's APU-link report rides along on the telemetry for every caller,
+// so a unit with a silent APU reads "No APU data" fleet-wide, not "Offline".
+describe('latest telemetry carries the APU link', () => {
+  const link = { apu: 'down', since: 1, heartbeat_ts: 2 }
+  it('useUnitLatest', () => {
+    useUnitLatest('TRUCK-001')
+    expect(seen.at(-1).select({ unit: 'TRUCK-001', latest: { ts: 5 }, link })).toEqual({ ts: 5, link })
+  })
+  it('useFleetLatest', () => {
+    useFleetLatest(['TRUCK-001'])
+    expect(seen.at(-1).select({ unit: 'TRUCK-001', latest: null, link })).toEqual({ link })
   })
 })

@@ -3,6 +3,7 @@ import { IconInfoCircle } from '@tabler/icons-react'
 import { useCommand } from '../../data/hooks.js'
 import { useCan } from '../../components/RoleGate.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
+import { apuSilent } from '../../api/contract.js'
 
 // APU start/stop buttons + crank confirmation, shared by the Remote tab and
 // the Overview's Quick actions. `offline` (stale telemetry) blocks the starts:
@@ -26,6 +27,7 @@ export default function ApuControls({ tele, unit, isDemo, offline = false, stack
   const run = () => command.mutate({ unit, body: confirm.cmd }, { onSettled: () => setConfirm(null) })
 
   const note = disabled ? disabledReason
+    : offline && apuSilent(tele) ? 'The APU is not answering — starting is unavailable until it does. Stop can still be queued.'
     : offline ? 'Unit is offline — starting is unavailable until it reports again. Stop can still be queued.'
     : 'Every action asks you to confirm before it is sent to the unit.'
 

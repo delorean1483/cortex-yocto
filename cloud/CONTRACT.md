@@ -95,6 +95,14 @@ bucket (`fault` = the code in hex, `state` = `active` / `cleared` / `standby`)
 and emails when a fault starts or clears. Code 7 (`standby`: the APU stopped
 because the truck's engine is running) is recorded but is not a fault.
 
+Code **256** (`apu_no_reply`, status `no_reply`) is the agent's own, outside the
+firmware's byte range: the APU controller has not answered Modbus for a minute
+(`gobi-agent/files/apu_silence.h`). It is an active, critical fault named
+"APU not responding". The first good read afterwards publishes the APU's real
+code, which clears it. The agent keeps the last code it published in
+`/data/ecofleet/last-fault`, so a restarted agent still publishes that clear,
+and an ordinary restart publishes nothing.
+
 ---
 
 ## 3. Device shadow — control plane
@@ -126,6 +134,20 @@ updates key by key. Absent on firmware older than the network report
 (`primary` from 1.2.82). The dashboard ignores `primary` when
 `firmware_version` is older than 1.2.82: an agent rolled back to one never
 sends the key, so the shadow keeps the newer agent's last value.
+
+`reported.apu_link` (every report): `"ok"` | `"down"` — whether this cycle's
+Modbus read of the APU controller answered. `apu_link_since` is the epoch ms
+of the last change (it restarts with the agent), `heartbeat_ts` the epoch ms
+of the report. While the APU is silent the agent sends **no telemetry** but
+keeps reporting the shadow every cycle, leaving out the APU-derived keys
+(`apu_state`, `dc_v`, `batt_soc`, `fault`, `last_seen_ts`, `heater`) so they
+keep their last real values; `network`, `ota_status` and one-shot clears still
+go out. `GET /fleet/units/{unit}/latest` returns these as
+`link: {apu, since, heartbeat_ts}` (or `null`) next to `latest`. The dashboard
+shows **No APU data** when telemetry is over 60 s old, `apu` is `"down"` and the
+heartbeat is under 60 s old; otherwise a stale unit is **Offline**. A stale
+heartbeat (older agent, or one rolled back) is ignored, so the rule needs no
+version gate.
 
 ---
 

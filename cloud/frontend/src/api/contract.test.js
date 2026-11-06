@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { unitStatus, statusDotClass, isStale, heaterStateLabel, fmt,
   heaterExt, heaterPhaseLabel, heaterTypeLabel,
          heaterFlags, diagOutputs, connLabel, otaStatusView,
-         chronological, ageText, modeLabel, unitView, byAttention,
+         chronological, ageText, modeLabel, unitView, byAttention, apuSilent, latestWithLink,
          activeFaults, faultInfo, reportView, userStatusView, assignableRoles, rangeLabel, shortWhen, faultStateView, toneCounts, filterRows, fleetFaultRows, severityCounts, reportRangeText } from './contract.js'
 
 describe('otaStatusView', () => {
@@ -30,6 +30,7 @@ describe('unitStatus', () => {
   it('warn on low battery', () => expect(unitStatus({ error_n: 0, batt_v: 11.4, oil_ok: true })).toBe('warn'))
   it('warn on oil not ok', () => expect(unitStatus({ error_n: 0, batt_v: 13, oil_ok: false })).toBe('warn'))
   it('ok otherwise', () => expect(unitStatus({ error_n: 0, batt_v: 12.7, oil_ok: true })).toBe('ok'))
+  it('ok in standby (code 7: truck engine on)', () => expect(unitStatus({ error_n: 7, batt_v: 13.9, oil_ok: true })).toBe('ok'))
 })
 
 describe('statusDotClass', () => {
@@ -226,6 +227,20 @@ describe('unitView', () => {
     const v = unitView({ ...base, error: 'Low oil pressure', error_n: 1 }, NOW)
     expect(v).toMatchObject({ tone: 'err', status: 'Fault', headline: 'Low oil pressure', attention: true })
   })
+  it('fault headline names the code, not the agent\'s raw label', () => {
+    expect(unitView({ ...base, error: 'low_oil', error_n: 1 }, NOW).headline).toBe('Low oil pressure')
+    expect(unitView({ ...base, error: 'starting_failure', error_n: 6 }, NOW).headline).toBe('Engine failed to start')
+  })
+  it('unknown fault code falls back to the raw label', () => {
+    expect(unitView({ ...base, error: 'mystery', error_n: 42 }, NOW)).toMatchObject({ tone: 'err', headline: 'mystery' })
+  })
+  it('standby (code 7: truck engine on) is not a fault', () => {
+    const v = unitView({ ...base, error: 'standby', error_n: 7, batt_v: 13.9 }, NOW)
+    expect(v).toMatchObject({ tone: 'ok', status: 'Standby', headline: 'Truck engine on · APU on standby', attention: false })
+  })
+  it('standby still warns on low battery', () => {
+    expect(unitView({ ...base, error: 'standby', error_n: 7, batt_v: 11.6 }, NOW)).toMatchObject({ tone: 'warn', headline: 'Low battery · 11.6 V' })
+  })
   it('low battery -> warn', () => {
     const v = unitView({ ...base, batt_v: 11.6 }, NOW)
     expect(v).toMatchObject({ tone: 'warn', status: 'Warning', headline: 'Low battery · 11.6 V', attention: true })
@@ -237,6 +252,58 @@ describe('unitView', () => {
     const v = unitView({ ...base, ts: NOW - (2 * 60 + 14) * 60000, error: 'Low oil pressure', error_n: 1 }, NOW)
     expect(v).toMatchObject({ tone: 'off', status: 'Offline', stale: true, attention: true,
       headline: 'Not reporting · last known values', seen: 'Last report 2 h 14 min ago' })
+  })
+
+  // The unit still reports (shadow heartbeat) but its APU controller is silent.
+  const silent = (ago, link = {}) => ({ ...base, ts: NOW - ago,
+    link: { apu: 'down', since: NOW - ago + 5000, heartbeat_ts: NOW - 8000, ...link } })
+
+  it('APU silent, unit reporting -> err / No APU data, dated by the last APU data', () => {
+    const v = unitView(silent((2 * 60 + 14) * 60000), NOW)
+    expect(v).toMatchObject({ tone: 'err', status: 'No APU data', stale: true, attention: true,
+      headline: 'APU stopped answering 2 h 14 min ago', seen: 'Unit reported 8s ago' })
+  })
+  it('APU silent with no telemetry in range -> dated by when the link dropped', () => {
+    const v = unitView({ link: { apu: 'down', since: NOW - 3 * 86400000, heartbeat_ts: NOW - 8000 } }, NOW)
+    expect(v).toMatchObject({ tone: 'err', status: 'No APU data', headline: 'APU stopped answering 3 d ago' })
+  })
+  it('APU silent, no dates at all -> plain headline', () => {
+    expect(unitView({ link: { apu: 'down', since: null, heartbeat_ts: NOW - 8000 } }, NOW).headline).toBe('APU not answering')
+  })
+  it('unit itself silent too (old heartbeat) -> Offline', () => {
+    expect(unitView(silent(10 * 60000, { heartbeat_ts: NOW - 5 * 60000 }), NOW).status).toBe('Offline')
+  })
+  it('fresh telemetry wins over a down link (one missed read)', () => {
+    expect(unitView(silent(6000), NOW)).toMatchObject({ tone: 'ok', status: 'Standby' })
+  })
+  it('link ok but telemetry stale -> still Offline', () => {
+    expect(unitView(silent(10 * 60000, { apu: 'ok' }), NOW).status).toBe('Offline')
+  })
+})
+
+describe('apuSilent', () => {
+  const NOW = 1_000_000_000
+  it('down + fresh heartbeat', () => expect(apuSilent({ link: { apu: 'down', heartbeat_ts: NOW - 59000 } }, NOW)).toBe(true))
+  it('down + old heartbeat', () => expect(apuSilent({ link: { apu: 'down', heartbeat_ts: NOW - 61000 } }, NOW)).toBe(false))
+  it('down + no heartbeat', () => expect(apuSilent({ link: { apu: 'down', heartbeat_ts: null } }, NOW)).toBe(false))
+  it('no link (older agent)', () => expect(apuSilent({ ts: NOW - 120000 }, NOW)).toBe(false))
+  it('nothing', () => expect(apuSilent(undefined, NOW)).toBe(false))
+})
+
+describe('latestWithLink', () => {
+  const link = { apu: 'down', since: 1, heartbeat_ts: 2 }
+  it('latest only: unchanged', () => {
+    const latest = { ts: 5, batt_v: 12 }
+    expect(latestWithLink({ unit: 'A', latest, link: null })).toBe(latest)
+  })
+  it('link rides along on the telemetry', () => {
+    expect(latestWithLink({ unit: 'A', latest: { ts: 5 }, link })).toEqual({ ts: 5, link })
+  })
+  it('link without telemetry still gives an object', () => {
+    expect(latestWithLink({ unit: 'A', latest: null, link })).toEqual({ link })
+  })
+  it('neither: null', () => {
+    expect(latestWithLink({ unit: 'A', latest: null })).toBe(null)
   })
 })
 
@@ -256,6 +323,9 @@ describe('faultInfo', () => {
     expect(faultInfo({ fault: '0x0001' })).toMatchObject({ name: 'Low oil pressure', tone: 'err', severity: 'Critical' })
     expect(faultInfo({ fault: '0x0003' })).toMatchObject({ name: 'Low battery', tone: 'warn', severity: 'Warning' })
     expect(faultInfo({ fault: '0x0009' })).toMatchObject({ name: 'No engine RPM', tone: 'err' })
+  })
+  it('names the agent-only APU not responding code as critical', () => {
+    expect(faultInfo({ fault: '0x0100' })).toMatchObject({ name: 'APU not responding', tone: 'err', severity: 'Critical', code: '0x0100' })
   })
   it('prefers the description the cloud recorded', () => {
     expect(faultInfo({ fault: '0x0001', description: 'Oil pressure switch open' }).name).toBe('Oil pressure switch open')

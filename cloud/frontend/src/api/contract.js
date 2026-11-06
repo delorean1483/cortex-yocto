@@ -2,7 +2,7 @@
 
 export function unitStatus(tele) {
   if (!tele) return 'off'
-  if (Number(tele.error_n) !== 0) return 'err'
+  if (hasFault(tele)) return 'err'
   if ((tele.batt_v != null && Number(tele.batt_v) < 12.0) || tele.oil_ok === false) return 'warn'
   return 'ok'
 }
@@ -210,6 +210,15 @@ export function engineRunning(tele) {
 // stops reporting its fault/battery values are history, not current state.
 // tone: err | warn | ok | off. attention: belongs in "Needs attention".
 export function unitView(tele, now = Date.now()) {
+  const fresh = tele?.ts != null && now - Number(tele.ts) <= 60000
+  if (!fresh && apuSilent(tele, now)) {
+    // Date it by the last APU data we have; with none in range, by when the
+    // link dropped (that resets if the unit restarts, so it is second best).
+    const last = tele.ts ?? tele.link.since
+    return { tone: 'err', status: 'No APU data',
+      headline: last != null ? `APU stopped answering ${ageText(now - Number(last))}` : 'APU not answering',
+      seen: `Unit reported ${ageText(now - Number(tele.link.heartbeat_ts))}`, stale: true, attention: true }
+  }
   if (!tele || tele.ts == null) {
     return { tone: 'off', status: 'No data', headline: 'Waiting for first report', seen: '—', stale: true, attention: false }
   }
@@ -219,8 +228,10 @@ export function unitView(tele, now = Date.now()) {
       seen: `Last report ${ageText(age)}`, stale: true, attention: true }
   }
   const seen = `Reported ${ageText(age)}`
-  if (Number(tele.error_n) !== 0) {
-    return { tone: 'err', status: 'Fault', headline: tele.error || 'Fault reported', seen, stale: false, attention: true }
+  if (hasFault(tele)) {
+    // tele.error is the firmware enum label (low_oil): show the code's name.
+    const headline = FAULT_CODES[Number(tele.error_n)]?.name || tele.error || 'Fault reported'
+    return { tone: 'err', status: 'Fault', headline, seen, stale: false, attention: true }
   }
   if (tele.batt_v != null && Number(tele.batt_v) < 12.0) {
     return { tone: 'warn', status: 'Warning', headline: `Low battery · ${fmt.volts(tele.batt_v)}`, seen, stale: false, attention: true }
@@ -228,11 +239,34 @@ export function unitView(tele, now = Date.now()) {
   if (tele.oil_ok === false) {
     return { tone: 'warn', status: 'Warning', headline: 'Low oil pressure', seen, stale: false, attention: true }
   }
+  if (isStandby(tele)) {
+    return { tone: 'ok', status: 'Standby', headline: 'Truck engine on · APU on standby', seen, stale: false, attention: false }
+  }
   const running = engineRunning(tele)
   const mode = modeLabel(tele)
   // Nothing selected and engine off reads as one idea: the APU is off.
   const headline = !running && mode === 'Off' ? 'APU off' : `${mode} · engine ${running ? 'running' : 'off'}`
   return { tone: 'ok', status: running ? 'Running' : 'Standby', headline, seen, stale: false, attention: false }
+}
+
+// The unit is still reporting but its APU controller is not answering Modbus.
+// The agent sends no telemetry then, only a shadow heartbeat with apu_link
+// "down", which /latest returns as `link` (older agents send none and read
+// Offline as before). A stale heartbeat means the unit itself is silent: that
+// is Offline.
+export function apuSilent(tele, now = Date.now()) {
+  const l = tele?.link
+  return !!l && l.apu === 'down' && l.heartbeat_ts != null && now - Number(l.heartbeat_ts) <= 60000
+}
+
+// /latest response -> the telemetry row with the shadow's APU-link report on it
+// as `link`, so every unitView() caller sees it. A unit whose APU has been
+// silent for over a day has no telemetry row in range but still gets an
+// object, so it reads "No APU data" rather than "No data".
+export function latestWithLink(d) {
+  if (!d) return d
+  if (!d.link) return d.latest ?? null
+  return { ...(d.latest || {}), link: d.link }
 }
 
 const TONE_RANK = { err: 0, warn: 1, off: 2, ok: 3 }
@@ -261,9 +295,21 @@ const FAULT_CODES = {
   8: { name: 'Engine stalled', critical: true },
   9: { name: 'No engine RPM', critical: true },
   10: { name: 'High A/C pressure', critical: true },
+  // Agent-only: the APU controller stopped answering for a minute (gobi-agent
+  // apu_silence.h). Firmware codes fit in a byte, so this never collides.
+  256: { name: 'APU not responding', critical: true },
 }
 // The APU stops itself while the truck's engine runs: normal, not a fault.
 const STANDBY = 7
+
+export function isStandby(tele) {
+  return !!tele && Number(tele.error_n) === STANDBY
+}
+
+// A fault in effect (any code but none and standby).
+function hasFault(tele) {
+  return Number(tele.error_n) !== 0 && !isStandby(tele)
+}
 
 function faultCode(fault) {
   if (fault == null || fault === '') return 0

@@ -174,6 +174,24 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -o "$here/test_shadow_network"
 "$here/test_shadow_network"
 
+# reported.apu_link through the REAL shadow.c: while the APU is silent the
+# agent still reports (link down + heartbeat) and leaves out the APU keys.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -DLOCATION_JSON_SHARED='"/tmp/test_shadow_apu_link_location.json"' \
+   -DLOCATION_JSON_LEGACY='"/tmp/test_shadow_apu_link_location.legacy.json"' \
+   -I"$here/mqstub" -I"$files" -I"$cjson/include" \
+   "$here/test_shadow_apu_link.c" "$files/location.c" "$files/state_path.c" \
+   -L"$cjson/lib" -lcjson -lpthread \
+   -o "$here/test_shadow_apu_link"
+"$here/test_shadow_apu_link"
+
+# "APU not responding" fault event: when to raise it, its JSON, last-fault file.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" -I"$cjson/include" \
+   "$here/test_apu_silence.c" "$files/apu_silence.c" \
+   -L"$cjson/lib" -lcjson -o "$here/test_apu_silence"
+"$here/test_apu_silence"
+
 # Host test runner for the atomic command-file take (no cJSON dependency).
 cc -std=c11 -Wall -Wextra -Wpedantic -g \
    -fsanitize=address,undefined \

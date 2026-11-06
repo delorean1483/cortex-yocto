@@ -139,6 +139,17 @@ bool shadow_on_message(struct mosquitto *mosq,
 int  shadow_publish_reported(struct mosquitto *mosq,
                              const shadow_reported_t *reported);
 
+/* Record this cycle's APU (Modbus) read result, before publishing. The next
+ * shadow_publish_reported() then carries apu_link ("ok" | "down"),
+ * apu_link_since (epoch ms of the last change) and heartbeat_ts (now_ms).
+ * While the link is down the APU-derived keys (apu_state, dc_v, batt_soc,
+ * fault, last_seen_ts, heater) are left out, so the shadow keeps their last
+ * real values; the rest of the report (network, OTA status, one-shot clears)
+ * still goes out. Until the first call no apu_link keys are sent. Returns true
+ * when the link state changed (including the first call). Call from the
+ * telemetry loop only. */
+bool shadow_note_apu_link(bool ok, uint64_t now_ms);
+
 /* Returns a pointer to the current live config (read-only).
  * Thread-safe: protected by an internal mutex. */
 const shadow_config_t *shadow_get_config(void);

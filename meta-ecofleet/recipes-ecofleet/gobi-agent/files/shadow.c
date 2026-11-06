@@ -100,6 +100,15 @@ static struct {
      * (both on the MQTT thread). */
     long long pending_reboot_ts;
 
+    /* APU (Modbus) link as last noted by shadow_note_apu_link(): whether the
+     * last read answered, since when (epoch ms) that has been so, and the
+     * time of the note (the report's heartbeat). Telemetry-loop thread only,
+     * like shadow_publish_reported(), so no mutex. */
+    bool     apu_link_known;
+    bool     apu_link_ok;
+    uint64_t apu_link_since_ms;
+    uint64_t apu_link_now_ms;
+
     bool initialised;
 } s = {0};
 
@@ -507,11 +516,25 @@ int shadow_publish_reported(struct mosquitto *mosq,
     cJSON_AddStringToObject(rep, "firmware_version", s.firmware_version);
     cJSON_AddStringToObject(rep, "ota_status",
                             reported->ota_status[0] ? reported->ota_status : "idle");
-    cJSON_AddStringToObject(rep, "apu_state",        reported->apu_state);
-    cJSON_AddNumberToObject(rep, "dc_v",             reported->dc_v);
-    cJSON_AddNumberToObject(rep, "batt_soc",         reported->batt_soc);
-    cJSON_AddStringToObject(rep, "fault",            reported->fault);
-    cJSON_AddNumberToObject(rep, "last_seen_ts",     (double)reported->last_seen_ts);
+    /* While the APU is not answering there is nothing new to say about it:
+     * leave its keys out so the merged shadow keeps the last real values
+     * (last_seen_ts then still dates them). */
+    bool apu_down = s.apu_link_known && !s.apu_link_ok;
+    if (!apu_down) {
+        cJSON_AddStringToObject(rep, "apu_state",    reported->apu_state);
+        cJSON_AddNumberToObject(rep, "dc_v",         reported->dc_v);
+        cJSON_AddNumberToObject(rep, "batt_soc",     reported->batt_soc);
+        cJSON_AddStringToObject(rep, "fault",        reported->fault);
+        cJSON_AddNumberToObject(rep, "last_seen_ts", (double)reported->last_seen_ts);
+    }
+
+    /* APU link + heartbeat: lets the dashboard tell "unit online, APU silent"
+     * from "unit offline" (no telemetry is sent while the APU is silent). */
+    if (s.apu_link_known) {
+        cJSON_AddStringToObject(rep, "apu_link",       s.apu_link_ok ? "ok" : "down");
+        cJSON_AddNumberToObject(rep, "apu_link_since", (double)s.apu_link_since_ms);
+        cJSON_AddNumberToObject(rep, "heartbeat_ts",   (double)s.apu_link_now_ms);
+    }
 
     /* VEVOR heater sub-object — mirrors the heater_* keys in
      * build_telemetry_json(), but only when a heater block is actually
@@ -519,7 +542,7 @@ int shadow_publish_reported(struct mosquitto *mosq,
      * when heater_present is false, so heaterless firmware never publishes
      * a permanent heater.comms_ok:false — this restores the pre-branch
      * shape for heaterless units. */
-    if (reported->heater_present) {
+    if (reported->heater_present && !apu_down) {
         cJSON *heater = cJSON_AddObjectToObject(rep, "heater");
         cJSON_AddStringToObject(heater, "state",    reported->heater_state);
         cJSON_AddNumberToObject(heater, "level",    reported->heater_level);
@@ -764,4 +787,16 @@ void shadow_cleanup(void)
     s.desired_location = NULL;
     pthread_mutex_destroy(&s.config_mutex);
     s.initialised = false;
+}
+
+bool shadow_note_apu_link(bool ok, uint64_t now_ms)
+{
+    bool changed = !s.apu_link_known || s.apu_link_ok != ok;
+    if (changed) {
+        s.apu_link_known    = true;
+        s.apu_link_ok       = ok;
+        s.apu_link_since_ms = now_ms;
+    }
+    s.apu_link_now_ms = now_ms;
+    return changed;
 }
