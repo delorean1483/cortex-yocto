@@ -22,6 +22,7 @@
 #include "apu_command.h"
 #include "ota_status.h"
 #include "ota_offer.h"
+#include "mb_blocks.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -633,74 +634,54 @@ static void *mqtt_loop(void *arg)
 }
 
 /* ── Modbus read ─────────────────────────────────────────────────────────── */
-/* The EF-G0B1R register map is sparse across regs 1..52 and the firmware
- * rejects a block read that spans an unbound register (exception 0x02), so we
- * read each bound register individually. The first failed read is treated as a
- * link error and returns -1, which drives the reconnect path in main(). */
+/* Registers come in a few FC03 block reads (mb_blocks.c) instead of ~40
+ * single-register round trips, so a cycle takes ~0.3 s at 9600 baud rather
+ * than ~1 s, and a touchscreen command waits that much less. g_snap holds the
+ * last cycle's registers; telemetry thread only. */
+static mbb_snap_t g_snap;
+
+/* mbb_read_fn over libmodbus: a Modbus exception reply (e.g. 0x02 for a block
+ * spanning a register older firmware lacks) is told apart from a timeout. */
+static int mb_block_read(void *ctx, int addr, int n, uint16_t *dst, bool *exception)
+{
+    int rc = modbus_read_registers((modbus_t *)ctx, addr, n, dst);
+    *exception = (rc != n) && (errno >= EMBXILFUN) && (errno <= EMBXGTAR);
+    return rc;
+}
+
+/* The first required register that can't be read is treated as a link error
+ * and returns -1, which drives the reconnect path in main(). */
 static int modbus_read_telemetry(telemetry_t *t)
 {
-    uint16_t v;
+    int fail = -1;
+    if (mbb_read_link(&g_snap, mb_block_read, g_modbus, &fail) != 0) {
+        syslog(LOG_WARNING, "modbus read reg (wire %d) failed: %s",
+               fail, modbus_strerror(errno));
+        return -1;
+    }
 
-    #define RD(addr) do {                                                       \
-        if (modbus_read_registers(g_modbus, (addr), 1, &v) != 1) {              \
-            syslog(LOG_WARNING, "modbus read reg (wire %d) failed: %s",         \
-                   (addr), modbus_strerror(errno));                            \
-            return -1;                                                          \
-        }                                                                       \
-    } while (0)
-
-    RD(REG_CABIN_TEMP_F);    t->cabin_temp_f  = (int16_t)v;   /* signed degF */
-    RD(REG_EXT_TEMP_F);      t->ext_temp_f    = (int16_t)v;   /* signed degF */
-    RD(REG_BATT_CV);         t->batt_v        = v / 100.0;
-    RD(REG_BATT_SET_CV);     t->batt_set_v    = v / 100.0;
-    RD(REG_RPM);             t->rpm           = v;
-    RD(REG_ENGINE_HRS);      t->engine_hrs    = v;
-    RD(REG_OIL_HRS);         t->oil_hrs       = v;
-    RD(REG_MACHINE_HRS);     t->machine_hrs   = v;
-    RD(REG_CLMT_SET_F);      t->clmt_set_f    = v;
-    RD(REG_OIL_OK);          t->oil_ok        = (uint8_t)v;
-    RD(REG_IGNITION);        t->ignition      = (uint8_t)v;
-    RD(REG_MODE);            t->mode          = (uint8_t)v;
-    RD(REG_ERROR);           t->error         = (uint8_t)v;
-    RD(REG_ENGINE_STATUS);   t->engine_status = (uint8_t)v;
-    RD(REG_CONTROL_STATUS);  t->control_status= (uint8_t)v;
-    RD(REG_OIL_CHANGE);      t->oil_change    = (uint8_t)v;
-    RD(REG_FAN_SPEED);       t->fan_speed     = (uint8_t)v;
-
+    #define RD(addr) (g_snap.val[(addr)])
+    t->cabin_temp_f   = (int16_t)RD(REG_CABIN_TEMP_F);    /* signed degF */
+    t->ext_temp_f     = (int16_t)RD(REG_EXT_TEMP_F);      /* signed degF */
+    t->batt_v         = RD(REG_BATT_CV) / 100.0;
+    t->batt_set_v     = RD(REG_BATT_SET_CV) / 100.0;
+    t->rpm            = RD(REG_RPM);
+    t->engine_hrs     = RD(REG_ENGINE_HRS);
+    t->oil_hrs        = RD(REG_OIL_HRS);
+    t->machine_hrs    = RD(REG_MACHINE_HRS);
+    t->clmt_set_f     = RD(REG_CLMT_SET_F);
+    t->oil_ok         = (uint8_t)RD(REG_OIL_OK);
+    t->ignition       = (uint8_t)RD(REG_IGNITION);
+    t->mode           = (uint8_t)RD(REG_MODE);
+    t->error          = (uint8_t)RD(REG_ERROR);
+    t->engine_status  = (uint8_t)RD(REG_ENGINE_STATUS);
+    t->control_status = (uint8_t)RD(REG_CONTROL_STATUS);
+    t->oil_change     = (uint8_t)RD(REG_OIL_CHANGE);
+    t->fan_speed      = (uint8_t)RD(REG_FAN_SPEED);
     #undef RD
 
     t->ts_ms = (uint64_t)time(NULL) * 1000ULL;
     return 0;
-}
-
-/* Best-effort single-register read that also reports whether the read
- * actually succeeded via *ok (NULL if the caller doesn't care). Returns the
- * register value on success, or dflt if the register is unbound on old
- * firmware (exception 0x02) or the read otherwise fails. Unlike RD() in
- * modbus_read_telemetry(), this never returns -1 / drives the reconnect
- * path — modbus_read_telemetry remains the sole link-health authority.
- * Needed where the caller must distinguish "read a genuine zero" from
- * "register unbound/read failed, returned the default" — e.g. deriving
- * heater_present from an actual successful read rather than from the value
- * read (a present-but-off heater reads all-zero but must still report
- * present). */
-static uint16_t modbus_read_reg_besteffort_ok(modbus_t *ctx, int wire_addr,
-                                               uint16_t dflt, bool *ok)
-{
-    uint16_t v;
-    int rc = modbus_read_registers(ctx, wire_addr, 1, &v);
-    if (ok) *ok = (rc == 1);
-    return (rc == 1) ? v : dflt;
-}
-
-/* Best-effort single-register read: returns the register value on success,
- * or dflt if the register is unbound on old firmware (exception 0x02) or the
- * read otherwise fails. Thin wrapper over modbus_read_reg_besteffort_ok()
- * for callers that don't need the success flag. Used for optional registers
- * that may be absent on older firmware (Component Test diag regs, fan_auto). */
-static uint16_t modbus_read_reg_besteffort(modbus_t *ctx, int wire_addr, uint16_t dflt)
-{
-    return modbus_read_reg_besteffort_ok(ctx, wire_addr, dflt, NULL);
 }
 
 /* Best-effort telemetry: Component Test diag regs, fan_auto, fw_version, and
@@ -722,55 +703,59 @@ static bool g_link_ok = false;         /* last main telemetry read succeeded */
 
 static void modbus_read_besteffort(telemetry_t *t)
 {
-    t->diag_mode    = (uint8_t)  modbus_read_reg_besteffort(g_modbus, REG_DIAG_MODE,   0);
-    t->diag_outputs =            modbus_read_reg_besteffort(g_modbus, REG_DIAG_STATUS, 0);
-    t->fan_auto     = modbus_read_reg_besteffort(g_modbus, REG_FAN_AUTO, 0) ? true : false;
-    t->fw_version   =            modbus_read_reg_besteffort(g_modbus, REG_FW_VERSION,  0);
+    mbb_read_optional(&g_snap, mb_block_read, g_modbus);
+    #define BE(addr, dflt) mbb_get(&g_snap, (addr), (dflt))
+
+    t->diag_mode    = (uint8_t)BE(REG_DIAG_MODE,   0);
+    t->diag_outputs =          BE(REG_DIAG_STATUS, 0);
+    t->fan_auto     = BE(REG_FAN_AUTO, 0) ? true : false;
+    t->fw_version   =          BE(REG_FW_VERSION,  0);
 
     /* VEVOR heater block (fw regs 53..67) — absent on firmware without the
-     * heater feature (read fails with exception 0x02 on every register). */
-    bool heater_ok = false;
-    t->heater_state = modbus_read_reg_besteffort_ok(g_modbus, REG_HEATER_STATE, 0, &heater_ok);
-    /* Extended block (coprocessor firmware). Its type register also gates
-     * heater_present: on that firmware reg 55 always answers, so presence
-     * means "a heater type is detected" (heater_present_from). */
-    bool ext_ok = false;
-    t->heater_type = heater_ok
-        ? modbus_read_reg_besteffort_ok(g_modbus, REG_HEATER_TYPE, 0, &ext_ok) : 0;
+     * heater feature (the block read fails with exception 0x02). */
+    bool heater_ok = mbb_ok(&g_snap, REG_HEATER_STATE);
+    t->heater_state = BE(REG_HEATER_STATE, 0);
+    /* Extended block (coprocessor firmware), read only when the heater block
+     * answered. Its type register also gates heater_present: on that firmware
+     * reg 55 always answers, so presence means "a heater type is detected"
+     * (heater_present_from). */
+    bool ext_ok = heater_ok && mbb_ok(&g_snap, REG_HEATER_TYPE);
+    t->heater_type = ext_ok ? BE(REG_HEATER_TYPE, 0) : 0;
     t->heater_ext          = ext_ok;
     g_heater_ext           = ext_ok;   /* for the local command path */
     t->heater_present      = heater_present_from(heater_ok, ext_ok, t->heater_type);
     if (ext_ok) {
-        t->heater_setpoint_c   = modbus_read_reg_besteffort(g_modbus, REG_HEATER_SETPOINT_C, 20);
-        t->heater_caps         = modbus_read_reg_besteffort(g_modbus, REG_HEATER_CAPS,       0);
-        t->heater_phase        = modbus_read_reg_besteffort(g_modbus, REG_HEATER_PHASE,      0);
-        t->heater_vendor_state = modbus_read_reg_besteffort(g_modbus, REG_HEATER_VENDOR_ST,  0);
-        t->heater_cmd_result   = modbus_read_reg_besteffort(g_modbus, REG_HEATER_COMMAND,    0);
+        t->heater_setpoint_c   = BE(REG_HEATER_SETPOINT_C, 20);
+        t->heater_caps         = BE(REG_HEATER_CAPS,       0);
+        t->heater_phase        = BE(REG_HEATER_PHASE,      0);
+        t->heater_vendor_state = BE(REG_HEATER_VENDOR_ST,  0);
+        t->heater_cmd_result   = BE(REG_HEATER_COMMAND,    0);
     }
-    t->heater_request      = modbus_read_reg_besteffort(g_modbus, REG_HEATER_REQUEST,     0);
-    t->heater_target_level = modbus_read_reg_besteffort(g_modbus, REG_HEATER_LEVEL,       0);
-    t->heater_active_level = modbus_read_reg_besteffort(g_modbus, REG_HEATER_ACTIVE_LVL,  0);
-    t->heater_error        = modbus_read_reg_besteffort(g_modbus, REG_HEATER_ERROR,       0);
-    t->heater_supply_mv    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_SUPPLY_MV,   0);
-    t->heater_fan_rpm      = modbus_read_reg_besteffort(g_modbus, REG_HEATER_FAN_RPM,     0);
-    t->heater_pump_hz_x10  = modbus_read_reg_besteffort(g_modbus, REG_HEATER_PUMP_HZ_X10, 0);
-    t->heater_exchanger    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_EXCH_RAW,    0);
-    t->heater_state_secs   = modbus_read_reg_besteffort(g_modbus, REG_HEATER_STATE_SECS,  0);
-    t->heater_age_ms       = modbus_read_reg_besteffort(g_modbus, REG_HEATER_AGE_MS,      0);
-    t->heater_flags        = modbus_read_reg_besteffort(g_modbus, REG_HEATER_FLAGS,       0);
-    t->heater_valid_frames = modbus_read_reg_besteffort(g_modbus, REG_HEATER_VALID_FR,    0);
-    t->heater_csum_fail    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_CSUM_FAIL,   0);
-    t->heater_xport_err    = modbus_read_reg_besteffort(g_modbus, REG_HEATER_XPORT_ERR,   0);
+    t->heater_request      = BE(REG_HEATER_REQUEST,     0);
+    t->heater_target_level = BE(REG_HEATER_LEVEL,       0);
+    t->heater_active_level = BE(REG_HEATER_ACTIVE_LVL,  0);
+    t->heater_error        = BE(REG_HEATER_ERROR,       0);
+    t->heater_supply_mv    = BE(REG_HEATER_SUPPLY_MV,   0);
+    t->heater_fan_rpm      = BE(REG_HEATER_FAN_RPM,     0);
+    t->heater_pump_hz_x10  = BE(REG_HEATER_PUMP_HZ_X10, 0);
+    t->heater_exchanger    = BE(REG_HEATER_EXCH_RAW,    0);
+    t->heater_state_secs   = BE(REG_HEATER_STATE_SECS,  0);
+    t->heater_age_ms       = BE(REG_HEATER_AGE_MS,      0);
+    t->heater_flags        = BE(REG_HEATER_FLAGS,       0);
+    t->heater_valid_frames = BE(REG_HEATER_VALID_FR,    0);
+    t->heater_csum_fail    = BE(REG_HEATER_CSUM_FAIL,   0);
+    t->heater_xport_err    = BE(REG_HEATER_XPORT_ERR,   0);
+    #undef BE
 
-    /* External RGB light (fw 76..79): one block read. Older firmware answers
-     * with an exception, which only means "not present" -- never a link
-     * failure, so no reconnect. */
-    uint16_t lv[4];
-    if (modbus_read_registers(g_modbus, REG_LED_RED, 4, lv) == 4) {
-        t->led.read_ok = true;
-        t->led.r = lv[0]; t->led.g = lv[1]; t->led.b = lv[2]; t->led.status = lv[3];
-    } else {
-        t->led.read_ok = false;
+    /* External RGB light (fw 76..79): one block. Older firmware answers with
+     * an exception, which only means "not present" -- never a link failure,
+     * so no reconnect. */
+    t->led.read_ok = mbb_ok(&g_snap, REG_LED_RED);
+    if (t->led.read_ok) {
+        t->led.r      = g_snap.val[REG_LED_RED];
+        t->led.g      = g_snap.val[REG_LED_GREEN];
+        t->led.b      = g_snap.val[REG_LED_BLUE];
+        t->led.status = g_snap.val[REG_LED_STATUS];
     }
 }
 
