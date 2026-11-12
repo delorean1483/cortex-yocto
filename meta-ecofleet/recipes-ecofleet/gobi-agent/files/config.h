@@ -46,7 +46,8 @@
  * Values below are 0-based WIRE addresses (= firmware register number - 1);
  * the firmware register number is shown in the comment. The firmware map is
  * SPARSE across regs 1..52 and rejects a block read that spans an unbound
- * register (exception 0x02), so the agent reads ONLY these, one at a time.
+ * register (exception 0x02), so the agent reads them in blocks that skip the
+ * gaps (mb_blocks.c), falling back to single reads on older firmware.
  * The firmware exposes no coils — there is no start/stop coil. */
 #define REG_CABIN_TEMP_F    0   /* fw 1  enclosure/cabin temp, degF (int16) R  */
 #define REG_FW_VERSION      1   /* fw 2  APU firmware version, encoded R  */

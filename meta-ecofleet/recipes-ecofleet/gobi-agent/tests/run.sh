@@ -207,3 +207,10 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    "$here/test_led_ctl.c" "$files/led_ctl.c" \
    -L"$cjson/lib" -lcjson -o "$here/test_led_ctl"
 "$here/test_led_ctl"
+
+# Block-read plan for the EF-G0B1R map against a fake slave (old and new firmware).
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -DMQTT_ENDPOINT='"test"' -I"$files" \
+   "$here/test_mb_blocks.c" "$files/mb_blocks.c" \
+   -o "$here/test_mb_blocks"
+"$here/test_mb_blocks"

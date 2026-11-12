@@ -27,6 +27,8 @@ SRC_URI = " \
     file://led_ctl.h \
     file://apu_silence.c \
     file://apu_silence.h \
+    file://mb_blocks.c \
+    file://mb_blocks.h \
     file://weather.h \
     file://weather.c \
     file://location.h \
