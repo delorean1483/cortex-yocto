@@ -45,6 +45,20 @@ void heater_vendor_state_str(unsigned v, char *buf, size_t len);
  * coprocessor-era firmware, where reg 55 always answers. */
 bool heater_present_from(bool state_ok, bool type_ok, unsigned type);
 
+/* Outcome of one Modbus write. REFUSED = the firmware answered with an
+ * exception (illegal function/address/value): the write arrived and was
+ * turned down, so sending it again is a new request, not a retry. */
+#define HEATER_WR_OK       0
+#define HEATER_WR_FAILED  (-1)   /* no valid answer: delivery unknown */
+#define HEATER_WR_REFUSED  1
+
+/* True when a command's writes all got an answer (OK or REFUSED), so the
+ * command is finished and must be acked. False if any write FAILED: the
+ * command stays pending and is retried next cycle. A refused ON must never
+ * stay pending, or it would start the heater whenever the firmware next
+ * accepts it, long after the user asked. */
+bool heater_cmd_settled(const int *results, int n);
+
 /* One Modbus heater write: 1-based firmware register + value. */
 typedef struct { int reg; int value; const char *what; } heater_write_t;
 

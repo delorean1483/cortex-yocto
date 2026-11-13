@@ -72,3 +72,10 @@ int heater_plan_writes(int on, int level, int setpoint_f, bool clear_fault,
     }
     return n;
 }
+
+bool heater_cmd_settled(const int *results, int n)
+{
+    for (int i = 0; i < n; i++)
+        if (results[i] == HEATER_WR_FAILED) return false;
+    return true;
+}
