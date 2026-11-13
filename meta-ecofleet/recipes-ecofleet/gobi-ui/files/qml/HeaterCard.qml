@@ -112,7 +112,8 @@ Rectangle {
             Layout.fillWidth: true; spacing: 10
             Text { text: "HEATER"; color: Theme.textMute; font.pixelSize: Theme.fsCaption
                 font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold }
-            Text { text: (card.faulted && card.clearTried && telemetry.heaterCmdResult === 1)
+            Text { text: (telemetry.heaterFlags & 0x80) && card.curState === 0
+                         ? "Stopped. Request again." : (card.faulted && card.clearTried && telemetry.heaterCmdResult === 1)
                          ? "Still cooling — retry" : card.stateLabel(card.curState)
                 color: card.stateColor(card.curState)
                 font.pixelSize: 16; font.weight: Font.DemiBold }
