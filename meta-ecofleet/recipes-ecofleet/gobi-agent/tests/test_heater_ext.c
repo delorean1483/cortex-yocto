@@ -60,6 +60,17 @@ int main(void){
     CHECK(n==0);
     n = heater_plan_writes(2, 11, 87, false, true, w);
     CHECK(n==0);
+    /* a command is settled (ack it, never re-send) unless a write got no
+       answer; a write the firmware refused is an answer */
+    int r_ok[]      = { HEATER_WR_OK, HEATER_WR_OK };
+    int r_refused[] = { HEATER_WR_OK, HEATER_WR_REFUSED };
+    int r_failed[]  = { HEATER_WR_OK, HEATER_WR_FAILED };
+    int r_both[]    = { HEATER_WR_FAILED, HEATER_WR_REFUSED };
+    CHECK(heater_cmd_settled(r_ok, 2)==true);
+    CHECK(heater_cmd_settled(r_refused, 2)==true);
+    CHECK(heater_cmd_settled(r_failed, 2)==false);
+    CHECK(heater_cmd_settled(r_both, 2)==false);
+    CHECK(heater_cmd_settled(r_ok, 0)==true);      /* nothing to write */
     printf(fails?"test_heater_ext FAILED (%d)\n":"test_heater_ext ok\n", fails);
     return fails?1:0;
 }

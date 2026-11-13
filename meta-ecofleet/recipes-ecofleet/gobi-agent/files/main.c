@@ -997,7 +997,10 @@ static void write_latest_snapshot(const char *payload)
  * the second tap "works" only because it retries). modbus_flush() drains any
  * stale/late RX between attempts so the retry starts on a clean bus.
  *
- * Returns 0 on a successful write (on any attempt), -1 if all attempts fail.
+ * Returns 0 on a successful write (on any attempt), -1 if all attempts fail,
+ * 1 (HEATER_WR_REFUSED) if the firmware answered with an illegal
+ * function/address/value exception. A refusal is the firmware's answer, not
+ * a lost frame, so it is not retried.
  * The local command-file callers below still ignore this (fire-and-forget);
  * the shadow heater apply path uses it to decide whether to ack the pending
  * command or leave it pending for a retry next cycle. */
@@ -1013,6 +1016,11 @@ static int mb_write_reg(int reg1based, int value, const char *what)
                 syslog(LOG_INFO, "control: %s -> reg %d = %d (ok on attempt %d)",
                        what, reg1based, value, attempt);
             return 0;
+        }
+        if (errno == EMBXILFUN || errno == EMBXILADD || errno == EMBXILVAL) {
+            syslog(LOG_WARNING, "control: %s -> reg %d = %d refused by firmware: %s",
+                   what, reg1based, value, modbus_strerror(errno));
+            return HEATER_WR_REFUSED;
         }
         syslog(LOG_WARNING, "control: %s write reg %d failed (attempt %d/%d): %s",
                what, reg1based, attempt, MB_WRITE_ATTEMPTS, modbus_strerror(errno));
@@ -1512,8 +1520,8 @@ int main(void)
              * remote stop ({"on":0}) is never dropped for lack of a level.
              * Level is written before the on/off transition so a combined
              * start+level lands together. Ack (which clears the pending
-             * command and nulls the cloud desired.heater) fires only if every
-             * write issued here succeeded — same idiom as apu_command: on a
+             * command and nulls the cloud desired.heater) fires only once every
+             * write issued here got an answer (heater_cmd_settled): on a
              * failed Modbus write the command stays pending and is retried
              * next cycle, so a remote stop is never dropped on a transient
              * RS-485 error.
@@ -1525,6 +1533,12 @@ int main(void)
              * was actually applied here — if a newer one arrived meanwhile,
              * ack is a no-op and the newer command is retried next cycle
              * instead of being wiped. */
+            /* A write the firmware refuses (Modbus exception, e.g. an ON
+             * while the start is not armed or after a Cortex-silence stop)
+             * is an answer, not a failure: the command is acked and NOT
+             * retried, so a refused ON can't fire later when the firmware
+             * next accepts one. The firmware raises heater_flags bit 7
+             * ("request again") for the UI and dashboard. */
             /* Order: clear_fault -> setpoint -> level -> on, so a single
              * "clear then start" message lands in a usable order (the
              * firmware still refuses the start if the clear was BUSY). */
@@ -1538,9 +1552,9 @@ int main(void)
                 heater_write_t hw[4];
                 int n = heater_plan_writes(hc.on, hc.level, hc.setpoint_f,
                                            hc.clear_fault, t.heater_ext, hw);
-                int rc = 0;
-                for (int i = 0; i < n; i++) rc |= mb_write_reg(hw[i].reg, hw[i].value, hw[i].what);
-                if (rc == 0) shadow_ack_heater_cmd(hseq);
+                int res[4];
+                for (int i = 0; i < n; i++) res[i] = mb_write_reg(hw[i].reg, hw[i].value, hw[i].what);
+                if (heater_cmd_settled(res, n)) shadow_ack_heater_cmd(hseq);
             }
 
             /* Whole-APU remote op-state via AWS shadow desired.apu_command
