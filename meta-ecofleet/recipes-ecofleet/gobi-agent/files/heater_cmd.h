@@ -12,14 +12,21 @@
  *  - A STOP, level, setpoint or clear stays pending until the firmware
  *    answers (OK or refused), and is re-sent every tick until then.
  *  - An ON older than HEATER_ON_MAX_AGE_MS is dropped without being written:
- *    the age counts from the dashboard tap (shadow metadata timestamp) when
- *    known, else from when the agent received it.
+ *    at receipt by its dashboard-tap timestamp (shadow.c, which also drops
+ *    one when the unit's clock is behind the cloud), and here by how long it
+ *    waited after receipt (link down).
+ *  - The same tap re-delivered (AWS re-sends desired.heater.on in every
+ *    delta until the agent's null lands) is ignored by timestamp (shadow.c).
  */
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
 
 #define HEATER_ON_MAX_AGE_MS 15000u
+/* A tap timestamped more than this far AHEAD of the unit's clock means the
+ * clock is behind (RTC lost, before NTP): its age can't be judged, so it is
+ * dropped. NTP-synced skew is well under a second. */
+#define HEATER_ON_CLOCK_SLACK_S 5
 
 /* One Modbus write: returns HEATER_WR_OK / HEATER_WR_REFUSED /
  * HEATER_WR_FAILED (heater_ext.h). */

@@ -78,6 +78,18 @@ int main(void){
     CHECK(heater_cmd_settled(lv_on, r_failed, 2)==true);
     int r_lv_lost[] = { HEATER_WR_FAILED, HEATER_WR_OK };
     CHECK(heater_cmd_settled(lv_on, r_lv_lost, 2)==false);
+    /* a write not tried (behind a lost one) always holds the command open,
+       an ON too: it hasn't had its attempt yet */
+    int r_skip[] = { HEATER_WR_FAILED, HEATER_WR_SKIPPED };
+    CHECK(heater_cmd_settled(lv_on, r_skip, 2)==false);
+    int r_ok_skip[] = { HEATER_WR_OK, HEATER_WR_SKIPPED };
+    CHECK(heater_cmd_settled(lv_on, r_ok_skip, 2)==false);
+    /* "firmware has the coprocessor block" is sticky across a read that got
+       no answer; only an exception answer (no such register) clears it */
+    CHECK(heater_ext_next(false, true,  false) == true);
+    CHECK(heater_ext_next(true,  false, false) == true);   /* timeout: keep */
+    CHECK(heater_ext_next(true,  false, true)  == false);  /* exception: gone */
+    CHECK(heater_ext_next(false, false, false) == false);
     printf(fails?"test_heater_ext FAILED (%d)\n":"test_heater_ext ok\n", fails);
     return fails?1:0;
 }

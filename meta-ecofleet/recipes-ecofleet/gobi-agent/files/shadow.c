@@ -6,6 +6,7 @@
  */
 
 #include "shadow.h"
+#include "heater_cmd.h"   /* HEATER_ON_MAX_AGE_MS */
 #include "location.h"
 #include "state_path.h"
 
@@ -96,11 +97,13 @@ static struct {
 
     /* Cloud metadata timestamp (epoch s) of desired.heater.on in the message
      * being applied (set by the get/accepted or delta handler around
-     * apply_desired(), MQTT thread), of the pending `on`, and of the last ON
-     * consumed (delivered once or dropped). A shadow re-sync after an MQTT
-     * reconnect re-delivers desired.heater until the agent's null lands; an
-     * ON carrying an already-consumed timestamp is the same tap and is
-     * ignored. Protected by mutex (pending_heater_on_ts: MQTT thread only). */
+     * apply_desired(), MQTT thread), of the pending `on`, and the highest
+     * timestamp of an ON already handled (sent once, or superseded by the
+     * panel). AWS re-sends desired.heater.on with its original timestamp in
+     * every delta until the agent's null lands (reported.heater has no `on`),
+     * and on every reconnect; an ON at or below heater_on_done_ts is that tap
+     * again (or an older one) and is ignored. STOPs are never ignored.
+     * Protected by mutex (pending_heater_on_ts: MQTT thread only). */
     long long pending_heater_on_ts;
     long long heater_on_ts;
     long long heater_on_done_ts;
@@ -306,13 +309,21 @@ static bool apply_desired(const cJSON *desired)
 
         if (cJSON_IsNumber(hon)) {
             int v = (int)hon->valuedouble;
-            if (v == 1 && s.pending_heater_on_ts > 0 &&
-                s.pending_heater_on_ts == s.heater_on_done_ts) {
+            long long ts = s.pending_heater_on_ts;
+            long long age_s = ts > 0 ? (long long)time(NULL) - ts : 0;
+            if (v == 1 && ts > 0 && ts <= s.heater_on_done_ts) {
                 /* Null it in the cloud too, or AWS keeps re-sending it as a
                  * delta after every report. */
                 s.clear_heater_desired = true;
-                fprintf(stderr, "[shadow] heater.on 1 @%lld already delivered — ignored\n",
-                        s.pending_heater_on_ts);
+                fprintf(stderr, "[shadow] heater.on 1 @%lld already handled — ignored\n", ts);
+            } else if (v == 1 && ts > 0 &&
+                       (age_s * 1000 > (long long)HEATER_ON_MAX_AGE_MS ||
+                        age_s < -HEATER_ON_CLOCK_SLACK_S)) {
+                /* Too old (a tap made while the unit was offline), or the
+                 * clock is behind the cloud (RTC lost, before NTP), so the
+                 * age can't be judged: never treat it as fresh. */
+                s.clear_heater_desired = true;
+                fprintf(stderr, "[shadow] heater.on 1 @%lld is %lld s old — dropped\n", ts, age_s);
             }
             else if (v == 0 || v == 1) { on_val = v; have_on = true; }
             else
@@ -332,21 +343,13 @@ static bool apply_desired(const cJSON *desired)
         }
         if (cJSON_IsTrue(hclr)) { clr_val = true; have_clr = true; }
         if (have_on) {
-            /* Age of the request: since the dashboard tap when the cloud
-             * timestamp is known (a tap made while the unit was offline
-             * arrives late), else since now. heater_cmd_apply() drops an ON
-             * older than HEATER_ON_MAX_AGE_MS. */
+            /* Receipt time: heater_cmd_apply() drops an ON that waits here
+             * longer than HEATER_ON_MAX_AGE_MS (link down). Its age before
+             * receipt was checked above. */
             struct timespec ts;
             clock_gettime(CLOCK_MONOTONIC, &ts);
-            uint64_t rx = (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
-            long long age_s = s.pending_heater_on_ts > 0
-                            ? (long long)time(NULL) - s.pending_heater_on_ts : 0;
-            if (age_s > 0) {
-                uint64_t age_ms = (uint64_t)age_s * 1000u;
-                rx = age_ms < rx ? rx - age_ms : 0;
-            }
             s.heater_on_seq++;
-            s.heater_on_rx_ms = rx;
+            s.heater_on_rx_ms = (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
             s.heater_on_ts    = s.pending_heater_on_ts;
         }
         if (have_on || have_level || have_sp || have_clr) {
@@ -838,7 +841,8 @@ void shadow_consume_heater_on(unsigned on_seq)
 
     pthread_mutex_lock(&s.config_mutex);
     if (s.config.heater_desired_valid && on_seq == s.heater_on_seq) {
-        if (s.config.heater_on == 1) s.heater_on_done_ts = s.heater_on_ts;
+        if (s.config.heater_on == 1 && s.heater_on_ts > s.heater_on_done_ts)
+            s.heater_on_done_ts = s.heater_on_ts;
         s.config.heater_on = -1;
         if (s.config.heater_level < 0 && s.config.heater_setpoint_f < 0 &&
             !s.config.heater_clear_fault) {
@@ -855,6 +859,8 @@ void shadow_local_heater_on(int on, bool stop_owed)
 
     pthread_mutex_lock(&s.config_mutex);
     if (s.config.heater_desired_valid && s.config.heater_on != -1) {
+        if (s.config.heater_on == 1 && s.heater_on_ts > s.heater_on_done_ts)
+            s.heater_on_done_ts = s.heater_on_ts;   /* re-deliveries stay dropped */
         s.config.heater_on = -1;
         s.heater_on_seq++;               /* an older peeked `on` is gone */
         if (s.config.heater_level < 0 && s.config.heater_setpoint_f < 0 &&

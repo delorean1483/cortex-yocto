@@ -24,16 +24,23 @@ heater_apply_t heater_cmd_apply(bool ext, uint64_t now_ms, heater_write_fn wr, v
     heater_write_t hw[4];
     int res[4];
     int n = heater_plan_writes(hc.on, hc.level, hc.setpoint_f, hc.clear_fault, ext, hw);
+    /* After a write with no answer, only a STOP is still tried this tick:
+     * the bus is suspect, each try can block ~3 s, and the rest waits for the
+     * next tick (SKIPPED keeps it pending, an ON included).
+     * An ON is consumed BEFORE its write: AWS re-sends desired.heater.on with
+     * its original timestamp in every delta until our null lands, and one
+     * arriving during the (up to ~3 s) write must find it already handled. */
     bool lost = false;
     for (int i = 0; i < n; i++) {
+        bool stop = hw[i].reg == 53 && hw[i].value == 0;
+        if (lost && !stop) { res[i] = HEATER_WR_SKIPPED; continue; }
+        bool on = heater_write_is_on(&hw[i]);
+        if (on) shadow_consume_heater_on(hc.on_seq);
         res[i] = wr(hw[i].reg, hw[i].value, hw[i].what, ctx);
         if (res[i] == HEATER_WR_FAILED) lost = true;
-        if (heater_write_is_on(&hw[i])) {
-            if (res[i] == HEATER_WR_FAILED)
-                syslog(LOG_WARNING, "shadow: heater ON delivery unknown (no answer); "
-                       "not re-sending, request readback shows the real state");
-            shadow_consume_heater_on(hc.on_seq);
-        }
+        if (on && res[i] == HEATER_WR_FAILED)
+            syslog(LOG_WARNING, "shadow: heater ON delivery unknown (no answer); "
+                   "not re-sending, request readback shows the real state");
     }
 
     /* Ack (clears the command and nulls the cloud desired.heater) once every

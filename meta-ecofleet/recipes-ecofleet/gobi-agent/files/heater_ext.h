@@ -51,6 +51,7 @@ bool heater_present_from(bool state_ok, bool type_ok, unsigned type);
 #define HEATER_WR_OK       0
 #define HEATER_WR_FAILED  (-1)   /* no valid answer: delivery unknown */
 #define HEATER_WR_REFUSED  1
+#define HEATER_WR_SKIPPED (-2)   /* not tried: behind a write with no answer */
 
 /* One Modbus heater write: 1-based firmware register + value. */
 typedef struct { int reg; int value; const char *what; } heater_write_t;
@@ -58,10 +59,17 @@ typedef struct { int reg; int value; const char *what; } heater_write_t;
 /* True for the write that asks the heater to start (reg 53 = 1). */
 bool heater_write_is_on(const heater_write_t *w);
 
+/* "The firmware has the coprocessor block (regs 68..75)", updated from one
+ * read of it: true on an answer, false only on an exception answer (no such
+ * register), unchanged when the read got no answer. One RS-485 glitch must
+ * not switch off the keepalive and the setpoint/clear writes for a cycle. */
+bool heater_ext_next(bool prev, bool read_ok, bool refused);
+
 /* True when a command is finished and must be acked: every write got an
- * answer (OK or REFUSED), except that an ON never holds it open. False if any
- * other write FAILED (no answer): the command stays pending and that write is
- * retried next cycle, so a STOP is delivered at least once.
+ * answer (OK or REFUSED), except that an ON that was tried never holds it
+ * open. False if any other write FAILED (no answer) or any write was SKIPPED
+ * (not tried yet, an ON included): the command stays pending and is retried
+ * next tick, so a STOP is delivered at least once.
  * An ON is delivered at most once. A refused ON or an ON with no answer must
  * never stay pending: the G0B1 re-arms START after a Cortex-silence stop, so
  * a re-sent ON would start the heater long after the user asked. */

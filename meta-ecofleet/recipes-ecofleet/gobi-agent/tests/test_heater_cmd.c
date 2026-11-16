@@ -52,14 +52,19 @@ static struct { int reg, value; } wlog[32];
 static int nw;
 static int answer_53 = HEATER_WR_OK;   /* result for reg 53 (on/off) writes */
 static int answer_54 = HEATER_WR_OK;   /* result for reg 54 (level) writes  */
+static int answer_69 = HEATER_WR_OK;   /* result for reg 69 (setpoint)      */
 static const char *inject;             /* desired.heater landing mid-write  */
+static const char *inject_raw;         /* a whole delta payload, mid-write  */
+static void handle_delta(const void *payload, int len);
 
 static int fake_write(int reg, int value, const char *what, void *ctx) {
     (void)what; (void)ctx;
     if (nw < 32) { wlog[nw].reg = reg; wlog[nw].value = value; nw++; }
     if (inject) { const char *j = inject; inject = NULL; desired(j); }
+    if (inject_raw) { const char *j = inject_raw; inject_raw = NULL; handle_delta(j, (int)strlen(j)); }
     if (reg == 53) return answer_53;
     if (reg == 54) return answer_54;
+    if (reg == 69) return answer_69;
     return HEATER_WR_OK;
 }
 static int count(int reg, int value) {
@@ -68,7 +73,7 @@ static int count(int reg, int value) {
     return c;
 }
 static void reset_bus(void) {
-    nw = 0; answer_53 = answer_54 = HEATER_WR_OK; inject = NULL;
+    nw = 0; answer_53 = answer_54 = answer_69 = HEATER_WR_OK; inject = NULL; inject_raw = NULL;
 }
 static bool pending(void) {
     shadow_heater_cmd_t c; unsigned seq;
@@ -286,6 +291,85 @@ int main(void) {
     shadow_local_heater_on(1, false);
     CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_IDLE);
     CHECK(nw == 0);
+    CHECK(!pending());
+
+    /* 9. review findings (PR #126 review, 2026-11-16) */
+
+    /* AWS re-sends desired.heater.on with its original timestamp in every
+       delta until the agent's null lands. One landing while the ON is on
+       the wire must not make the next tick send it again. */
+    reset_bus();
+    snprintf(msg, sizeof msg,
+             "{\"state\":{\"heater\":{\"on\":1}},"
+             "\"metadata\":{\"heater\":{\"on\":{\"timestamp\":%lld}}}}", now_s + 2);
+    handle_delta(msg, (int)strlen(msg));
+    answer_53 = HEATER_WR_FAILED;          /* lost reply: ~3 s on the wire */
+    inject_raw = msg;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_LOST);
+    answer_53 = HEATER_WR_OK;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_IDLE);
+    CHECK(count(53, 1) == 1);
+    CHECK(!pending());
+
+    /* a remote ON superseded by a panel Stop (no answer, so owed) and then
+       re-delivered must not replace the owed STOP */
+    reset_bus();
+    snprintf(msg, sizeof msg,
+             "{\"state\":{\"heater\":{\"on\":1}},"
+             "\"metadata\":{\"heater\":{\"on\":{\"timestamp\":%lld}}}}", now_s + 3);
+    handle_delta(msg, (int)strlen(msg));
+    shadow_local_heater_on(0, true);
+    handle_delta(msg, (int)strlen(msg));
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_ANSWERED);
+    CHECK(count(53, 0) == 1 && count(53, 1) == 0);
+    CHECK(!pending());
+
+    /* ...and an older tap (timestamp below one already handled) is ignored */
+    snprintf(msg, sizeof msg,
+             "{\"state\":{\"heater\":{\"on\":1}},"
+             "\"metadata\":{\"heater\":{\"on\":{\"timestamp\":%lld}}}}", now_s - 5);
+    handle_delta(msg, (int)strlen(msg));
+    CHECK(!pending());
+
+    /* device clock behind the cloud (RTC lost, before NTP): the tap's age
+       can't be judged, so it is dropped, never treated as fresh */
+    reset_bus();
+    snprintf(msg, sizeof msg,
+             "{\"state\":{\"desired\":{\"heater\":{\"on\":1}}},"
+             "\"metadata\":{\"desired\":{\"heater\":{\"on\":{\"timestamp\":%lld}}}}}", now_s + 7200);
+    handle_get_accepted(msg, (int)strlen(msg));
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_IDLE);
+    CHECK(count(53, 1) == 0);
+    CHECK(!pending());
+
+    /* after a write with no answer the rest of the command waits for the
+       next tick (bounded blocking), except a STOP, which goes out anyway */
+    reset_bus();
+    desired("{\"setpoint_f\":70,\"level\":4}");
+    answer_69 = HEATER_WR_FAILED;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_LOST);
+    CHECK(nw == 1);                        /* level not tried behind a lost write */
+    answer_69 = HEATER_WR_OK;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_ANSWERED);
+    CHECK(count(54, 4) == 1);
+    CHECK(!pending());
+
+    reset_bus();
+    desired("{\"level\":4,\"on\":0}");
+    answer_54 = HEATER_WR_FAILED;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_LOST);
+    CHECK(count(53, 0) == 1);              /* the STOP still went out */
+
+    /* an ON behind a lost write is not attempted, so it is still owed its
+       one attempt next tick (if still fresh) */
+    reset_bus();
+    desired("{\"level\":5,\"on\":1}");
+    answer_54 = HEATER_WR_FAILED;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_LOST);
+    CHECK(count(53, 1) == 0);
+    answer_54 = HEATER_WR_OK;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_ANSWERED);
+    CHECK(count(53, 1) == 1);
     CHECK(!pending());
 
     printf(fails ? "test_heater_cmd FAILED (%d)\n" : "test_heater_cmd ok\n", fails);

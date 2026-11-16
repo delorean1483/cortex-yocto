@@ -445,8 +445,14 @@ static void ota_fetch_curl(ota_fetch_result_t *out)
  * result (ota_check_finish). The panel waits for ota_check_ts to change. */
 static void ota_check_start(void)
 {
-    if (!ota_fetch_start(ota_fetch_curl))
-        syslog(LOG_INFO, "ota-check: a check is already running");
+    if (ota_fetch_busy()) {
+        syslog(LOG_INFO, "ota-check: a check is already running");   /* its result will come */
+    } else if (!ota_fetch_start(ota_fetch_curl)) {
+        syslog(LOG_WARNING, "ota-check: could not start the check thread");
+        snprintf(g_ota_check_state, sizeof(g_ota_check_state), "failed: network");
+        g_ota_check_ts = now_ms();       /* the panel stops waiting */
+        g_ota_publish = true;
+    }
 }
 
 /* Telemetry thread: publish the outcome of a finished fetch. */
@@ -748,11 +754,18 @@ static void modbus_read_besteffort(telemetry_t *t)
     /* Extended block (coprocessor firmware). Its type register also gates
      * heater_present: on that firmware reg 55 always answers, so presence
      * means "a heater type is detected" (heater_present_from). */
+    bool heater_refused = !heater_ok && (errno == EMBXILADD || errno == EMBXILFUN);
     bool ext_ok = false;
     t->heater_type = heater_ok
         ? modbus_read_reg_besteffort_ok(g_modbus, REG_HEATER_TYPE, 0, &ext_ok) : 0;
+    bool ext_refused = heater_refused ||
+                       (heater_ok && !ext_ok && (errno == EMBXILADD || errno == EMBXILFUN));
     t->heater_ext          = ext_ok;
-    g_heater_ext           = ext_ok;   /* for the local command path */
+    /* For the command paths and the heater keepalive: sticky across a read
+     * with no answer (one RS-485 glitch must not switch the keepalive off for
+     * a whole poll and trip the G0B1's 5 s stop); cleared only when the
+     * firmware answers that it has no such register. */
+    g_heater_ext = heater_ext_next(g_heater_ext, ext_ok, ext_refused);
     t->heater_present      = heater_present_from(heater_ok, ext_ok, t->heater_type);
     if (ext_ok) {
         t->heater_setpoint_c   = modbus_read_reg_besteffort(g_modbus, REG_HEATER_SETPOINT_C, 20);
@@ -1065,8 +1078,9 @@ static int heater_mb_write(int reg, int value, const char *what, void *ctx)
  * without a probe a single RS-485 glitch would trip the G0B1's stop. A good
  * probe marks the link up again, so a pending STOP is retried within ~1 s.
  * Cost on a dead bus is bounded: after HEATER_TICK_MAX_FAILS ticks with no
- * answer, or one command write with no answer (mb_write_reg already tried 3
- * times), ticks pause until the next good telemetry read. */
+ * answer (a command write with no answer, which mb_write_reg already tried 3
+ * times, leaves one more probe), ticks pause until the next good telemetry
+ * read. */
 static unsigned g_heater_tick_fails;   /* reset by a good telemetry read */
 
 static void heater_tick(void)
@@ -1075,7 +1089,10 @@ static void heater_tick(void)
     if (g_link_ok) {
         heater_apply_t r = heater_cmd_apply(g_heater_ext, mono_ms(), heater_mb_write, NULL);
         if (r == HEATER_APPLY_LOST) {
-            g_heater_tick_fails = HEATER_TICK_MAX_FAILS;
+            /* One more probe next tick: if the bus answers, carry on (the
+             * keepalive must not stop for a whole poll over one lost reply);
+             * if not, ticks pause until the next good poll. */
+            g_heater_tick_fails = HEATER_TICK_MAX_FAILS - 1u;
             g_link_ok = false;
             return;
         }
@@ -1627,7 +1644,11 @@ int main(void)
                     syslog(LOG_WARNING,
                            "shadow: unknown apu_command '%s' — dropping", apu_cmd);
                     shadow_ack_apu_command(apu_seq);
-                } else if (mb_write_reg(10, mode, "apu_command(shadow)") == 0) {
+                } else if (mb_write_reg(10, mode, "apu_command(shadow)") >= 0) {
+                    /* OK or refused (exception): the firmware answered. A
+                     * refused command is final, never re-sent: retried, a
+                     * refused "climate" would crank the APU whenever the
+                     * firmware next accepted it. No answer stays pending. */
                     shadow_ack_apu_command(apu_seq);
                 }
             }
@@ -1642,8 +1663,13 @@ int main(void)
             }
             syslog(LOG_WARNING, "Modbus read failed — reconnecting...");
             modbus_close(g_modbus);
-            sleep(2);
+            sleep(1);
             modbus_connect(g_modbus);
+            /* Probe at once: after the failed read (1 s timeout) and this
+             * sleep the bus has been quiet ~2-3 s, and the G0B1 stops the
+             * heater at 5 s. A good answer marks the link up again. */
+            heater_tick();
+            last_heater_tick = mono_ms();
 
             /* Keep reporting while the APU is silent. No telemetry goes out,
              * so without this the dashboard reads the whole unit as offline.
