@@ -62,15 +62,22 @@ int main(void){
     CHECK(n==0);
     /* a command is settled (ack it, never re-send) unless a write got no
        answer; a write the firmware refused is an answer */
+    heater_write_t lv_stop[2] = { { 54, 3, "heater_level" }, { 53, 0, "heater_on" } };
     int r_ok[]      = { HEATER_WR_OK, HEATER_WR_OK };
     int r_refused[] = { HEATER_WR_OK, HEATER_WR_REFUSED };
     int r_failed[]  = { HEATER_WR_OK, HEATER_WR_FAILED };
     int r_both[]    = { HEATER_WR_FAILED, HEATER_WR_REFUSED };
-    CHECK(heater_cmd_settled(r_ok, 2)==true);
-    CHECK(heater_cmd_settled(r_refused, 2)==true);
-    CHECK(heater_cmd_settled(r_failed, 2)==false);
-    CHECK(heater_cmd_settled(r_both, 2)==false);
-    CHECK(heater_cmd_settled(r_ok, 0)==true);      /* nothing to write */
+    CHECK(heater_cmd_settled(lv_stop, r_ok, 2)==true);
+    CHECK(heater_cmd_settled(lv_stop, r_refused, 2)==true);
+    CHECK(heater_cmd_settled(lv_stop, r_failed, 2)==false);  /* lost STOP: resend */
+    CHECK(heater_cmd_settled(lv_stop, r_both, 2)==false);    /* lost level: resend */
+    CHECK(heater_cmd_settled(lv_stop, r_ok, 0)==true);       /* nothing to write */
+    /* ON is delivered at most once: a lost ON never holds the command open
+       (a lost level beside it still does) */
+    heater_write_t lv_on[2] = { { 54, 3, "heater_level" }, { 53, 1, "heater_on" } };
+    CHECK(heater_cmd_settled(lv_on, r_failed, 2)==true);
+    int r_lv_lost[] = { HEATER_WR_FAILED, HEATER_WR_OK };
+    CHECK(heater_cmd_settled(lv_on, r_lv_lost, 2)==false);
     printf(fails?"test_heater_ext FAILED (%d)\n":"test_heater_ext ok\n", fails);
     return fails?1:0;
 }

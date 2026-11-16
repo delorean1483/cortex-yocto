@@ -19,6 +19,7 @@
 #include "stm32_flash_task.h"
 #include "heater_fields.h"
 #include "heater_ext.h"
+#include "heater_cmd.h"
 #include "apu_command.h"
 #include "ota_status.h"
 #include "ota_offer.h"
@@ -1030,6 +1031,62 @@ static int mb_write_reg(int reg1based, int value, const char *what)
     return -1;
 }
 
+/* heater_cmd_apply() writer: one heater register write via mb_write_reg(). */
+static int heater_mb_write(int reg, int value, const char *what, void *ctx)
+{
+    (void)ctx;
+    return mb_write_reg(reg, value, what);
+}
+
+/* Heater tick, every HEATER_TICK_MS from the wait loop. Delivers a pending
+ * remote heater command while the APU link is up (heater_cmd.h: ON at most
+ * once, STOP at least once, stale ON dropped), or else reads one register as
+ * a keepalive.
+ * The keepalive matters because the G0B1 (1.3.x heater client) stops the
+ * heater after HEATER_CORTEX_FRESH_MS = 5 s without a good Modbus answer,
+ * and telemetry polls are poll_interval_s (5..60 s) apart, so the poll alone
+ * always leaves a gap of 5 s or more. Only on firmware with the coprocessor
+ * block (g_heater_ext), which is where that stop lives.
+ * It also runs while the link is marked down: one failed telemetry read
+ * drops the whole cycle (1 s timeout + 2 s reconnect sleep + the wait), so
+ * without a probe a single RS-485 glitch would trip the G0B1's stop. A good
+ * probe marks the link up again, so a pending STOP is retried within ~1 s.
+ * Cost on a dead bus is bounded: after HEATER_TICK_MAX_FAILS ticks with no
+ * answer, or one command write with no answer (mb_write_reg already tried 3
+ * times), ticks pause until the next good telemetry read. */
+static unsigned g_heater_tick_fails;   /* reset by a good telemetry read */
+
+static void heater_tick(void)
+{
+    if (g_heater_tick_fails >= HEATER_TICK_MAX_FAILS) return;
+    if (g_link_ok) {
+        heater_apply_t r = heater_cmd_apply(g_heater_ext, mono_ms(), heater_mb_write, NULL);
+        if (r == HEATER_APPLY_LOST) {
+            g_heater_tick_fails = HEATER_TICK_MAX_FAILS;
+            g_link_ok = false;
+            return;
+        }
+        if (r == HEATER_APPLY_ANSWERED) {
+            g_heater_tick_fails = 0;
+            return;
+        }
+    }
+    if (!g_heater_ext) return;
+    uint16_t flags;
+    if (modbus_read_registers(g_modbus, REG_HEATER_FLAGS, 1, &flags) == 1) {
+        if (!g_link_ok) syslog(LOG_INFO, "heater keepalive: APU answering again");
+        g_heater_tick_fails = 0;
+        g_link_ok = true;
+        return;
+    }
+    modbus_flush(g_modbus);
+    if (++g_heater_tick_fails >= HEATER_TICK_MAX_FAILS) {
+        syslog(LOG_WARNING, "heater keepalive: %u reads failed (%s), paused until next poll",
+               g_heater_tick_fails, modbus_strerror(errno));
+        g_link_ok = false;
+    }
+}
+
 /* Write the external light's color (fw 76..78) in one request, retrying like
  * mb_write_reg(). On success re-read 76..79 into *readback so the caller sees
  * the applied color. Returns 0 on success, -1 if all attempts fail. */
@@ -1347,6 +1404,8 @@ int main(void)
     uint64_t apu_down_since = mono_ms();   /* when the APU last went silent */
     led_load_saved();
 
+    uint64_t last_heater_tick = 0;
+
     while (g_running) {
         /* Read poll interval from shadow config (updated live by delta msgs) */
         const shadow_config_t *scfg = shadow_get_config();
@@ -1356,6 +1415,7 @@ int main(void)
         if (modbus_read_telemetry(&t) == 0) {
             modbus_read_besteffort(&t);
             g_link_ok = true;
+            g_heater_tick_fails = 0;
             if (shadow_note_apu_link(true, t.ts_ms))
                 syslog(LOG_INFO, "APU link up");
             led_settle(&t.led, &g_led_prev, &g_led_fails);
@@ -1511,51 +1571,9 @@ int main(void)
 
             shadow_publish_reported(g_mosq, &srep);
 
-            /* Heater-scoped remote start/stop/level via AWS shadow desired
-             * state. This is a narrower remote-control surface than the
-             * whole-APU apu_command applied just below. `on` and `level` are
-             * independently optional — each is
-             * only written if actually provided (>= its valid floor; -1 =
-             * "not provided", from shadow.c's apply_desired()) — so a bare
-             * remote stop ({"on":0}) is never dropped for lack of a level.
-             * Level is written before the on/off transition so a combined
-             * start+level lands together. Ack (which clears the pending
-             * command and nulls the cloud desired.heater) fires only once every
-             * write issued here got an answer (heater_cmd_settled): on a
-             * failed Modbus write the command stays pending and is retried
-             * next cycle, so a remote stop is never dropped on a transient
-             * RS-485 error.
-             *
-             * The peek→write→ack sequence spans the (slow) Modbus writes
-             * with the mutex released, so a new desired.heater command can
-             * land via the MQTT thread in that window. The seq captured by
-             * peek is passed to ack so the ack only clears the command that
-             * was actually applied here — if a newer one arrived meanwhile,
-             * ack is a no-op and the newer command is retried next cycle
-             * instead of being wiped. */
-            /* A write the firmware refuses (Modbus exception, e.g. an ON
-             * while the start is not armed or after a Cortex-silence stop)
-             * is an answer, not a failure: the command is acked and NOT
-             * retried, so a refused ON can't fire later when the firmware
-             * next accepts one. The firmware raises heater_flags bit 7
-             * ("request again") for the UI and dashboard. */
-            /* Order: clear_fault -> setpoint -> level -> on, so a single
-             * "clear then start" message lands in a usable order (the
-             * firmware still refuses the start if the clear was BUSY). */
-            /* On older firmware (no regs 68..75) setpoint/clear are dropped by
-             * the planner (spec 3.4) — otherwise they fail forever, the
-             * command never acks, and any ON merged into it is re-asserted
-             * every cycle. */
-            shadow_heater_cmd_t hc;
-            unsigned hseq;
-            if (shadow_peek_heater_cmd(&hc, &hseq)) {
-                heater_write_t hw[4];
-                int n = heater_plan_writes(hc.on, hc.level, hc.setpoint_f,
-                                           hc.clear_fault, t.heater_ext, hw);
-                int res[4];
-                for (int i = 0; i < n; i++) res[i] = mb_write_reg(hw[i].reg, hw[i].value, hw[i].what);
-                if (heater_cmd_settled(res, n)) shadow_ack_heater_cmd(hseq);
-            }
+            /* The remote heater command (shadow desired.heater) is applied by
+             * heater_tick() in the wait loop below, not here: once a second,
+             * so it lands within ~1 s, and with the heater keepalive. */
 
             /* Whole-APU remote op-state via AWS shadow desired.apu_command
              * ("climate"|"battery"|"stop"). Same seq-guarded peek→write→ack
@@ -1638,6 +1656,10 @@ int main(void)
             struct timespec nap = { 0, CMD_POLL_MS * 1000000L };
             nanosleep(&nap, NULL);
             apply_command_file();
+            if (mono_ms() - last_heater_tick >= HEATER_TICK_MS) {
+                heater_tick();
+                last_heater_tick = mono_ms();   /* from the end: a slow tick can't chain */
+            }
             /* A panel check/install changed the OTA state: publish it now from
              * the last good snapshot (zeros + ts 0 if the APU link never came
              * up — the UI shows that as stale) instead of waiting for the next

@@ -239,6 +239,9 @@ typedef struct {
     int  level;       /* 1..10 or -1                                */
     int  setpoint_f;  /* 41..86 degF or -1                          */
     bool clear_fault; /* CLEAR_FAULT requested                      */
+    unsigned on_seq;  /* bumped each time a message sets `on`; pass it
+                       * to shadow_consume_heater_on()              */
+    uint64_t on_rx_ms; /* CLOCK_MONOTONIC ms when `on` was last set */
 } shadow_heater_cmd_t;
 
 /* Copy any pending heater command into *cmd without clearing it, as-is
@@ -258,6 +261,17 @@ bool shadow_peek_heater_cmd(shadow_heater_cmd_t *cmd, unsigned *seq);
  * than being wiped by a stale ack (TOCTOU: peek → slow Modbus write → ack).
  * Thread-safe. */
 void shadow_ack_heater_cmd(unsigned seq);
+
+/* The `on` peeked with on_seq has had its one delivery attempt, or was
+ * dropped as stale: take it out of the pending command, unless a newer
+ * message set `on` since (that one is a new request and stays). The other
+ * fields stay pending. If nothing is left, the command is finished: cleared,
+ * and desired.heater is nulled in the cloud as by an ack. Does not bump the
+ * command sequence, so an ack with the peeked seq still applies.
+ * This is how an ON is delivered at most once even when a newer partial
+ * message (e.g. a level) merged into the command while the ON was on the
+ * wire. Thread-safe. */
+void shadow_consume_heater_on(unsigned on_seq);
 
 /* Cleanup. */
 void shadow_cleanup(void);

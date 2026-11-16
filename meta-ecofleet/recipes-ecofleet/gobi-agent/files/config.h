@@ -132,6 +132,11 @@
  * "led_rgb" ([r,g,b] 0-255 → external RGB light, regs 76-78). */
 #define COMMAND_JSON_PATH   "/var/lib/ecofleet/command.json"
 #define CMD_POLL_MS         200   /* how often the agent checks for a UI command */
+#define HEATER_TICK_MS      1000  /* remote heater command + G0B1 keepalive (main.c
+                                     heater_tick); well inside the G0B1's 5 s
+                                     Cortex-silence stop */
+#define HEATER_TICK_MAX_FAILS 3   /* heater ticks in a row with no answer before
+                                     they pause until the next good poll */
 #define SQLITE_MAX_ROWS     8640    /* ~12 h at 5 s poll — then oldest is dropped */
 #define SQLITE_FLUSH_BATCH  50      /* rows to flush per MQTT reconnect cycle     */
 

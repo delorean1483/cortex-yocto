@@ -124,6 +124,8 @@ and `POST /fleet/config`):
 **`reported`** (device acks): applied values + `heater_desired_seq` (monotonic,
 bumped when a heater desired is accepted). The agent nulls `desired.heater` once
 applied — **compare-and-clear**. The UI tracks pending → applied off this.
+A heater `on: 1` is delivered at most once and dropped if older than 15 s from
+the tap (`metadata` timestamp); a stop is re-sent until the firmware answers.
 
 `reported.network` (every report): the unit's LAN addresses, for finding it on
 its network. `{wifi: {ip, ssid, signal_dbm} | null, eth: {ip} | null,

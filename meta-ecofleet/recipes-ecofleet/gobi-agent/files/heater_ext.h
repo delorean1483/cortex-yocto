@@ -52,15 +52,20 @@ bool heater_present_from(bool state_ok, bool type_ok, unsigned type);
 #define HEATER_WR_FAILED  (-1)   /* no valid answer: delivery unknown */
 #define HEATER_WR_REFUSED  1
 
-/* True when a command's writes all got an answer (OK or REFUSED), so the
- * command is finished and must be acked. False if any write FAILED: the
- * command stays pending and is retried next cycle. A refused ON must never
- * stay pending, or it would start the heater whenever the firmware next
- * accepts it, long after the user asked. */
-bool heater_cmd_settled(const int *results, int n);
-
 /* One Modbus heater write: 1-based firmware register + value. */
 typedef struct { int reg; int value; const char *what; } heater_write_t;
+
+/* True for the write that asks the heater to start (reg 53 = 1). */
+bool heater_write_is_on(const heater_write_t *w);
+
+/* True when a command is finished and must be acked: every write got an
+ * answer (OK or REFUSED), except that an ON never holds it open. False if any
+ * other write FAILED (no answer): the command stays pending and that write is
+ * retried next cycle, so a STOP is delivered at least once.
+ * An ON is delivered at most once. A refused ON or an ON with no answer must
+ * never stay pending: the G0B1 re-arms START after a Cortex-silence stop, so
+ * a re-sent ON would start the heater long after the user asked. */
+bool heater_cmd_settled(const heater_write_t *w, const int *results, int n);
 
 /* Plan the writes for one heater command (local command.json or shadow
  * desired.heater), in the safe order clear_fault -> setpoint -> level -> on.

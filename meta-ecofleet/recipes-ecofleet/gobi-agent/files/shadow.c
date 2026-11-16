@@ -87,6 +87,24 @@ static struct {
      * never exposed via shadow_config_t. */
     unsigned heater_desired_seq;
 
+    /* Bumped each time apply_desired() accepts a heater `on` (and the
+     * CLOCK_MONOTONIC ms it arrived), so the telemetry thread can consume an
+     * ON after its single delivery attempt without consuming a newer one
+     * (shadow_consume_heater_on). Protected by mutex. */
+    unsigned heater_on_seq;
+    uint64_t heater_on_rx_ms;
+
+    /* Cloud metadata timestamp (epoch s) of desired.heater.on in the message
+     * being applied (set by the get/accepted or delta handler around
+     * apply_desired(), MQTT thread), of the pending `on`, and of the last ON
+     * consumed (delivered once or dropped). A shadow re-sync after an MQTT
+     * reconnect re-delivers desired.heater until the agent's null lands; an
+     * ON carrying an already-consumed timestamp is the same tap and is
+     * ignored. Protected by mutex (pending_heater_on_ts: MQTT thread only). */
+    long long pending_heater_on_ts;
+    long long heater_on_ts;
+    long long heater_on_done_ts;
+
     /* Full desired.location as last seen: get/accepted delivers the whole
      * object, but a delta carries only the nested fields that changed, so
      * deltas are merged into this copy before it is parsed. It is echoed back
@@ -288,7 +306,15 @@ static bool apply_desired(const cJSON *desired)
 
         if (cJSON_IsNumber(hon)) {
             int v = (int)hon->valuedouble;
-            if (v == 0 || v == 1) { on_val = v; have_on = true; }
+            if (v == 1 && s.pending_heater_on_ts > 0 &&
+                s.pending_heater_on_ts == s.heater_on_done_ts) {
+                /* Null it in the cloud too, or AWS keeps re-sending it as a
+                 * delta after every report. */
+                s.clear_heater_desired = true;
+                fprintf(stderr, "[shadow] heater.on 1 @%lld already delivered — ignored\n",
+                        s.pending_heater_on_ts);
+            }
+            else if (v == 0 || v == 1) { on_val = v; have_on = true; }
             else
                 fprintf(stderr, "[shadow] heater.on %d out of range {0,1} — ignored\n", v);
         }
@@ -305,6 +331,24 @@ static bool apply_desired(const cJSON *desired)
                 fprintf(stderr, "[shadow] heater.setpoint_f %d out of range [41,86] — ignored\n", v);
         }
         if (cJSON_IsTrue(hclr)) { clr_val = true; have_clr = true; }
+        if (have_on) {
+            /* Age of the request: since the dashboard tap when the cloud
+             * timestamp is known (a tap made while the unit was offline
+             * arrives late), else since now. heater_cmd_apply() drops an ON
+             * older than HEATER_ON_MAX_AGE_MS. */
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            uint64_t rx = (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+            long long age_s = s.pending_heater_on_ts > 0
+                            ? (long long)time(NULL) - s.pending_heater_on_ts : 0;
+            if (age_s > 0) {
+                uint64_t age_ms = (uint64_t)age_s * 1000u;
+                rx = age_ms < rx ? rx - age_ms : 0;
+            }
+            s.heater_on_seq++;
+            s.heater_on_rx_ms = rx;
+            s.heater_on_ts    = s.pending_heater_on_ts;
+        }
         if (have_on || have_level || have_sp || have_clr) {
             s.config.heater_on            = on_val;
             s.config.heater_level         = level_val;
@@ -355,9 +399,12 @@ static void handle_get_accepted(const void *payload, int len)
     const cJSON *desired = cJSON_GetObjectItemCaseSensitive(state, "desired");
     /* get/accepted metadata mirrors state: metadata.desired.<key>.timestamp */
     const cJSON *meta    = cJSON_GetObjectItemCaseSensitive(root, "metadata");
-    s.pending_reboot_ts  = field_timestamp(cJSON_GetObjectItemCaseSensitive(meta, "desired"), "reboot");
+    const cJSON *mdes    = cJSON_GetObjectItemCaseSensitive(meta, "desired");
+    s.pending_reboot_ts  = field_timestamp(mdes, "reboot");
+    s.pending_heater_on_ts = field_timestamp(cJSON_GetObjectItemCaseSensitive(mdes, "heater"), "on");
     apply_desired(desired);
     s.pending_reboot_ts  = 0;
+    s.pending_heater_on_ts = 0;
 
     cJSON_Delete(root);
 }
@@ -374,9 +421,12 @@ static void handle_delta(const void *payload, int len)
     /* Delta payload: { "version": N, "state": { <desired fields> },
      *                  "metadata": { <key>: { "timestamp": T } } } */
     const cJSON *state = cJSON_GetObjectItemCaseSensitive(root, "state");
-    s.pending_reboot_ts = field_timestamp(cJSON_GetObjectItemCaseSensitive(root, "metadata"), "reboot");
+    const cJSON *meta   = cJSON_GetObjectItemCaseSensitive(root, "metadata");
+    s.pending_reboot_ts = field_timestamp(meta, "reboot");
+    s.pending_heater_on_ts = field_timestamp(cJSON_GetObjectItemCaseSensitive(meta, "heater"), "on");
     apply_desired(state);
     s.pending_reboot_ts = 0;
+    s.pending_heater_on_ts = 0;
 
     cJSON_Delete(root);
 }
@@ -757,6 +807,8 @@ bool shadow_peek_heater_cmd(shadow_heater_cmd_t *cmd, unsigned *seq)
         cmd->level       = s.config.heater_level;
         cmd->setpoint_f  = s.config.heater_setpoint_f;
         cmd->clear_fault = s.config.heater_clear_fault;
+        cmd->on_seq      = s.heater_on_seq;
+        cmd->on_rx_ms    = s.heater_on_rx_ms;
         *seq             = s.heater_desired_seq;
     }
     pthread_mutex_unlock(&s.config_mutex);
@@ -776,6 +828,23 @@ void shadow_ack_heater_cmd(unsigned seq)
     if (seq == s.heater_desired_seq) {
         s.config.heater_desired_valid = false;
         s.clear_heater_desired        = true;
+    }
+    pthread_mutex_unlock(&s.config_mutex);
+}
+
+void shadow_consume_heater_on(unsigned on_seq)
+{
+    if (!s.initialised) return;
+
+    pthread_mutex_lock(&s.config_mutex);
+    if (s.config.heater_desired_valid && on_seq == s.heater_on_seq) {
+        if (s.config.heater_on == 1) s.heater_on_done_ts = s.heater_on_ts;
+        s.config.heater_on = -1;
+        if (s.config.heater_level < 0 && s.config.heater_setpoint_f < 0 &&
+            !s.config.heater_clear_fault) {
+            s.config.heater_desired_valid = false;
+            s.clear_heater_desired        = true;
+        }
     }
     pthread_mutex_unlock(&s.config_mutex);
 }

@@ -107,7 +107,13 @@ Remote control from the cloud. Both fields are **independently optional** — a 
 - `{"heater":{"level":5}}` — adjust level while running (no restart)
 - `{"heater":{"on":1,"level":8}}` — start at level 8
 
-**Application & acknowledgment:** The desired fields are applied from the gobi-agent telemetry thread only (libmodbus is single-threaded). The command is **acknowledged** (both fields nulled) **only after** the register write(s) succeed; if the write fails, the fields remain pending and the command retries the next telemetry cycle. This provides reliable remote control within the agent's existing constraints.
+**Application & acknowledgment:** The desired fields are applied from the gobi-agent telemetry thread only (libmodbus is single-threaded), by the 1 s heater tick (`heater_cmd.c`), so a command lands within about a second. Delivery rule: **ON at most once, STOP at least once.**
+- An ON (`on: 1`) gets one delivery attempt (the write's own retries included). Whether the firmware accepts it, refuses it, or never answers, it is not sent again; the request readback shows the real state. A re-sent ON could start the heater long after the user asked, because the G0B1 re-arms START after a Cortex-silence stop.
+- An ON older than 15 s, counted from the dashboard tap (shadow metadata timestamp), is dropped without being written. The same tap re-delivered by a shadow re-sync after a reconnect is ignored.
+- A stop, level, setpoint or clear stays pending until the firmware answers (OK or a refusal) and is re-sent until then.
+- The command is **acknowledged** (`desired.heater` nulled) once every write got an answer, an ON excepted.
+
+The same tick reads one register every second when it has nothing to send. That keepalive keeps the G0B1 (1.3.x) from stopping the heater: it stops it after 5 s without a good Modbus answer, and telemetry polls are 5 s or more apart.
 
 ---
 
