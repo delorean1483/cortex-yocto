@@ -23,6 +23,7 @@
 #include "apu_command.h"
 #include "ota_status.h"
 #include "ota_offer.h"
+#include "ota_fetch.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -385,8 +386,7 @@ static void read_ota_status(char *out, size_t out_len)
  * updating; it then follows the same root-worker path as a dashboard OTA.
  * Telemetry thread only (same thread as apply_command_file). */
 #define OTA_LATEST_URL     "https://ecofleet-ota.s3.amazonaws.com/releases/latest.json"
-#define OTA_CHECK_TIMEOUT_S 8L
-#define OTA_MANIFEST_MAX   4096u
+#define OTA_CHECK_TIMEOUT_S 8L   /* OTA_MANIFEST_MAX: ota_fetch.h */
 
 static char     g_ota_latest[16];          /* last fetched manifest version     */
 static char     g_ota_check_state[32] = "idle";
@@ -394,11 +394,9 @@ static uint64_t g_ota_check_ts;            /* epoch ms of last completed check  
 static bool     g_ota_publish;             /* OTA state changed: refresh latest.json now */
 static telemetry_t g_last_t;               /* last good snapshot, for OTA-only refreshes */
 
-typedef struct { char data[OTA_MANIFEST_MAX + 1]; size_t len; bool overflow; } ota_buf_t;
-
 static size_t ota_on_data(char *ptr, size_t size, size_t nmemb, void *ud)
 {
-    ota_buf_t *b = ud;
+    ota_fetch_result_t *b = ud;
     size_t add = size * nmemb;
     if (b->len + add > OTA_MANIFEST_MAX) { b->overflow = true; return 0; }  /* abort */
     memcpy(b->data + b->len, ptr, add);
@@ -422,30 +420,45 @@ static uint64_t mono_ms(void)
     return (uint64_t)ts.tv_sec * 1000u + (uint64_t)(ts.tv_nsec / 1000000);
 }
 
-static void ota_check_now(void)
+/* The blocking manifest fetch. Runs on the ota_fetch worker thread, never
+ * the telemetry thread: up to OTA_CHECK_TIMEOUT_S on a slow network would
+ * leave the Modbus bus silent long enough for the G0B1 to stop a running
+ * heater. Touches nothing but *out (curl_global_init ran in main()). */
+static void ota_fetch_curl(ota_fetch_result_t *out)
 {
-    ota_buf_t buf = { .len = 0, .overflow = false };
-    buf.data[0] = '\0';
+    out->data[0] = '\0';
     CURL *c = curl_easy_init();
-    if (!c) { snprintf(g_ota_check_state, sizeof(g_ota_check_state), "failed: network"); return; }
+    if (!c) { out->curl_rc = CURLE_FAILED_INIT; return; }
     curl_easy_setopt(c, CURLOPT_URL, OTA_LATEST_URL);
     curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, ota_on_data);
-    curl_easy_setopt(c, CURLOPT_WRITEDATA, &buf);
+    curl_easy_setopt(c, CURLOPT_WRITEDATA, out);
     curl_easy_setopt(c, CURLOPT_TIMEOUT, OTA_CHECK_TIMEOUT_S);
     curl_easy_setopt(c, CURLOPT_CONNECTTIMEOUT, OTA_CHECK_TIMEOUT_S);
     curl_easy_setopt(c, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(c, CURLOPT_USERAGENT, "gobi-agent-ota-check/1.0");
-    CURLcode rc = curl_easy_perform(c);
-    long http = 0;
-    curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &http);
+    out->curl_rc = (int)curl_easy_perform(c);
+    curl_easy_getinfo(c, CURLINFO_RESPONSE_CODE, &out->http);
     curl_easy_cleanup(c);
+}
 
+/* Panel "Check for updates": start the fetch; the wait loop applies the
+ * result (ota_check_finish). The panel waits for ota_check_ts to change. */
+static void ota_check_start(void)
+{
+    if (!ota_fetch_start(ota_fetch_curl))
+        syslog(LOG_INFO, "ota-check: a check is already running");
+}
+
+/* Telemetry thread: publish the outcome of a finished fetch. */
+static void ota_check_finish(const ota_fetch_result_t *r)
+{
     char ver[sizeof(g_ota_latest)];
-    if (rc != CURLE_OK && !buf.overflow) {
-        syslog(LOG_WARNING, "ota-check: fetch failed: %s", curl_easy_strerror(rc));
+    if (r->curl_rc != CURLE_OK && !r->overflow) {
+        syslog(LOG_WARNING, "ota-check: fetch failed: %s",
+               curl_easy_strerror((CURLcode)r->curl_rc));
         snprintf(g_ota_check_state, sizeof(g_ota_check_state), "failed: network");
-    } else if (buf.overflow || http != 200 || !ota_parse_latest(buf.data, ver, sizeof(ver))) {
-        syslog(LOG_WARNING, "ota-check: bad manifest (HTTP %ld, %zu bytes)", http, buf.len);
+    } else if (r->overflow || r->http != 200 || !ota_parse_latest(r->data, ver, sizeof(ver))) {
+        syslog(LOG_WARNING, "ota-check: bad manifest (HTTP %ld, %zu bytes)", r->http, r->len);
         snprintf(g_ota_check_state, sizeof(g_ota_check_state), "failed: bad manifest");
     } else {
         snprintf(g_ota_latest, sizeof(g_ota_latest), "%s", ver);
@@ -1231,7 +1244,21 @@ static void apply_command_file(void)
                                    cJSON_IsNumber(hsp) ? (int)hsp->valuedouble : -1,
                                    cJSON_IsNumber(hcf) && (int)hcf->valuedouble == 1,
                                    g_heater_ext, hw);
-        for (int i = 0; i < n; i++) mb_write_reg(hw[i].reg, hw[i].value, hw[i].what);
+        int on_val = -1, on_res = HEATER_WR_OK;
+        for (int i = 0; i < n; i++) {
+            int r = mb_write_reg(hw[i].reg, hw[i].value, hw[i].what);
+            if (hw[i].reg == 53) { on_val = hw[i].value; on_res = r; }
+        }
+        /* Panel on/off is the newest request: it supersedes a remote `on`
+         * still pending. ON stays at most once (never re-sent); a STOP with
+         * no answer is handed to heater_tick(), which re-sends it every
+         * second until the firmware answers, like a remote STOP. */
+        if (on_val >= 0) {
+            bool owed = on_val == 0 && on_res == HEATER_WR_FAILED;
+            if (owed)
+                syslog(LOG_WARNING, "control: panel heater STOP got no answer; re-sending until it does");
+            shadow_local_heater_on(on_val, owed);
+        }
     }
 
     /* led_rgb: [r,g,b] -> remember it, and apply now if a light is present */
@@ -1254,7 +1281,7 @@ static void apply_command_file(void)
 
     /* ota_check: 1 -> fetch releases/latest.json (never installs anything) */
     const cJSON *och = cJSON_GetObjectItemCaseSensitive(root, "ota_check");
-    if (cJSON_IsNumber(och) && (int)och->valuedouble == 1) { ota_check_now(); g_ota_publish = true; }
+    if (cJSON_IsNumber(och) && (int)och->valuedouble == 1) ota_check_start();
 
     /* ota_install: "N.N.N" -> only the version a successful check offered */
     const cJSON *oin = cJSON_GetObjectItemCaseSensitive(root, "ota_install");
@@ -1664,6 +1691,13 @@ int main(void)
              * the last good snapshot (zeros + ts 0 if the APU link never came
              * up — the UI shows that as stale) instead of waiting for the next
              * cycle, which never comes while the Modbus link is down. */
+            {
+                static ota_fetch_result_t ota_res;   /* 4 KB: off the stack */
+                if (ota_fetch_take(&ota_res)) {
+                    ota_check_finish(&ota_res);
+                    g_ota_publish = true;
+                }
+            }
             if (g_ota_publish) {
                 g_ota_publish = false;
                 char *lj = build_latest_json(&g_last_t);
@@ -1678,7 +1712,7 @@ int main(void)
     pthread_join(g_mqtt_thread, NULL);   /* exits within ~1 s of g_running = 0 */
     mosquitto_destroy(g_mosq);
     mosquitto_lib_cleanup();
-    curl_global_cleanup();
+    if (!ota_fetch_busy()) curl_global_cleanup();   /* never under a running fetch */
     modbus_close(g_modbus);
     modbus_free(g_modbus);
     sqlite3_close(g_db);

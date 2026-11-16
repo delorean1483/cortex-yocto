@@ -53,6 +53,7 @@ target_sources(gobi-agent PRIVATE
     apu_command.c
     ota_status.c
     ota_offer.c
+    ota_fetch.c
     net_info.c
     cmdfile.c
     led_ctl.c

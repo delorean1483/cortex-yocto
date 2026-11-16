@@ -238,6 +238,56 @@ int main(void) {
     CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_ANSWERED);
     CHECK(count(53, 1) == 2);
 
+    /* 8. panel (local command file) on/off: last writer wins, and a panel
+       STOP is delivered at least once like a remote one */
+
+    /* a panel STOP with no answer is re-sent by the tick until answered */
+    reset_bus();
+    shadow_local_heater_on(0, true);
+    answer_53 = HEATER_WR_FAILED;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_LOST);
+    answer_53 = HEATER_WR_OK;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_ANSWERED);
+    CHECK(count(53, 0) == 2);
+    CHECK(!pending());
+
+    /* a panel STOP that was answered owes nothing */
+    reset_bus();
+    shadow_local_heater_on(0, false);
+    CHECK(!pending());
+
+    /* a remote ON still pending when the user taps Stop (or Start) on the
+       panel is superseded: never written afterwards */
+    reset_bus();
+    desired("{\"on\":1}");
+    shadow_local_heater_on(0, false);
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_IDLE);
+    CHECK(count(53, 1) == 0);
+    CHECK(!pending());
+
+    reset_bus();
+    desired("{\"on\":1,\"level\":6}");
+    shadow_local_heater_on(1, false);
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_ANSWERED);
+    CHECK(count(53, 1) == 0);          /* the panel already sent its own ON */
+    CHECK(count(54, 6) == 1);          /* the remote level still lands */
+
+    /* a remote ON arriving after an owed panel STOP is newer and wins */
+    reset_bus();
+    shadow_local_heater_on(0, true);
+    desired("{\"on\":1}");
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_ANSWERED);
+    CHECK(count(53, 1) == 1 && count(53, 0) == 0);
+    CHECK(!pending());
+
+    /* a panel ON after an owed panel STOP cancels the STOP */
+    reset_bus();
+    shadow_local_heater_on(0, true);
+    shadow_local_heater_on(1, false);
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_IDLE);
+    CHECK(nw == 0);
+    CHECK(!pending());
+
     printf(fails ? "test_heater_cmd FAILED (%d)\n" : "test_heater_cmd ok\n", fails);
     return fails ? 1 : 0;
 }

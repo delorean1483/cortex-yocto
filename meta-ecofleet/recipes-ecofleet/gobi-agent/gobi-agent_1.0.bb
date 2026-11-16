@@ -19,6 +19,8 @@ SRC_URI = " \
     file://apu_command.c \
     file://ota_status.h \
     file://ota_offer.h \
+    file://ota_fetch.h \
+    file://ota_fetch.c \
     file://ota_status.c \
     file://ota_offer.c \
     file://net_info.h \

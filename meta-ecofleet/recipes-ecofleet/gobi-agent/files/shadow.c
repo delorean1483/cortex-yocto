@@ -849,6 +849,38 @@ void shadow_consume_heater_on(unsigned on_seq)
     pthread_mutex_unlock(&s.config_mutex);
 }
 
+void shadow_local_heater_on(int on, bool stop_owed)
+{
+    if (!s.initialised) return;
+
+    pthread_mutex_lock(&s.config_mutex);
+    if (s.config.heater_desired_valid && s.config.heater_on != -1) {
+        s.config.heater_on = -1;
+        s.heater_on_seq++;               /* an older peeked `on` is gone */
+        if (s.config.heater_level < 0 && s.config.heater_setpoint_f < 0 &&
+            !s.config.heater_clear_fault) {
+            s.config.heater_desired_valid = false;
+            s.clear_heater_desired        = true;
+        }
+    }
+    if (on == 0 && stop_owed) {
+        struct timespec ts;
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        if (!s.config.heater_desired_valid) {   /* a new command: no stale fields */
+            s.config.heater_level       = -1;
+            s.config.heater_setpoint_f  = -1;
+            s.config.heater_clear_fault = false;
+        }
+        s.config.heater_on            = 0;
+        s.config.heater_desired_valid = true;
+        s.heater_on_seq++;
+        s.heater_on_rx_ms = (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+        s.heater_on_ts    = 0;
+        s.heater_desired_seq++;          /* an older peeked seq can't ack it */
+    }
+    pthread_mutex_unlock(&s.config_mutex);
+}
+
 void shadow_cleanup(void)
 {
     if (!s.initialised) return;

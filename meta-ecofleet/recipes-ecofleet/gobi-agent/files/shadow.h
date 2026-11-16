@@ -273,5 +273,14 @@ void shadow_ack_heater_cmd(unsigned seq);
  * wire. Thread-safe. */
 void shadow_consume_heater_on(unsigned on_seq);
 
+/* The panel (local command file) just wrote heater on/off itself. Last
+ * writer wins: any remote `on` still pending is dropped, so a remote ON
+ * queued before the user's panel Stop (or Start) can't land after it. With
+ * stop_owed (a panel STOP whose write got no answer) the STOP becomes the
+ * pending `on`, and heater_cmd_apply() re-sends it every tick until the
+ * firmware answers, like a remote STOP; a newer remote or panel ON replaces
+ * it. Thread-safe. */
+void shadow_local_heater_on(int on, bool stop_owed);
+
 /* Cleanup. */
 void shadow_cleanup(void);
