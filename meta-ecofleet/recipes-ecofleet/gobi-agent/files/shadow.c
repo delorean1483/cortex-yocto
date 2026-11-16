@@ -343,13 +343,17 @@ static bool apply_desired(const cJSON *desired)
         }
         if (cJSON_IsTrue(hclr)) { clr_val = true; have_clr = true; }
         if (have_on) {
-            /* Receipt time: heater_cmd_apply() drops an ON that waits here
-             * longer than HEATER_ON_MAX_AGE_MS (link down). Its age before
-             * receipt was checked above. */
+            /* Backdated to the tap when its cloud timestamp is known, so the
+             * 15 s budget in heater_cmd_apply() is cumulative: age at receipt
+             * (at most 15 s, checked above) plus any wait here (link down). */
             struct timespec ts;
             clock_gettime(CLOCK_MONOTONIC, &ts);
+            uint64_t rx = (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+            long long age_s = s.pending_heater_on_ts > 0
+                            ? (long long)time(NULL) - s.pending_heater_on_ts : 0;
+            if (age_s > 0 && (uint64_t)age_s * 1000u < rx) rx -= (uint64_t)age_s * 1000u;
             s.heater_on_seq++;
-            s.heater_on_rx_ms = (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+            s.heater_on_rx_ms = rx;
             s.heater_on_ts    = s.pending_heater_on_ts;
         }
         if (have_on || have_level || have_sp || have_clr) {

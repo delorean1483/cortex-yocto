@@ -204,6 +204,18 @@ int main(void) {
     CHECK(count(53, 1) == 1);
     CHECK(!pending());
 
+    /* the 15 s budget is cumulative: a tap 10 s old on arrival that then
+       waits 6 s (link down) is 16 s old and dropped */
+    reset_bus();
+    { char cm[512]; snprintf(cm, sizeof cm,
+             "{\"state\":{\"heater\":{\"on\":1}},"
+             "\"metadata\":{\"heater\":{\"on\":{\"timestamp\":%lld}}}}", (long long)time(NULL) - 10);
+    handle_delta(cm, (int)strlen(cm)); }
+    CHECK(pending());
+    CHECK(heater_cmd_apply(true, mono() + 6000u, fake_write, NULL) == HEATER_APPLY_IDLE);
+    CHECK(count(53, 1) == 0);
+    CHECK(!pending());
+
     /* 6. the age counts from the dashboard tap (shadow metadata timestamp):
        a tap made while the unit was offline arrives on reconnect as a fresh
        message but is a minute old -> dropped */
