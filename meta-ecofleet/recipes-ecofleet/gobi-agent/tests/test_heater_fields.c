@@ -20,6 +20,13 @@ int main(void){
     CHECK(heater_comms_ok(0x09u)==0); /* fresh(0x01)+comms_fault(0x08) -> not ok */
     CHECK(heater_comms_ok(0x00u)==0); /* not fresh -> not ok                 */
 
+    /* reg 64 bits 5..7 as the G0B1 map-v2 client defines them (heater.h) */
+    CHECK(HEATER_FLAG_MAP_MISMATCH==0x20u);
+    CHECK(HEATER_FLAG_MAP_UNREADABLE==0x40u);
+    CHECK(HEATER_FLAG_REQUEST_AGAIN==0x80u);
+    CHECK(heater_flag(0x80u, HEATER_FLAG_REQUEST_AGAIN)==1);
+    CHECK(heater_flag(0x1Fu, HEATER_FLAG_REQUEST_AGAIN)==0);
+
     /* heater_safe_off: bit2 passthrough */
     CHECK(heater_safe_off(0x04u)==1);
     CHECK(heater_safe_off(0x00u)==0);

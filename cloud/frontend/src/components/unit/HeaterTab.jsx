@@ -89,7 +89,7 @@ export default function HeaterTab({ tele, unit, isDemo }) {
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 12 }}>
         {flags.map((f) => (
           <span key={f.key}
-            className={`pill ${f.on ? (f.key === 'xport_fault' || f.key === 'comms_fault' || f.key === 'safe_off' ? 'p-r' : 'p-a') : 'p-n'}`}
+            className={`pill ${f.on ? (['xport_fault', 'comms_fault', 'safe_off', 'map_mismatch', 'map_unreadable', 'request_again'].includes(f.key) ? 'p-r' : 'p-a') : 'p-n'}`}
             style={f.on ? undefined : { opacity: 0.5 }}>
             {f.label}
           </span>
@@ -104,7 +104,7 @@ export default function HeaterTab({ tele, unit, isDemo }) {
 
       <div style={{ marginTop: 12, fontSize: 11, color: 'var(--color-text-tertiary)' }}>
         Link health — valid frames {fmt.counter(tele.heater_valid_frames)} ·
-        checksum fails {fmt.counter(tele.heater_checksum_failures)} ·
+        bad frames {fmt.counter(tele.heater_checksum_failures)} ·
         transport errors {fmt.counter(tele.heater_transport_errors)}
       </div>
 

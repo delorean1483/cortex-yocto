@@ -72,3 +72,24 @@ int heater_plan_writes(int on, int level, int setpoint_f, bool clear_fault,
     }
     return n;
 }
+
+bool heater_write_is_on(const heater_write_t *w)
+{
+    return w->reg == 53 && w->value == 1;
+}
+
+bool heater_cmd_settled(const heater_write_t *w, const int *results, int n)
+{
+    for (int i = 0; i < n; i++) {
+        if (results[i] == HEATER_WR_SKIPPED) return false;
+        if (results[i] == HEATER_WR_FAILED && !heater_write_is_on(&w[i])) return false;
+    }
+    return true;
+}
+
+bool heater_ext_next(bool prev, bool read_ok, bool refused)
+{
+    if (read_ok) return true;
+    if (refused) return false;
+    return prev;
+}

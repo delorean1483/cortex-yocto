@@ -62,10 +62,17 @@ export const HEATER_FLAG_LABELS = [
   { key: 'safe_off',    bit: 0x04, label: 'Safe-off' },
   { key: 'comms_fault', bit: 0x08, label: 'Comms fault' },
   { key: 'xport_fault', bit: 0x10, label: 'Transport fault' },
+  // G0B1 1.3.x (map-v2 heater client); never set by older firmware, so
+  // these are listed only while set (ext).
+  { key: 'map_mismatch',   bit: 0x20, label: 'Firmware mismatch', ext: true },
+  { key: 'map_unreadable', bit: 0x40, label: 'Coprocessor unread', ext: true },
+  { key: 'request_again',  bit: 0x80, label: 'Start refused', ext: true },
 ]
 export function heaterFlags(flags) {
   const f = Number(flags) || 0
-  return HEATER_FLAG_LABELS.map((x) => ({ key: x.key, label: x.label, on: (f & x.bit) !== 0 }))
+  return HEATER_FLAG_LABELS
+    .map((x) => ({ key: x.key, label: x.label, on: (f & x.bit) !== 0, ext: !!x.ext }))
+    .filter((x) => x.on || !x.ext)
 }
 
 // Component-test output names by index (mirrors firmware diag_outputs bits;

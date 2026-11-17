@@ -64,6 +64,8 @@ stop→0 (`modbus_write_bit`). The write is **retried each poll cycle until it
 lands**, so a command issued while the serial link is down is not lost, and it
 never races the poll read on the libmodbus context. Cleared only after a
 successful write (`shadow_peek_apu_command` / `shadow_ack_apu_command`).
+Since PR #126 a write the firmware refuses (Modbus exception) is also acked and
+never re-sent: retried, a refused start would fire whenever it next got accepted.
 _Fixed on this branch (G2) — previously applied on the MQTT thread and dropped on
 failure._
 

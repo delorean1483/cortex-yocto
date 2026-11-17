@@ -9,12 +9,16 @@
 #pragma once
 
 /* Heater status-flags word (fw reg 64 / wire REG_HEATER_FLAGS) bit layout.
- * Mirrors the firmware's heater flags bits 0..4. */
+ * Mirrors the firmware's heater flags bits 0..7. */
 #define HEATER_FLAG_FRESH       0x01u   /* bit0: reading is fresh (not stale) */
 #define HEATER_FLAG_COOLDOWN    0x02u   /* bit1: heater in cooldown cycle     */
 #define HEATER_FLAG_SAFE_OFF    0x04u   /* bit2: forced to safe-off           */
 #define HEATER_FLAG_COMMS_FAULT 0x08u   /* bit3: one-wire link fault          */
 #define HEATER_FLAG_XPORT_FAULT 0x10u   /* bit4: transport/frame fault        */
+/* Bits 5..7 exist on firmware with the map-v2 heater client (G0B1 1.3.x). */
+#define HEATER_FLAG_MAP_MISMATCH   0x20u /* bit5: coprocessor map differs, only a stop is sent */
+#define HEATER_FLAG_MAP_UNREADABLE 0x40u /* bit6: coprocessor identity unread, writes blocked  */
+#define HEATER_FLAG_REQUEST_AGAIN  0x80u /* bit7: last ON was refused or dropped, ask again    */
 
 /* Heater state (fw reg 55 / wire REG_HEATER_STATE) name, 0..4:
  * 0=off 1=preheat 2=ignition 3=running 4=cooldown, else "unknown".

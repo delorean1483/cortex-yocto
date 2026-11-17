@@ -150,6 +150,25 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -o "$here/test_shadow_heater"
 "$here/test_shadow_heater"
 
+# Remote heater command delivery (ON at most once, STOP at least once, stale
+# ON dropped) through the REAL shadow.c + planner, with a fake RS-485 writer.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -DLOCATION_JSON_SHARED='"/tmp/test_heater_cmd_location.json"' \
+   -DLOCATION_JSON_LEGACY='"/tmp/test_heater_cmd_location.legacy.json"' \
+   -I"$here/mqstub" -I"$files" -I"$cjson/include" \
+   "$here/test_heater_cmd.c" "$files/heater_cmd.c" "$files/heater_ext.c" \
+   "$files/location.c" "$files/state_path.c" \
+   -L"$cjson/lib" -lcjson -lpthread \
+   -o "$here/test_heater_cmd"
+"$here/test_heater_cmd"
+
+# On-panel "Check for updates": the manifest fetch runs off the telemetry
+# thread (a slow network must not stall the G0B1 keepalive).
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" "$here/test_ota_fetch.c" "$files/ota_fetch.c" -lpthread \
+   -o "$here/test_ota_fetch"
+"$here/test_ota_fetch"
+
 # On-panel software update: manifest parse, version compare, offer decision.
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" -I"$cjson/include" "$here/test_ota_offer.c" "$files/ota_offer.c" \

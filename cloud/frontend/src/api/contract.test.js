@@ -87,6 +87,15 @@ describe('heaterFlags', () => {
   it('decodes cooldown (0x2)', () => {
     expect(heaterFlags(0x2).find((b) => b.key === 'cooldown').on).toBe(true)
   })
+  it('lists the G0B1 1.3.x bits only while set', () => {
+    expect(heaterFlags(0x1f).map((b) => b.key)).toEqual(
+      ['fresh', 'cooldown', 'safe_off', 'comms_fault', 'xport_fault'])
+    const f = heaterFlags(0x81)
+    expect(f.find((b) => b.key === 'request_again').on).toBe(true)
+    expect(f.find((b) => b.key === 'map_mismatch')).toBeUndefined()
+    expect(heaterFlags(0x60).filter((b) => b.on).map((b) => b.key)).toEqual(
+      ['map_mismatch', 'map_unreadable'])
+  })
 })
 
 describe('diagOutputs', () => {
