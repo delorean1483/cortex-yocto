@@ -90,6 +90,34 @@ int main(void){
     CHECK(heater_ext_next(true,  false, false) == true);   /* timeout: keep */
     CHECK(heater_ext_next(true,  false, true)  == false);  /* exception: gone */
     CHECK(heater_ext_next(false, false, false) == false);
+
+    /* G0B1 1.3.16 L011 diagnostics: fw 2227 = major<<8|minor, 2228 = build */
+    char v[16];
+    heater_l011_fw_str(0x0002u, 3, v, sizeof v);  CHECK(strcmp(v,"0.2.3")==0);
+    heater_l011_fw_str(0x0103u, 12, v, sizeof v); CHECK(strcmp(v,"1.3.12")==0);
+    heater_l011_fw_str(0, 0, v, sizeof v);        CHECK(v[0]=='\0');  /* unidentified / maintenance */
+    heater_l011_fw_str(0xFFFFu, 0xFFFFu, v, 6);   CHECK(strlen(v)==5); /* truncated, terminated */
+    /* fw 2229: last 0xB011 loader-entry rejection */
+    CHECK(strcmp(heater_l011_reject_name(0),"none")==0);
+    CHECK(strcmp(heater_l011_reject_name(1),"phase_not_off")==0);
+    CHECK(strcmp(heater_l011_reject_name(2),"run_request_set")==0);
+    CHECK(strcmp(heater_l011_reject_name(3),"lamp_not_off")==0);
+    CHECK(strcmp(heater_l011_reject_name(4),"identity_mismatch")==0);
+    CHECK(strcmp(heater_l011_reject_name(5),"heater_mode_set")==0);
+    CHECK(strcmp(heater_l011_reject_name(6),"loader_error")==0);
+    CHECK(strcmp(heater_l011_reject_name(7),"unknown")==0);
+    /* read only with the coprocessor block; a G0B1 that refuses the read
+       (pre-1.3.16: ILLEGAL_ADDRESS) isn't asked again until its firmware
+       version changes */
+    heater_l011_probe_t p = { 0 };
+    CHECK(heater_l011_probe_due(&p, true,  10315));
+    CHECK(!heater_l011_probe_due(&p, false, 10315));
+    heater_l011_probe_note(&p, true, 10315);
+    CHECK(!heater_l011_probe_due(&p, true, 10315));
+    CHECK(heater_l011_probe_due(&p, true, 10316));       /* G0B1 updated */
+    heater_l011_probe_note(&p, false, 10316);
+    CHECK(heater_l011_probe_due(&p, true, 10316));
+    CHECK(heater_l011_probe_due(&p, true, 10315));       /* answered: no memory */
     printf(fails?"test_heater_ext FAILED (%d)\n":"test_heater_ext ok\n", fails);
     return fails?1:0;
 }

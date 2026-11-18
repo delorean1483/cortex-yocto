@@ -44,5 +44,12 @@ check('coprocessor heater keys passed through when present', () => {
   assert.strictEqual('heater_phase' in out, false);              // absent stays absent
 });
 
-console.log(`\n${7 - failed}/7 checks passed`);
+check('L011 diagnostics passed through when present', () => {
+  const o = mapTelemetryRow({ ...row, heater_l011_fw: '0.2.3', heater_l011_reject: 0 });
+  assert.strictEqual(o.heater_l011_fw, '0.2.3');
+  assert.strictEqual(o.heater_l011_reject, 0);
+  assert.strictEqual('heater_l011_fw' in out, false);
+});
+
+console.log(`\n${8 - failed}/8 checks passed`);
 process.exit(failed === 0 ? 0 : 1);

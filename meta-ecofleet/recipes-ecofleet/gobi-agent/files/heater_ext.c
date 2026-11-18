@@ -49,6 +49,38 @@ void heater_vendor_state_str(unsigned v, char *buf, size_t len)
     snprintf(buf, len, "%u.%u", (v >> 8) & 0xFFu, v & 0xFFu);
 }
 
+void heater_l011_fw_str(unsigned ver, unsigned build, char *buf, size_t len)
+{
+    if (!buf || len == 0) return;
+    if (ver == 0 && build == 0) { buf[0] = '\0'; return; }
+    snprintf(buf, len, "%u.%u.%u", (ver >> 8) & 0xFFu, ver & 0xFFu, build & 0xFFFFu);
+}
+
+const char *heater_l011_reject_name(unsigned code)
+{
+    switch (code) {
+        case 0: return "none";
+        case 1: return "phase_not_off";
+        case 2: return "run_request_set";
+        case 3: return "lamp_not_off";
+        case 4: return "identity_mismatch";
+        case 5: return "heater_mode_set";
+        case 6: return "loader_error";
+        default: return "unknown";
+    }
+}
+
+bool heater_l011_probe_due(const heater_l011_probe_t *p, bool ext, uint16_t g0b1_fw)
+{
+    return ext && !(p->refused && p->refused_fw == g0b1_fw);
+}
+
+void heater_l011_probe_note(heater_l011_probe_t *p, bool refused, uint16_t g0b1_fw)
+{
+    p->refused = refused;
+    p->refused_fw = refused ? g0b1_fw : 0;
+}
+
 bool heater_present_from(bool state_ok, bool type_ok, unsigned type)
 {
     return state_ok && (!type_ok || type != 0);

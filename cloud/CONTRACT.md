@@ -67,6 +67,14 @@ ingest stores them only when present.
 | `heater_fault` | bool | Coprocessor latched a fault (cleared only by `clear_fault`) |
 | `heater_cmd_result` | int | Result of the last coprocessor command: 0 OK, 1 BUSY, 2 BAD_ARG, 3 NOT_SUPPORTED, 4 NO_TYPE |
 
+L011 diagnostics — **optional**: sent only by units whose G0B1 firmware answers
+the read-only regs 2227–2229 (1.3.16 and later); stored only when present.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `heater_l011_fw` | string | L011 coprocessor firmware `major.minor.build`, e.g. `0.2.3` (regs 2227–2228, tag). Absent while the L011 is unidentified or in its update loader |
+| `heater_l011_reject` | int | Why the last L011 update-loader entry (`0xB011`) was refused (reg 2229): 0 none (cleared by a successful entry), 1 heater phase not OFF, 2 run request set, 3 lamp not confirmed off, 4 app identity/map mismatch, 5 heater mode enabled, 6 loader/I²C error |
+
 ### InfluxDB storage
 
 Written by `lambda/ingest/telemetry-map.js` to measurement `telemetry`:

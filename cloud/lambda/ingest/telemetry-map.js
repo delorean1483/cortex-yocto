@@ -27,8 +27,9 @@ const BOOL = [
 // Heater coprocessor keys (firmware regs 68-75). Only sent by agents talking
 // to coprocessor firmware, so they are mapped ONLY when present — older units
 // never get placeholder 'unknown'/0 values for them.
-const OPT_TAGS = ['heater_type', 'heater_phase', 'heater_control', 'heater_vendor_state'];
-const OPT_INT = ['heater_setpoint_f', 'heater_cmd_result'];
+const OPT_TAGS = ['heater_type', 'heater_phase', 'heater_control', 'heater_vendor_state',
+  'heater_l011_fw'];
+const OPT_INT = ['heater_setpoint_f', 'heater_cmd_result', 'heater_l011_reject'];
 const OPT_BOOL = ['heater_fault'];
 
 function mapTelemetry(msg) {

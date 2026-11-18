@@ -19,6 +19,8 @@ const TELEMETRY_FIELD_NAMES = [
   // heater coprocessor (optional; present only from coprocessor firmware)
   'heater_type', 'heater_phase', 'heater_control', 'heater_setpoint_f',
   'heater_vendor_state', 'heater_fault', 'heater_cmd_result',
+  // L011 diagnostics (optional; G0B1 1.3.16+, regs 2227..2229)
+  'heater_l011_fw', 'heater_l011_reject',
 ];
 
 function mapTelemetryRow(r) {
