@@ -33,6 +33,21 @@ describe('HeaterTab control', () => {
     expect(screen.getByText('VEVOR diesel heater — Off')).toBeTruthy()
   })
 
+  it('shows the coprocessor firmware and the last refused update entry (G0B1 1.3.16+)', () => {
+    render(<HeaterTab tele={{ ...OFF, heater_l011_fw: '0.2.3', heater_l011_reject: 1 }} unit="APU-1" isDemo={false} />)
+    expect(screen.getByText(/Heater coprocessor firmware 0\.2\.3/)).toBeTruthy()
+    expect(screen.getByText(/last update entry refused: heater not off/)).toBeTruthy()
+  })
+
+  it('hides the coprocessor line without diagnostics or with nothing to report', () => {
+    const { unmount } = render(<HeaterTab tele={OFF} unit="APU-1" isDemo={false} />)
+    expect(screen.queryByText(/Heater coprocessor firmware/)).toBeNull()
+    unmount()
+    render(<HeaterTab tele={{ ...OFF, heater_l011_reject: 0 }} unit="APU-1" isDemo={false} />)
+    expect(screen.queryByText(/Heater coprocessor firmware/)).toBeNull()
+    expect(screen.queryByText(/update entry refused/)).toBeNull()
+  })
+
   it('AUTOTERM: shows type + phase and sends a setpoint', () => {
     mutate.mockClear()
     const T = { ...OFF, heater_comms_ok: true, heater_type: 'autoterm', heater_phase: 'running',

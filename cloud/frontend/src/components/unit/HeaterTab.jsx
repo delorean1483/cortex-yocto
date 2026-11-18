@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { heaterStateLabel, heaterFlags, fmt, heaterCmdSeq, heaterDesiredPending,
-  heaterExt, heaterPhaseLabel, heaterTypeLabel } from '../../api/contract.js'
+  heaterExt, heaterPhaseLabel, heaterTypeLabel, l011RejectLabel } from '../../api/contract.js'
 import { useCommand, useShadow } from '../../data/hooks.js'
 import { useCan } from '../../components/RoleGate.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
@@ -53,6 +53,7 @@ export default function HeaterTab({ tele, unit, isDemo }) {
   const disabled = !allowed || isDemo
   const disabledReason = isDemo ? 'Demo units cannot be controlled.' : reason
   const showPending = pending || heaterDesiredPending(shadow)
+  const l011Reject = l011RejectLabel(tele.heater_l011_reject)
 
   const ask = (title, body, cmd) => setConfirm({ title, body, cmd })
   const run = () => {
@@ -107,6 +108,13 @@ export default function HeaterTab({ tele, unit, isDemo }) {
         checksum fails {fmt.counter(tele.heater_checksum_failures)} ·
         transport errors {fmt.counter(tele.heater_transport_errors)}
       </div>
+      {(tele.heater_l011_fw || l011Reject) && (
+        <div style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+          {tele.heater_l011_fw && `Heater coprocessor firmware ${tele.heater_l011_fw}`}
+          {tele.heater_l011_fw && l011Reject && ' · '}
+          {l011Reject && `last update entry refused: ${l011Reject}`}
+        </div>
+      )}
 
       {/* Controls */}
       <div style={{ marginTop: 14, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>

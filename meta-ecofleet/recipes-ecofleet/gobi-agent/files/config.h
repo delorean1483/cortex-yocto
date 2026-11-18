@@ -104,6 +104,12 @@
 #define REG_HEATER_VENDOR_ST   71   /* fw 72 major<<8|sub                    R  */
 #define REG_HEATER_DETECT      72   /* fw 73 detect_result<<8|line_sense     R  */
 #define REG_HEATER_COMMAND     74   /* fw 75 write 3 = clear fault; read = result RW */
+/* L011 diagnostics (G0B1 1.3.16+, g0b1-firmware PR #20): read-only, outside
+ * the 0..79 block map, so read on their own (heater_ext.h). Older firmware
+ * answers ILLEGAL_ADDRESS. */
+#define REG_L011_FW_VERSION  2226   /* fw 2227 L011 major<<8|minor, 0 = none R */
+#define REG_L011_FW_BUILD    2227   /* fw 2228 L011 build                    R */
+#define REG_L011_REJECT      2228   /* fw 2229 last 0xB011 rejection code     R */
 
 /* External RGB light (fw 76..79; absent on firmware before it, v1.1.6). */
 #define REG_LED_RED            75   /* fw 76 led_red 0-255                   RW */

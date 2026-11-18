@@ -38,6 +38,22 @@ export function heaterTypeLabel(type) {
   return { vevor: 'VEVOR', autoterm: 'AUTOTERM' }[type] || null
 }
 
+// heater_l011_reject (G0B1 1.3.16+ reg 2229): why the last L011 update-loader
+// entry was refused; 0 = none (cleared by a successful entry) -> null.
+const L011_REJECT_LABELS = {
+  1: 'heater not off',
+  2: 'heater run request set',
+  3: 'lamp not confirmed off',
+  4: 'app identity or map mismatch',
+  5: 'heater mode enabled',
+  6: 'loader or I²C error',
+}
+export function l011RejectLabel(code) {
+  const n = Number(code)
+  if (!n) return null
+  return L011_REJECT_LABELS[n] || `code ${n}`
+}
+
 const dash = (v) => v == null || Number.isNaN(Number(v))
 export const fmt = {
   volts: (v) => dash(v) ? '—' : `${Number(v).toFixed(1)} V`,

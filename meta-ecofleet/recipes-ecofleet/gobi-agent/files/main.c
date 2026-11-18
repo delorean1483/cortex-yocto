@@ -144,8 +144,13 @@ typedef struct {
     uint16_t heater_phase;        /* reg 71                           */
     uint16_t heater_vendor_state; /* reg 72                           */
     uint16_t heater_cmd_result;   /* reg 75                           */
+    /* L011 diagnostics (fw regs 2227..2229, G0B1 1.3.16+, best-effort). */
+    bool     l011_diag_ok;        /* the 3-register read answered     */
+    uint16_t l011_fw_version;     /* reg 2227 major<<8|minor          */
+    uint16_t l011_fw_build;       /* reg 2228                         */
+    uint16_t l011_reject;         /* reg 2229                         */
 
-    led_hw_t led;                 /* external RGB light, fw regs 76..79 */
+    led_hw_t led;                /* external RGB light, fw regs 76..79 */
 
     uint64_t ts_ms;
 } telemetry_t;
@@ -721,6 +726,46 @@ static led_hw_t g_led_prev;            /* last published LED state (led_settle) 
 static int  g_led_fails = 0;           /* consecutive failed LED block reads */
 static bool g_link_ok = false;         /* last main telemetry read succeeded */
 
+/* L011 diagnostics (fw 2227..2229) sit outside the block map: one more FC03
+ * read per cycle, only on coprocessor firmware, and not repeated on a G0B1
+ * that refused it (pre-1.3.16) until the G0B1 firmware version changes. */
+static heater_l011_probe_t g_l011_probe;
+static char     g_l011_fw_logged[16];
+static uint16_t g_l011_reject_logged;
+
+static void l011_diag_read(telemetry_t *t)
+{
+    t->l011_diag_ok = false;
+    if (!heater_l011_probe_due(&g_l011_probe, g_heater_ext, t->fw_version)) return;
+
+    uint16_t d[HEATER_L011_DIAG_NREGS];
+    bool exc = false;
+    int rc = mb_block_read(g_modbus, REG_L011_FW_VERSION, HEATER_L011_DIAG_NREGS, d, &exc);
+    if (rc != HEATER_L011_DIAG_NREGS) {
+        if (exc) {
+            heater_l011_probe_note(&g_l011_probe, true, t->fw_version);
+            syslog(LOG_INFO, "heater: G0B1 fw %u has no L011 diagnostics (regs 2227..2229)",
+                   t->fw_version);
+        }
+        return;   /* no answer: try again next cycle */
+    }
+    heater_l011_probe_note(&g_l011_probe, false, t->fw_version);
+    t->l011_diag_ok    = true;
+    t->l011_fw_version = d[REG_L011_FW_VERSION - REG_L011_FW_VERSION];
+    t->l011_fw_build   = d[REG_L011_FW_BUILD   - REG_L011_FW_VERSION];
+    t->l011_reject     = d[REG_L011_REJECT     - REG_L011_FW_VERSION];
+
+    char fw[16];
+    heater_l011_fw_str(t->l011_fw_version, t->l011_fw_build, fw, sizeof(fw));
+    if (fw[0] && strcmp(fw, g_l011_fw_logged) != 0)
+        syslog(LOG_INFO, "heater: L011 firmware %s", fw);
+    if (fw[0]) snprintf(g_l011_fw_logged, sizeof(g_l011_fw_logged), "%s", fw);
+    if (t->l011_reject != g_l011_reject_logged && t->l011_reject != 0)
+        syslog(LOG_WARNING, "heater: L011 loader entry refused (code %u: %s)",
+               t->l011_reject, heater_l011_reject_name(t->l011_reject));
+    g_l011_reject_logged = t->l011_reject;
+}
+
 static void modbus_read_besteffort(telemetry_t *t)
 {
     mbb_read_optional(&g_snap, mb_block_read, g_modbus);
@@ -772,6 +817,8 @@ static void modbus_read_besteffort(telemetry_t *t)
     t->heater_csum_fail    = BE(REG_HEATER_CSUM_FAIL,   0);
     t->heater_xport_err    = BE(REG_HEATER_XPORT_ERR,   0);
     #undef BE
+
+    l011_diag_read(t);
 
     /* External RGB light (fw 76..79): one block. Older firmware answers with
      * an exception, which only means "not present" -- never a link failure,
@@ -912,6 +959,14 @@ static cJSON *telemetry_object(const telemetry_t *t)
         cJSON_AddStringToObject(root, "heater_vendor_state", vs);
         cJSON_AddBoolToObject  (root, "heater_fault",        t->heater_phase == HEATER_PHASE_FAULT);
         cJSON_AddNumberToObject(root, "heater_cmd_result",   t->heater_cmd_result);
+    }
+    /* L011 diagnostics only when the G0B1 (1.3.16+) answered them; no version
+     * key while the L011 is unidentified or in its loader (both words 0). */
+    if (t->l011_diag_ok) {
+        char fw[16];
+        heater_l011_fw_str(t->l011_fw_version, t->l011_fw_build, fw, sizeof(fw));
+        if (fw[0]) cJSON_AddStringToObject(root, "heater_l011_fw", fw);
+        cJSON_AddNumberToObject(root, "heater_l011_reject", t->l011_reject);
     }
 
     return root;

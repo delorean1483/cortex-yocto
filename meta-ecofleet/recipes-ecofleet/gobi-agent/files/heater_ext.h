@@ -45,6 +45,30 @@ void heater_vendor_state_str(unsigned v, char *buf, size_t len);
  * coprocessor-era firmware, where reg 55 always answers. */
 bool heater_present_from(bool state_ok, bool type_ok, unsigned type);
 
+/* L011 diagnostics, G0B1 1.3.16+: read-only fw regs 2227..2229 (wire
+ * 2226..2228). 2227 = L011 firmware major<<8|minor and 2228 = build, both 0
+ * while the L011 is unidentified or in its loader; 2229 = the last 0xB011
+ * loader-entry rejection, 0 after a successful entry. Older G0B1 firmware
+ * answers the read with ILLEGAL_ADDRESS. */
+#define HEATER_L011_DIAG_NREGS 3
+
+/* fw 2227 + 2228 -> "major.minor.build" into buf (always NUL-terminated), or
+ * "" when both are 0 (no identified L011). */
+void heater_l011_fw_str(unsigned ver, unsigned build, char *buf, size_t len);
+
+/* fw 2229: 0 none, 1 phase_not_off, 2 run_request_set, 3 lamp_not_off,
+ * 4 identity_mismatch, 5 heater_mode_set, 6 loader_error, else "unknown". */
+const char *heater_l011_reject_name(unsigned code);
+
+/* Whether to read the L011 diagnostics this cycle: only with the coprocessor
+ * block (ext), and not again on a G0B1 firmware version that refused the
+ * read; a G0B1 update is probed afresh. */
+typedef struct { bool refused; uint16_t refused_fw; } heater_l011_probe_t;
+bool heater_l011_probe_due(const heater_l011_probe_t *p, bool ext, uint16_t g0b1_fw);
+/* Record one read that got an answer: refused = exception answer. A read
+ * with no answer (timeout) is not recorded. */
+void heater_l011_probe_note(heater_l011_probe_t *p, bool refused, uint16_t g0b1_fw);
+
 /* Outcome of one Modbus write. REFUSED = the firmware answered with an
  * exception (illegal function/address/value): the write arrived and was
  * turned down, so sending it again is a new request, not a retry. */

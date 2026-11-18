@@ -66,5 +66,13 @@ check('coprocessor heater keys mapped only when present', () => {
   assert.deepStrictEqual(q.fields.heater_fault, { type: 'bool', value: true });
 });
 
-console.log(`\n${11 - failed}/11 checks passed`);
+check('L011 diagnostics (G0B1 1.3.16+) mapped only when present', () => {
+  assert.strictEqual('heater_l011_fw' in p.tags, false);
+  assert.strictEqual('heater_l011_reject' in p.fields, false);
+  const q = mapTelemetry({ ...fx, heater_l011_fw: '0.2.3', heater_l011_reject: 1 });
+  assert.strictEqual(q.tags.heater_l011_fw, '0.2.3');
+  assert.deepStrictEqual(q.fields.heater_l011_reject, { type: 'int', value: 1 });
+});
+
+console.log(`\n${12 - failed}/12 checks passed`);
 process.exit(failed === 0 ? 0 : 1);

@@ -163,6 +163,20 @@ The firmware Modbus holding-register block (wire addresses = firmware register �
 - **55–63:** Telemetry & state registers — RO
 - **64–67:** Flags & diagnostics — RO
 
+G0B1 1.3.16 and later also answer three read-only registers outside that
+block, which the agent reads with one extra FC03 (wire 2226, quantity 3) on
+coprocessor firmware only. A G0B1 that answers ILLEGAL_ADDRESS (older than
+1.3.16) is not asked again until its firmware version (reg 2) changes.
+- **2227:** L011 firmware major<<8 | minor (0 while unidentified or in its loader)
+- **2228:** L011 firmware build
+- **2229:** last `0xB011` update-loader entry rejection (0 none, 1 phase not OFF,
+  2 run request set, 3 lamp not confirmed off, 4 app identity/map mismatch,
+  5 heater mode set, 6 loader/I²C error); a successful entry clears it
+
+They go out as `heater_l011_fw` (`0.2.3`) and `heater_l011_reject`, the agent
+logs each new L011 version and each new rejection, and the dashboard Heater tab
+shows both under Link health.
+
 For the complete register map, bit-field definitions, and safety invariants, consult:
 - **Spec:** [`docs/superpowers/specs/2026-09-03-vevor-heater-control-design.md`](./superpowers/specs/2026-09-03-vevor-heater-control-design.md) — Register table, Component F1.d
 - **Firmware plan:** [`docs/superpowers/plans/2026-09-03-vevor-heater-firmware.md`](./superpowers/plans/2026-09-03-vevor-heater-firmware.md) — Implementation details & safety semantics
