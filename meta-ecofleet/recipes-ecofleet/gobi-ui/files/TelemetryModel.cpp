@@ -90,6 +90,7 @@ void TelemetryModel::poll()
     m_heaterType         = o[u"heater_type"].toString(QStringLiteral("none"));
     m_heaterPhase        = o[u"heater_phase"].toString(QStringLiteral("off"));
     m_heaterControl      = o[u"heater_control"].toString(QStringLiteral("level"));
+    m_heaterMode         = o[u"heater_mode"].toString();
     m_heaterSetpointF    = static_cast<int>(o[u"heater_setpoint_f"].toDouble(68));
     m_heaterVendorState  = o[u"heater_vendor_state"].toString();
     m_heaterFault        = o[u"heater_fault"].toBool();
@@ -133,6 +134,11 @@ void TelemetryModel::setTestRelay(int index, bool on)  { writeCommand(QStringLit
 void TelemetryModel::setHeaterOn(bool on)    { writeCommand(QStringLiteral("heater_on"), on ? 1 : 0); }
 void TelemetryModel::setHeaterLevel(int level) { writeCommand(QStringLiteral("heater_level"), level); }
 void TelemetryModel::setHeaterSetpointF(int degF) { writeCommand(QStringLiteral("heater_setpoint_f"), degF); }
+void TelemetryModel::setHeaterMode(const QString &mode)
+{
+    if (mode == QLatin1String("temperature") || mode == QLatin1String("power"))
+        writeCommand(QStringLiteral("heater_mode"), mode);
+}
 void TelemetryModel::checkForUpdate()        { writeCommand(QStringLiteral("ota_check"), 1); }
 void TelemetryModel::installUpdate(const QString &ver) { writeCommand(QStringLiteral("ota_install"), ver); }
 void TelemetryModel::clearHeaterFault()       { writeCommand(QStringLiteral("heater_clear_fault"), 1); }

@@ -37,6 +37,7 @@ QtObject {
         property string heaterPhase: "off";    property string heaterControl: "level"
         property int    heaterSetpointF: 72;   property string heaterVendorState: ""
         property bool   heaterFault: false;    property int    heaterCmdResult: 0
+        property string heaterMode: ""
         property string otaRunning: "1.2.73"; property string otaLatest: "1.2.73"
         property string otaAvailable: "";     property string otaCheckState: "ok"
         property real   otaCheckTs: Date.now() - 120000
@@ -57,6 +58,7 @@ QtObject {
         function setHeaterOn(v) {}
         function setHeaterLevel(v) {}
         function setHeaterSetpointF(v) {}
+        function setHeaterMode(m) {}
         function clearHeaterFault() {}
         function checkForUpdate() {}
         function installUpdate(v) {}
