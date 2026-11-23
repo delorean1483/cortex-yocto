@@ -51,5 +51,11 @@ check('L011 diagnostics passed through when present', () => {
   assert.strictEqual('heater_l011_fw' in out, false);
 });
 
-console.log(`\n${8 - failed}/8 checks passed`);
+check('AUTOTERM control mode passed through when present', () => {
+  const o = mapTelemetryRow({ ...row, heater_mode: 'temperature' });
+  assert.strictEqual(o.heater_mode, 'temperature');
+  assert.strictEqual('heater_mode' in out, false);
+});
+
+console.log(`\n${9 - failed}/9 checks passed`);
 process.exit(failed === 0 ? 0 : 1);

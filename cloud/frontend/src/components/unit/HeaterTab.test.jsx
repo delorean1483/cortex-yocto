@@ -61,6 +61,41 @@ describe('HeaterTab control', () => {
     expect(mutate.mock.calls[0][0]).toEqual({ unit: 'APU-1', body: { heater: { setpoint_f: 74 } } })
   })
 
+  it('AUTOTERM power mode (G0B1 1.3.17): level control, switch to temperature', () => {
+    mutate.mockClear()
+    const P = { ...OFF, heater_comms_ok: true, heater_type: 'autoterm', heater_phase: 'running',
+      heater_control: 'level', heater_mode: 'power', heater_setpoint_f: 72, heater_target_level: 6,
+      heater_fault: false }
+    render(<HeaterTab tele={P} unit="APU-1" isDemo={false} />)
+    expect(screen.getByText('Level')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Power' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Temperature' }).getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: 'Temperature' }))
+    expect(screen.getByText(/regulates to the setpoint/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(mutate.mock.calls[0][0]).toEqual({ unit: 'APU-1', body: { heater: { mode: 'temperature' } } })
+  })
+
+  it('AUTOTERM temperature mode: picking the current mode sends nothing', () => {
+    mutate.mockClear()
+    const T = { ...OFF, heater_type: 'autoterm', heater_phase: 'off', heater_control: 'setpoint',
+      heater_mode: 'temperature', heater_setpoint_f: 70, heater_fault: false }
+    render(<HeaterTab tele={T} unit="APU-1" isDemo={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Temperature' }))
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Power' }))
+    expect(screen.getByText(/fixed power level/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    expect(mutate.mock.calls[0][0]).toEqual({ unit: 'APU-1', body: { heater: { mode: 'power' } } })
+  })
+
+  it('no mode switch where the mode cannot be chosen (VEVOR, older firmware)', () => {
+    const V = { ...OFF, heater_type: 'vevor', heater_phase: 'off', heater_control: 'level', heater_fault: false }
+    render(<HeaterTab tele={V} unit="APU-1" isDemo={false} />)
+    expect(screen.queryByRole('button', { name: 'Power' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Temperature' })).toBeNull()
+  })
+
   it('FAULT: Clear fault sends clear_fault and Turn on is disabled', () => {
     mutate.mockClear()
     const F = { ...OFF, heater_type: 'vevor', heater_phase: 'fault', heater_control: 'level',

@@ -61,7 +61,8 @@ ingest stores them only when present.
 |---|---|---|
 | `heater_type` | string | `none` / `vevor` / `autoterm` / `unknown` (tag) |
 | `heater_phase` | string | `off` / `detecting` / `starting` / `running` / `stopping` / `cooldown` / `fault` (tag) |
-| `heater_control` | string | `level` (1–10) or `setpoint` (°F) — which control the heater takes (tag) |
+| `heater_control` | string | `level` (1–10) or `setpoint` (°F) — which control the heater takes (tag). Follows the applied `heater_mode` where there is one: `power` → `level`, `temperature` → `setpoint` |
+| `heater_mode` | string | AUTOTERM control mode, `temperature` or `power` (G0B1 1.3.17+, reg 2230, applied value, tag). Absent where it can't be chosen (VEVOR, older firmware) |
 | `heater_setpoint_f` | int | Setpoint, °F (firmware stores whole °C) |
 | `heater_vendor_state` | string | Raw vendor state `major.sub`, e.g. `4.0` (tag) |
 | `heater_fault` | bool | Coprocessor latched a fault (cleared only by `clear_fault`) |
@@ -120,7 +121,7 @@ and `POST /fleet/config`):
 
 | Key | Type | Notes |
 |---|---|---|
-| `heater` | `{on?: 0\|1, level?: 1..10, setpoint_f?: 41..86, clear_fault?: true}` | Heater remote control; at least one field. `clear_fault` never starts the heater; the agent applies clear → setpoint → level → on |
+| `heater` | `{on?: 0\|1, level?: 1..10, setpoint_f?: 41..86, clear_fault?: true, mode?: "temperature"\|"power"}` | Heater remote control; at least one field. `clear_fault` never starts the heater; `mode` only where `heater_mode` is reported (the unit refuses it elsewhere). The agent applies clear → mode → setpoint → level → on |
 | `apu_command` | `"climate"` \| `"battery"` \| `"stop"` | APU op-state → firmware mode reg 10 (`1`/`2`/`0`). Agent also accepts legacy `"start"` as `"climate"`; the API does not. |
 | `firmware_target` | semver string | Triggers OTA (see §4) |
 | `reboot` | bool | Reboot request |

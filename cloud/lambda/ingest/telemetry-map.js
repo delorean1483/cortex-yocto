@@ -28,7 +28,7 @@ const BOOL = [
 // to coprocessor firmware, so they are mapped ONLY when present — older units
 // never get placeholder 'unknown'/0 values for them.
 const OPT_TAGS = ['heater_type', 'heater_phase', 'heater_control', 'heater_vendor_state',
-  'heater_l011_fw'];
+  'heater_l011_fw', 'heater_mode'];
 const OPT_INT = ['heater_setpoint_f', 'heater_cmd_result', 'heater_l011_reject'];
 const OPT_BOOL = ['heater_fault'];
 
