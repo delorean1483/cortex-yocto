@@ -51,7 +51,7 @@ Every field is authoritative. Enum fields carry **both** a string label and a ra
 | `heater_age_ms` | int | Age of last good heater read (ms) |
 | `heater_flags` | int (bitmask) | bit0 fresh, bit1 cooldown, bit2 safe_off, bit3 comms_fault, bit4 xport_fault; G0B1 1.3.x adds bit5 map_mismatch, bit6 map_unreadable, bit7 request_again (last ON refused or dropped) |
 | `heater_safe_off`, `heater_comms_ok` | bool | Derived from `heater_flags` |
-| `heater_valid_frames`, `heater_checksum_failures`, `heater_transport_errors` | int | One-wire link health counters |
+| `heater_valid_frames`, `heater_checksum_failures`, `heater_transport_errors` | int | One-wire link health counters. `heater_checksum_failures` (reg 66) counts bad frames: from coprocessor fw 0.2.2 also checksum-valid frames with impossible fields and frames cut short |
 
 Heater coprocessor keys — **optional**: sent only by units whose G0B1 firmware
 has the coprocessor block (Modbus regs 68–75); absent on older units, and the

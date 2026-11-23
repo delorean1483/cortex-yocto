@@ -29,7 +29,7 @@ Emitted by `gobi-agent` via `build_telemetry_json()`. The `heater_present` flag 
 | `heater_safe_off` | bool | — | Flags bit 2 | Safe to remove power (after cooldown confirms state-00) |
 | `heater_comms_ok` | bool | — | Flags bit 0 AND NOT bit 3 | Fresh frame AND no comms fault |
 | `heater_valid_frames` | int | count | Register 65 | Diagnostic counter |
-| `heater_checksum_failures` | int | count (saturating) | Register 66 | Diagnostic counter |
+| `heater_checksum_failures` | int | count (saturating) | Register 66 | Bad heater frames: checksum failures and, from coprocessor fw 0.2.2, impossible fields or frames cut short. Shown as "bad frames" |
 | `heater_transport_errors` | int | count (saturating) | Register 67 | Diagnostic counter |
 
 **Flags word (register 64):**
