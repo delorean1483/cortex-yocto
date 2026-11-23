@@ -780,8 +780,13 @@ static void l011_diag_read(telemetry_t *t)
     heater_l011_probe_note(&g_l011_probe, false, t->fw_version);
     if (nregs > HEATER_L011_DIAG_NREGS) {
         heater_l011_probe_note(&g_mode_probe, false, t->fw_version);
-        int m = d[REG_HEATER_MODE - REG_L011_FW_VERSION];
-        if (m != HEATER_MODE_TEMPERATURE && m != HEATER_MODE_POWER) m = -1;
+        /* 2230 reads 0 while the L011 is unidentified or faulted: only an
+         * identified, healthy L011's reading replaces the last good mode. */
+        int m = heater_mode_next(g_heater_mode,
+                                 d[REG_L011_FW_VERSION - REG_L011_FW_VERSION],
+                                 d[REG_L011_FW_BUILD   - REG_L011_FW_VERSION],
+                                 t->heater_flags,
+                                 d[REG_HEATER_MODE     - REG_L011_FW_VERSION]);
         if (m != g_heater_mode && m >= 0)
             syslog(LOG_INFO, "heater: control mode %s", heater_mode_name(t->heater_caps, m));
         g_heater_mode = t->heater_mode = m;

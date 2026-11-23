@@ -192,7 +192,10 @@ The agent reads 2230 in the same FC03 as 2227–2229 (quantity 4) only while
 reg 70 has bit 8. If the G0B1 refuses it (a G0B1 rolled back under L011 0.2.4,
 which keeps its stored mode), the agent reads 2227–2229 alone and doesn't ask
 for 2230 again until the G0B1 firmware changes; no mode is shown then. A read
-with no answer keeps the last mode.
+with no answer keeps the last mode. So does a reading taken while the L011 is
+unidentified (2227/2228 both 0) or reg 64 shows a heater-link or map fault
+(bits 3, 5, 6): 1.3.17 answers 2230 with 0 then (no exception), which means
+"unknown", not "temperature".
 
 - `heater_mode` (`temperature` / `power`) and `reported.heater.mode`: only
   where the mode can be chosen. `heater_control` follows the applied mode

@@ -1,4 +1,5 @@
 #include "heater_ext.h"
+#include "heater_fields.h"   /* HEATER_FLAG_* (reg 64 bits) */
 #include <stdio.h>
 
 const char *heater_type_name(unsigned type)
@@ -25,6 +26,15 @@ const char *heater_mode_name(unsigned caps, int mode)
     if (mode == HEATER_MODE_TEMPERATURE) return "temperature";
     if (mode == HEATER_MODE_POWER) return "power";
     return NULL;
+}
+
+int heater_mode_next(int prev, unsigned l011_ver, unsigned l011_build,
+                     unsigned flags, unsigned raw)
+{
+    if (l011_ver == 0 && l011_build == 0) return prev;   /* L011 not identified */
+    if (flags & (HEATER_FLAG_COMMS_FAULT | HEATER_FLAG_MAP_MISMATCH |
+                 HEATER_FLAG_MAP_UNREADABLE)) return prev;
+    return (raw == HEATER_MODE_TEMPERATURE || raw == HEATER_MODE_POWER) ? (int)raw : -1;
 }
 
 const char *heater_control_name(unsigned caps, int mode)

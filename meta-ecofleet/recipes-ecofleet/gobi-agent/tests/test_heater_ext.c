@@ -33,6 +33,19 @@ int main(void){
     CHECK(heater_mode_name(at, -1)==NULL);
     CHECK(heater_mode_name(at, 2)==NULL);                           /* unknown value */
     CHECK(heater_mode_name(HEATER_CAP_SETPOINT, 1)==NULL);          /* not selectable (VEVOR, old fw) */
+    /* fw 2230 reads 0 (not an exception) while the L011 is unidentified,
+       lost, in maintenance, or after a Cortex-silence latch (g0b1 #23
+       review), so a 0 then is "unknown", not "temperature": keep the last
+       good mode. Identified = 2227/2228 not both 0; flags bits 3/5/6 clear. */
+    CHECK(heater_mode_next(-1, 0x0002u, 4, 0x0001u, 1) == HEATER_MODE_POWER);
+    CHECK(heater_mode_next( 1, 0x0002u, 4, 0x0001u, 0) == HEATER_MODE_TEMPERATURE);
+    CHECK(heater_mode_next( 1, 0, 0, 0x0001u, 0) == HEATER_MODE_POWER);      /* unidentified */
+    CHECK(heater_mode_next(-1, 0, 0, 0x0001u, 0) == -1);
+    CHECK(heater_mode_next( 1, 0x0002u, 4, 0x0008u, 0) == HEATER_MODE_POWER); /* heater link fault */
+    CHECK(heater_mode_next( 1, 0x0002u, 4, 0x0020u, 0) == HEATER_MODE_POWER); /* map mismatch */
+    CHECK(heater_mode_next( 1, 0x0002u, 4, 0x0040u, 0) == HEATER_MODE_POWER); /* map unreadable */
+    CHECK(heater_mode_next( 1, 0x0002u, 4, 0x0081u, 0) == HEATER_MODE_TEMPERATURE); /* request_again is fine */
+    CHECK(heater_mode_next( 0, 0x0002u, 4, 0x0001u, 7) == -1);              /* unknown value */
     CHECK(heater_mode_parse("temperature")==HEATER_MODE_TEMPERATURE);
     CHECK(heater_mode_parse("power")==HEATER_MODE_POWER);
     CHECK(heater_mode_parse("Power")==-1);

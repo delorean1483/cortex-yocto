@@ -47,6 +47,15 @@ const char *heater_control_name(unsigned caps, int mode);
  * (no CAP_MODE), not read yet (-1) or an unknown value. */
 const char *heater_mode_name(unsigned caps, int mode);
 
+/* The control mode to keep after one read of fw 2227..2230: G0B1 1.3.17
+ * answers 2230 with 0 (no exception) while the L011 is unidentified, lost,
+ * in maintenance or after a Cortex-silence latch, so a reading only counts
+ * when the L011 is identified (2227/2228 not both 0) and reg 64 shows no
+ * heater-link or map fault (bits 3, 5, 6); otherwise `prev` is kept.
+ * Returns 0, 1, or -1 for an unknown value. */
+int heater_mode_next(int prev, unsigned l011_ver, unsigned l011_build,
+                     unsigned flags, unsigned raw);
+
 /* "temperature" -> 0, "power" -> 1, anything else (NULL included) -> -1.
  * Inline so shadow.c can use it without linking heater_ext.c. */
 static inline int heater_mode_parse(const char *s)
