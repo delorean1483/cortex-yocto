@@ -7,6 +7,7 @@
 
 #include "shadow.h"
 #include "heater_cmd.h"   /* HEATER_ON_MAX_AGE_MS */
+#include "heater_ext.h"   /* heater_mode_parse */
 #include "location.h"
 #include "state_path.h"
 
@@ -148,6 +149,7 @@ static void set_default_config(shadow_config_t *cfg)
     cfg->heater_level         = -1;  /* sentinel: not provided/invalid */
     cfg->heater_setpoint_f    = -1;  /* sentinel: not provided/invalid */
     cfg->heater_clear_fault   = false;
+    cfg->heater_mode          = -1;  /* sentinel: not provided/invalid */
 }
 
 /* ── Topic helpers ───────────────────────────────────────────────────────── */
@@ -279,7 +281,8 @@ static bool apply_desired(const cJSON *desired)
     }
 
     /* Heater-scoped remote control: desired.heater = { "on": 0|1, "level": 1..10,
-     * "setpoint_f": 41..86, "clear_fault": true },
+     * "setpoint_f": 41..86, "clear_fault": true,
+     * "mode": "temperature"|"power" },
      * with "on" and "level" each INDEPENDENTLY optional so a bare stop
      * ({"on":0}) is never blocked on a level also being supplied — dropping a
      * remote stop would be a safety issue. Whichever field is absent/invalid
@@ -301,11 +304,14 @@ static bool apply_desired(const cJSON *desired)
         const cJSON *hlvl = cJSON_GetObjectItemCaseSensitive(h, "level");
         const cJSON *hsp  = cJSON_GetObjectItemCaseSensitive(h, "setpoint_f");
         const cJSON *hclr = cJSON_GetObjectItemCaseSensitive(h, "clear_fault");
+        const cJSON *hmod = cJSON_GetObjectItemCaseSensitive(h, "mode");
         int on_val    = s.config.heater_desired_valid ? s.config.heater_on    : -1;
         int level_val = s.config.heater_desired_valid ? s.config.heater_level : -1;
         int sp_val    = s.config.heater_desired_valid ? s.config.heater_setpoint_f : -1;
         bool clr_val  = s.config.heater_desired_valid ? s.config.heater_clear_fault : false;
+        int mode_val  = s.config.heater_desired_valid ? s.config.heater_mode : -1;
         bool have_on = false, have_level = false, have_sp = false, have_clr = false;
+        bool have_mode = false;
 
         if (cJSON_IsNumber(hon)) {
             int v = (int)hon->valuedouble;
@@ -342,6 +348,12 @@ static bool apply_desired(const cJSON *desired)
                 fprintf(stderr, "[shadow] heater.setpoint_f %d out of range [41,86] — ignored\n", v);
         }
         if (cJSON_IsTrue(hclr)) { clr_val = true; have_clr = true; }
+        if (hmod) {
+            int v = cJSON_IsString(hmod) ? heater_mode_parse(hmod->valuestring) : -1;
+            if (v >= 0) { mode_val = v; have_mode = true; }
+            else
+                fprintf(stderr, "[shadow] heater.mode not \"temperature\"|\"power\" — ignored\n");
+        }
         if (have_on) {
             /* Backdated to the tap when its cloud timestamp is known, so the
              * 15 s budget in heater_cmd_apply() is cumulative: age at receipt
@@ -356,11 +368,12 @@ static bool apply_desired(const cJSON *desired)
             s.heater_on_rx_ms = rx;
             s.heater_on_ts    = s.pending_heater_on_ts;
         }
-        if (have_on || have_level || have_sp || have_clr) {
+        if (have_on || have_level || have_sp || have_clr || have_mode) {
             s.config.heater_on            = on_val;
             s.config.heater_level         = level_val;
             s.config.heater_setpoint_f    = sp_val;
             s.config.heater_clear_fault   = clr_val;
+            s.config.heater_mode          = mode_val;
             s.config.heater_desired_valid = true;
             s.heater_desired_seq++;
         }
@@ -613,6 +626,8 @@ int shadow_publish_reported(struct mosquitto *mosq,
             cJSON_AddStringToObject(heater, "control",    reported->heater_control);
             cJSON_AddNumberToObject(heater, "setpoint_f", reported->heater_setpoint_f);
             cJSON_AddBoolToObject  (heater, "fault",      reported->heater_fault);
+            if (reported->heater_mode[0])
+                cJSON_AddStringToObject(heater, "mode",   reported->heater_mode);
         }
     }
 
@@ -814,6 +829,7 @@ bool shadow_peek_heater_cmd(shadow_heater_cmd_t *cmd, unsigned *seq)
         cmd->level       = s.config.heater_level;
         cmd->setpoint_f  = s.config.heater_setpoint_f;
         cmd->clear_fault = s.config.heater_clear_fault;
+        cmd->mode        = s.config.heater_mode;
         cmd->on_seq      = s.heater_on_seq;
         cmd->on_rx_ms    = s.heater_on_rx_ms;
         *seq             = s.heater_desired_seq;
@@ -849,7 +865,7 @@ void shadow_consume_heater_on(unsigned on_seq)
             s.heater_on_done_ts = s.heater_on_ts;
         s.config.heater_on = -1;
         if (s.config.heater_level < 0 && s.config.heater_setpoint_f < 0 &&
-            !s.config.heater_clear_fault) {
+            !s.config.heater_clear_fault && s.config.heater_mode < 0) {
             s.config.heater_desired_valid = false;
             s.clear_heater_desired        = true;
         }
@@ -868,7 +884,7 @@ void shadow_local_heater_on(int on, bool stop_owed)
         s.config.heater_on = -1;
         s.heater_on_seq++;               /* an older peeked `on` is gone */
         if (s.config.heater_level < 0 && s.config.heater_setpoint_f < 0 &&
-            !s.config.heater_clear_fault) {
+            !s.config.heater_clear_fault && s.config.heater_mode < 0) {
             s.config.heater_desired_valid = false;
             s.clear_heater_desired        = true;
         }
@@ -880,6 +896,7 @@ void shadow_local_heater_on(int on, bool stop_owed)
             s.config.heater_level       = -1;
             s.config.heater_setpoint_f  = -1;
             s.config.heater_clear_fault = false;
+            s.config.heater_mode        = -1;
         }
         s.config.heater_on            = 0;
         s.config.heater_desired_valid = true;

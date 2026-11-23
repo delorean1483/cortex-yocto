@@ -149,6 +149,9 @@ typedef struct {
     uint16_t l011_fw_version;     /* reg 2227 major<<8|minor          */
     uint16_t l011_fw_build;       /* reg 2228                         */
     uint16_t l011_reject;         /* reg 2229                         */
+    int      heater_mode;         /* reg 2230 applied control mode (G0B1
+                                   * 1.3.17+, caps bit 8): 0 temperature,
+                                   * 1 power, -1 not read               */
 
     led_hw_t led;                /* external RGB light, fw regs 76..79 */
 
@@ -728,20 +731,42 @@ static bool g_link_ok = false;         /* last main telemetry read succeeded */
 
 /* L011 diagnostics (fw 2227..2229) sit outside the block map: one more FC03
  * read per cycle, only on coprocessor firmware, and not repeated on a G0B1
- * that refused it (pre-1.3.16) until the G0B1 firmware version changes. */
+ * that refused it (pre-1.3.16) until the G0B1 firmware version changes.
+ * When reg 70 offers the AUTOTERM control mode (caps bit 8, G0B1 1.3.17+),
+ * the same read takes one more register, fw 2230 (applied mode). */
 static heater_l011_probe_t g_l011_probe;
+static heater_l011_probe_t g_mode_probe;   /* fw 2230 refused on this G0B1 */
+static int      g_heater_mode = -1;        /* last fw 2230 read, -1 = none  */
 static char     g_l011_fw_logged[16];
 static uint16_t g_l011_reject_logged;
 
 static void l011_diag_read(telemetry_t *t)
 {
     t->l011_diag_ok = false;
+    /* A read with no answer keeps the last mode, so the panel and dashboard
+     * don't flip between level and setpoint over one lost reply. */
+    t->heater_mode = g_heater_mode;
     if (!heater_l011_probe_due(&g_l011_probe, g_heater_ext, t->fw_version)) return;
 
-    uint16_t d[HEATER_L011_DIAG_NREGS];
+    bool mode_cap = (t->heater_caps & HEATER_CAP_MODE) != 0;
+    int nregs = heater_l011_probe_due(&g_mode_probe, mode_cap, t->fw_version)
+              ? HEATER_L011_DIAG_NREGS + 1 : HEATER_L011_DIAG_NREGS;
+    uint16_t d[HEATER_L011_DIAG_NREGS + 1];
     bool exc = false;
-    int rc = mb_block_read(g_modbus, REG_L011_FW_VERSION, HEATER_L011_DIAG_NREGS, d, &exc);
-    if (rc != HEATER_L011_DIAG_NREGS) {
+    int rc = mb_block_read(g_modbus, REG_L011_FW_VERSION, nregs, d, &exc);
+    if (rc != nregs && exc && nregs > HEATER_L011_DIAG_NREGS) {
+        /* Mode offered by the L011 (0.2.4) but this G0B1 has no fw 2230,
+         * e.g. a G0B1 rolled back under a newer L011: read the diagnostics
+         * alone, and don't ask for 2230 again until the G0B1 changes. */
+        heater_l011_probe_note(&g_mode_probe, true, t->fw_version);
+        syslog(LOG_WARNING, "heater: caps 0x%04x offer a control mode but G0B1 fw %u "
+               "has no reg 2230; mode not shown", t->heater_caps, t->fw_version);
+        g_heater_mode = t->heater_mode = -1;
+        nregs = HEATER_L011_DIAG_NREGS;
+        exc = false;
+        rc = mb_block_read(g_modbus, REG_L011_FW_VERSION, nregs, d, &exc);
+    }
+    if (rc != nregs) {
         if (exc) {
             heater_l011_probe_note(&g_l011_probe, true, t->fw_version);
             syslog(LOG_INFO, "heater: G0B1 fw %u has no L011 diagnostics (regs 2227..2229)",
@@ -750,6 +775,14 @@ static void l011_diag_read(telemetry_t *t)
         return;   /* no answer: try again next cycle */
     }
     heater_l011_probe_note(&g_l011_probe, false, t->fw_version);
+    if (nregs > HEATER_L011_DIAG_NREGS) {
+        heater_l011_probe_note(&g_mode_probe, false, t->fw_version);
+        int m = d[REG_HEATER_MODE - REG_L011_FW_VERSION];
+        if (m != HEATER_MODE_TEMPERATURE && m != HEATER_MODE_POWER) m = -1;
+        if (m != g_heater_mode && m >= 0)
+            syslog(LOG_INFO, "heater: control mode %s", heater_mode_name(t->heater_caps, m));
+        g_heater_mode = t->heater_mode = m;
+    }
     t->l011_diag_ok    = true;
     t->l011_fw_version = d[REG_L011_FW_VERSION - REG_L011_FW_VERSION];
     t->l011_fw_build   = d[REG_L011_FW_BUILD   - REG_L011_FW_VERSION];
@@ -954,7 +987,11 @@ static cJSON *telemetry_object(const telemetry_t *t)
         heater_vendor_state_str(t->heater_vendor_state, vs, sizeof(vs));
         cJSON_AddStringToObject(root, "heater_type",         heater_type_name(t->heater_type));
         cJSON_AddStringToObject(root, "heater_phase",        heater_phase_name(t->heater_phase));
-        cJSON_AddStringToObject(root, "heater_control",      heater_control_name(t->heater_caps));
+        cJSON_AddStringToObject(root, "heater_control",
+                                heater_control_name(t->heater_caps, t->heater_mode));
+        /* Only where the mode is selectable (AUTOTERM, G0B1 1.3.17+) and read. */
+        const char *mode = heater_mode_name(t->heater_caps, t->heater_mode);
+        if (mode) cJSON_AddStringToObject(root, "heater_mode", mode);
         cJSON_AddNumberToObject(root, "heater_setpoint_f",   heater_c_to_f(t->heater_setpoint_c));
         cJSON_AddStringToObject(root, "heater_vendor_state", vs);
         cJSON_AddBoolToObject  (root, "heater_fault",        t->heater_phase == HEATER_PHASE_FAULT);
@@ -1287,18 +1324,21 @@ static void apply_command_file(void)
 
     /* Heater: heater_on (reg 53) / heater_level (54) / heater_setpoint_f (69,
      * as degC) / heater_clear_fault (75 = CLEAR_FAULT, never starts the
-     * heater). Same planner + order as the shadow path; setpoint/clear only
-     * on coprocessor firmware. */
+     * heater) / heater_mode ("temperature"|"power" -> fw 2230). Same planner
+     * + order as the shadow path; setpoint/clear/mode only on coprocessor
+     * firmware. */
     {
         const cJSON *hon = cJSON_GetObjectItemCaseSensitive(root, "heater_on");
         const cJSON *hlv = cJSON_GetObjectItemCaseSensitive(root, "heater_level");
         const cJSON *hsp = cJSON_GetObjectItemCaseSensitive(root, "heater_setpoint_f");
         const cJSON *hcf = cJSON_GetObjectItemCaseSensitive(root, "heater_clear_fault");
-        heater_write_t hw[4];
+        const cJSON *hmd = cJSON_GetObjectItemCaseSensitive(root, "heater_mode");
+        heater_write_t hw[HEATER_MAX_WRITES];
         int n = heater_plan_writes(cJSON_IsNumber(hon) ? (int)hon->valuedouble : -1,
                                    cJSON_IsNumber(hlv) ? (int)hlv->valuedouble : -1,
                                    cJSON_IsNumber(hsp) ? (int)hsp->valuedouble : -1,
                                    cJSON_IsNumber(hcf) && (int)hcf->valuedouble == 1,
+                                   cJSON_IsString(hmd) ? heater_mode_parse(hmd->valuestring) : -1,
                                    g_heater_ext, hw);
         int on_val = -1, on_res = HEATER_WR_OK;
         for (int i = 0; i < n; i++) {
@@ -1638,8 +1678,11 @@ int main(void)
                         sizeof(srep.heater_type) - 1);
                 strncpy(srep.heater_phase,   heater_phase_name(t.heater_phase),
                         sizeof(srep.heater_phase) - 1);
-                strncpy(srep.heater_control, heater_control_name(t.heater_caps),
+                strncpy(srep.heater_control,
+                        heater_control_name(t.heater_caps, t.heater_mode),
                         sizeof(srep.heater_control) - 1);
+                const char *mode = heater_mode_name(t.heater_caps, t.heater_mode);
+                strncpy(srep.heater_mode, mode ? mode : "", sizeof(srep.heater_mode) - 1);
                 srep.heater_setpoint_f = heater_c_to_f(t.heater_setpoint_c);
                 srep.heater_fault      = (t.heater_phase == HEATER_PHASE_FAULT);
             }

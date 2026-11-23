@@ -1,6 +1,7 @@
 /* heater_ext.h — pure helpers for the heater coprocessor's extended Modbus
  * block (EF-G0B1R firmware regs 68..75 / wire 67..74): heater type, generic
- * phase, control mode from CAPS, setpoint degF<->degC, vendor state string,
+ * phase, control mode from CAPS (+ fw 2230), setpoint degF<->degC, vendor
+ * state string,
  * and the heater_present gate. No I/O; host-tested by
  * ../tests/test_heater_ext.c.
  */
@@ -8,9 +9,18 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #define HEATER_CAP_LEVEL     0x0001u   /* fw reg 70 bit0 */
 #define HEATER_CAP_SETPOINT  0x0002u   /* fw reg 70 bit1 */
+/* fw reg 70 bit8 (G0B1 1.3.17 + L011 0.2.4, AUTOTERM only): the control mode
+ * is selectable at fw 2230 (wire 2229): 0 temperature (setpoint, reg 69),
+ * 1 power (level, reg 54). Reads back the APPLIED mode; writes on a heater
+ * without the bit, or in maintenance, are refused with ILLEGAL_VALUE. */
+#define HEATER_CAP_MODE      0x0100u
+#define HEATER_REG_MODE      2230      /* fw reg (1-based) */
+#define HEATER_MODE_TEMPERATURE 0
+#define HEATER_MODE_POWER       1
 #define HEATER_PHASE_FAULT   6u        /* fw reg 71 value */
 #define HEATER_CMD_CLEAR_FAULT 3u      /* fw reg 75 command */
 
@@ -27,8 +37,25 @@ const char *heater_type_name(unsigned type);
  * "cooldown"|"fault", else "unknown". */
 const char *heater_phase_name(unsigned phase);
 
-/* "setpoint" if CAP_SETPOINT is set in caps, else "level". */
-const char *heater_control_name(unsigned caps);
+/* What the heater is driven by: "level" or "setpoint". With CAP_MODE and a
+ * known applied mode (fw 2230; -1 = not read), power -> "level" and
+ * temperature -> "setpoint"; otherwise "setpoint" if CAP_SETPOINT is set in
+ * caps, else "level". */
+const char *heater_control_name(unsigned caps, int mode);
+
+/* fw 2230 -> "temperature" | "power", or NULL when the mode isn't selectable
+ * (no CAP_MODE), not read yet (-1) or an unknown value. */
+const char *heater_mode_name(unsigned caps, int mode);
+
+/* "temperature" -> 0, "power" -> 1, anything else (NULL included) -> -1.
+ * Inline so shadow.c can use it without linking heater_ext.c. */
+static inline int heater_mode_parse(const char *s)
+{
+    if (!s) return -1;
+    if (strcmp(s, "temperature") == 0) return HEATER_MODE_TEMPERATURE;
+    if (strcmp(s, "power") == 0) return HEATER_MODE_POWER;
+    return -1;
+}
 
 /* Whole degF from whole degC, rounded half away from zero. */
 int heater_c_to_f(int c);
@@ -100,11 +127,14 @@ bool heater_ext_next(bool prev, bool read_ok, bool refused);
 bool heater_cmd_settled(const heater_write_t *w, const int *results, int n);
 
 /* Plan the writes for one heater command (local command.json or shadow
- * desired.heater), in the safe order clear_fault -> setpoint -> level -> on.
+ * desired.heater), in the safe order clear_fault -> mode -> setpoint ->
+ * level -> on, so a START goes out in the chosen mode.
  * Unset/invalid fields are skipped (on: 0|1, level: 1..10, setpoint_f:
- * 41..86, clear_fault: true). setpoint/clear target the coprocessor block, so
- * they are planned only when `ext` (firmware has regs 68..75): on older
- * firmware they would fail forever and keep the whole command pending.
- * Returns the number of writes placed in out (0..4). */
+ * 41..86, clear_fault: true, mode: 0|1). setpoint/clear/mode target the
+ * coprocessor block, so they are planned only when `ext` (firmware has regs
+ * 68..75): on older firmware they would fail forever and keep the whole
+ * command pending.
+ * Returns the number of writes placed in out (0..HEATER_MAX_WRITES). */
+#define HEATER_MAX_WRITES 5
 int heater_plan_writes(int on, int level, int setpoint_f, bool clear_fault,
-                       bool ext, heater_write_t out[4]);
+                       int mode, bool ext, heater_write_t out[HEATER_MAX_WRITES]);

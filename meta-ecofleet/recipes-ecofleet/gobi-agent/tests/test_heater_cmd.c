@@ -53,6 +53,7 @@ static int nw;
 static int answer_53 = HEATER_WR_OK;   /* result for reg 53 (on/off) writes */
 static int answer_54 = HEATER_WR_OK;   /* result for reg 54 (level) writes  */
 static int answer_69 = HEATER_WR_OK;   /* result for reg 69 (setpoint)      */
+static int answer_mode = HEATER_WR_OK; /* result for fw 2230 (control mode) */
 static const char *inject;             /* desired.heater landing mid-write  */
 static const char *inject_raw;         /* a whole delta payload, mid-write  */
 static void handle_delta(const void *payload, int len);
@@ -65,6 +66,7 @@ static int fake_write(int reg, int value, const char *what, void *ctx) {
     if (reg == 53) return answer_53;
     if (reg == 54) return answer_54;
     if (reg == 69) return answer_69;
+    if (reg == HEATER_REG_MODE) return answer_mode;
     return HEATER_WR_OK;
 }
 static int count(int reg, int value) {
@@ -73,7 +75,8 @@ static int count(int reg, int value) {
     return c;
 }
 static void reset_bus(void) {
-    nw = 0; answer_53 = answer_54 = answer_69 = HEATER_WR_OK; inject = NULL; inject_raw = NULL;
+    nw = 0; answer_53 = answer_54 = answer_69 = answer_mode = HEATER_WR_OK;
+    inject = NULL; inject_raw = NULL;
 }
 static bool pending(void) {
     shadow_heater_cmd_t c; unsigned seq;
@@ -382,6 +385,41 @@ int main(void) {
     answer_54 = HEATER_WR_OK;
     CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_ANSWERED);
     CHECK(count(53, 1) == 1);
+    CHECK(!pending());
+
+    /* control mode (fw 2230): delivered at least once like a setpoint, and
+       before the ON so the START goes out in the chosen mode */
+    reset_bus();
+    desired("{\"mode\":\"power\",\"level\":3,\"on\":1}");
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_ANSWERED);
+    CHECK(nw == 3);
+    CHECK(wlog[0].reg == HEATER_REG_MODE && wlog[0].value == 1);
+    CHECK(wlog[1].reg == 54 && wlog[1].value == 3);
+    CHECK(wlog[2].reg == 53 && wlog[2].value == 1);
+    CHECK(!pending());
+
+    reset_bus();
+    desired("{\"mode\":\"temperature\"}");
+    answer_mode = HEATER_WR_FAILED;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_LOST);
+    CHECK(pending());                      /* no answer: re-sent next tick */
+    answer_mode = HEATER_WR_OK;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_ANSWERED);
+    CHECK(count(HEATER_REG_MODE, 0) == 2);
+    CHECK(!pending());
+
+    /* refused (VEVOR, maintenance, older G0B1): answered, so acked, not retried */
+    reset_bus();
+    desired("{\"mode\":\"power\"}");
+    answer_mode = HEATER_WR_REFUSED;
+    CHECK(heater_cmd_apply(true, mono(), fake_write, NULL) == HEATER_APPLY_ANSWERED);
+    CHECK(!pending());
+
+    /* firmware without the coprocessor block: never written, never pending */
+    reset_bus();
+    desired("{\"mode\":\"power\"}");
+    CHECK(heater_cmd_apply(false, mono(), fake_write, NULL) == HEATER_APPLY_IDLE);
+    CHECK(nw == 0);
     CHECK(!pending());
 
     printf(fails ? "test_heater_cmd FAILED (%d)\n" : "test_heater_cmd ok\n", fails);

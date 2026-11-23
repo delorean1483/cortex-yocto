@@ -19,8 +19,18 @@ const char *heater_phase_name(unsigned phase)
     return (phase < sizeof(names) / sizeof(names[0])) ? names[phase] : "unknown";
 }
 
-const char *heater_control_name(unsigned caps)
+const char *heater_mode_name(unsigned caps, int mode)
 {
+    if (!(caps & HEATER_CAP_MODE)) return NULL;
+    if (mode == HEATER_MODE_TEMPERATURE) return "temperature";
+    if (mode == HEATER_MODE_POWER) return "power";
+    return NULL;
+}
+
+const char *heater_control_name(unsigned caps, int mode)
+{
+    const char *m = heater_mode_name(caps, mode);
+    if (m) return (mode == HEATER_MODE_POWER) ? "level" : "setpoint";
     return (caps & HEATER_CAP_SETPOINT) ? "setpoint" : "level";
 }
 
@@ -87,11 +97,14 @@ bool heater_present_from(bool state_ok, bool type_ok, unsigned type)
 }
 
 int heater_plan_writes(int on, int level, int setpoint_f, bool clear_fault,
-                       bool ext, heater_write_t out[4])
+                       int mode, bool ext, heater_write_t out[HEATER_MAX_WRITES])
 {
     int n = 0;
     if (ext && clear_fault) {
         out[n].reg = 75; out[n].value = HEATER_CMD_CLEAR_FAULT; out[n].what = "heater_clear_fault"; n++;
+    }
+    if (ext && (mode == HEATER_MODE_TEMPERATURE || mode == HEATER_MODE_POWER)) {
+        out[n].reg = HEATER_REG_MODE; out[n].value = mode; out[n].what = "heater_mode"; n++;
     }
     if (ext && setpoint_f >= HEATER_SETPOINT_F_MIN && setpoint_f <= HEATER_SETPOINT_F_MAX) {
         out[n].reg = 69; out[n].value = heater_f_to_c(setpoint_f); out[n].what = "heater_setpoint_f"; n++;

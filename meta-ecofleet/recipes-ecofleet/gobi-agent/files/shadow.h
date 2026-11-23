@@ -55,6 +55,8 @@ typedef struct {
     int      heater_setpoint_f;  /* pending: 41..86 degF, or -1 = not provided —
                                   * applied to reg 69 (as degC) when >= 0        */
     bool     heater_clear_fault; /* pending CLEAR_FAULT (reg 75 = 3)             */
+    int      heater_mode;        /* pending: 0 temperature | 1 power, or -1 =
+                                  * not provided — applied to fw 2230           */
 } shadow_config_t;
 
 /* ── Reported telemetry fields included in shadow update ────────────────── */
@@ -91,6 +93,8 @@ typedef struct {
     char     heater_type[12];    /* "none"|"vevor"|"autoterm"|"unknown"          */
     char     heater_phase[12];   /* "off"|"detecting"|...|"fault"|"unknown"       */
     char     heater_control[10]; /* "level"|"setpoint"                           */
+    char     heater_mode[12];    /* "temperature"|"power"; "" = not selectable
+                                  * (key omitted)                                */
     int      heater_setpoint_f;  /* reg 69 as degF                               */
     bool     heater_fault;       /* phase == fault                               */
 
@@ -233,12 +237,14 @@ void shadow_ack_apu_firmware_target(unsigned seq);
  * was supplied alongside it. */
 
 /* A pending heater command. Each field is independently optional: on/level/
- * setpoint_f use -1 for "not provided"; clear_fault false = not requested. */
+ * setpoint_f/mode use -1 for "not provided"; clear_fault false = not
+ * requested. */
 typedef struct {
     int  on;          /* 0|1 or -1                                  */
     int  level;       /* 1..10 or -1                                */
     int  setpoint_f;  /* 41..86 degF or -1                          */
     bool clear_fault; /* CLEAR_FAULT requested                      */
+    int  mode;        /* 0 temperature | 1 power, or -1             */
     unsigned on_seq;  /* bumped each time a message sets `on`; pass it
                        * to shadow_consume_heater_on()              */
     uint64_t on_rx_ms; /* CLOCK_MONOTONIC ms when `on` was last set */

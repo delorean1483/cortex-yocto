@@ -9,7 +9,7 @@
  *    (reg 53/64) shows what really happened. With no answer it is logged as
  *    "ON delivery unknown". The G0B1 re-arms START after a Cortex-silence
  *    stop, so a re-sent ON could start the heater long after the user asked.
- *  - A STOP, level, setpoint or clear stays pending until the firmware
+ *  - A STOP, level, setpoint, mode or clear stays pending until the firmware
  *    answers (OK or refused), and is re-sent every tick until then.
  *  - An ON older than HEATER_ON_MAX_AGE_MS is dropped without being written:
  *    at receipt by its dashboard-tap timestamp (shadow.c, which also drops

@@ -80,6 +80,46 @@ int main(void) {
     CHECK(c.level == 4 && !c.clear_fault && c.setpoint_f == -1);
     shadow_ack_heater_cmd(seq);
 
+    /* desired.heater.mode (AUTOTERM control mode, fw 2230): "temperature" |
+       "power"; anything else is ignored and alone is not a command */
+    desired("{\"mode\":\"power\"}");
+    CHECK(shadow_peek_heater_cmd(&c, &seq));
+    CHECK(c.mode == 1 && c.on == -1 && c.level == -1 && c.setpoint_f == -1 && !c.clear_fault);
+    shadow_ack_heater_cmd(seq);
+    CHECK(!shadow_peek_heater_cmd(&c, &seq));
+    desired("{\"mode\":\"temperature\",\"setpoint_f\":70}");
+    CHECK(shadow_peek_heater_cmd(&c, &seq));
+    CHECK(c.mode == 0 && c.setpoint_f == 70);
+    shadow_ack_heater_cmd(seq);
+    desired("{\"mode\":\"turbo\"}");
+    CHECK(!shadow_peek_heater_cmd(&c, &seq));
+    desired("{\"mode\":1}");
+    CHECK(!shadow_peek_heater_cmd(&c, &seq));
+    /* a pending mode is augmented by a later level and survives the ON being
+       consumed (ON at most once must not drop the rest of the command) */
+    desired("{\"mode\":\"power\"}");
+    desired("{\"level\":6}");
+    CHECK(shadow_peek_heater_cmd(&c, &seq));
+    CHECK(c.mode == 1 && c.level == 6);
+    shadow_ack_heater_cmd(seq);
+    desired("{\"mode\":\"power\",\"on\":1}");
+    CHECK(shadow_peek_heater_cmd(&c, &seq));
+    shadow_consume_heater_on(c.on_seq);
+    CHECK(shadow_peek_heater_cmd(&c, &seq));
+    CHECK(c.mode == 1 && c.on == -1);
+    shadow_ack_heater_cmd(seq);
+    /* a panel ON/OFF supersedes a pending remote `on` but keeps its mode */
+    desired("{\"mode\":\"temperature\",\"on\":1}");
+    shadow_local_heater_on(0, false);
+    CHECK(shadow_peek_heater_cmd(&c, &seq));
+    CHECK(c.mode == 0 && c.on == -1);
+    shadow_ack_heater_cmd(seq);
+    /* a STOP the panel still owes starts a fresh command: no stale mode */
+    shadow_local_heater_on(0, true);
+    CHECK(shadow_peek_heater_cmd(&c, &seq));
+    CHECK(c.on == 0 && c.mode == -1);
+    shadow_ack_heater_cmd(seq);
+
     /* reported: extended fields only when heater_ext */
     shadow_reported_t r;
     memset(&r, 0, sizeof r);
@@ -97,6 +137,11 @@ int main(void) {
     CHECK(strstr(last_payload, "\"control\":\"setpoint\"") != NULL);
     CHECK(strstr(last_payload, "\"setpoint_f\":72") != NULL);
     CHECK(strstr(last_payload, "\"fault\":true") != NULL);
+    CHECK(strstr(last_payload, "\"mode\"") == NULL);           /* not selectable: no key */
+    strcpy(r.heater_mode, "power"); strcpy(r.heater_control, "level");
+    shadow_publish_reported((struct mosquitto *)0x1, &r);
+    CHECK(strstr(last_payload, "\"mode\":\"power\"") != NULL);
+    CHECK(strstr(last_payload, "\"control\":\"level\"") != NULL);
 
     printf(fails ? "test_shadow_heater FAILED (%d)\n" : "test_shadow_heater ok\n", fails);
     return fails ? 1 : 0;

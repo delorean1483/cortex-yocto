@@ -110,6 +110,9 @@
 #define REG_L011_FW_VERSION  2226   /* fw 2227 L011 major<<8|minor, 0 = none R */
 #define REG_L011_FW_BUILD    2227   /* fw 2228 L011 build                    R */
 #define REG_L011_REJECT      2228   /* fw 2229 last 0xB011 rejection code     R */
+/* AUTOTERM control mode (G0B1 1.3.17+, only with reg 70 bit 8): read with the
+ * three above; written by heater_plan_writes() as fw HEATER_REG_MODE. */
+#define REG_HEATER_MODE      2229   /* fw 2230 0 temperature / 1 power (applied) RW */
 
 /* External RGB light (fw 76..79; absent on firmware before it, v1.1.6). */
 #define REG_LED_RED            75   /* fw 76 led_red 0-255                   RW */
