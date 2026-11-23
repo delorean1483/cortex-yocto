@@ -63,6 +63,9 @@ class TelemetryModel : public QObject
     Q_PROPERTY(QString heaterType         READ heaterType         NOTIFY dataChanged)
     Q_PROPERTY(QString heaterPhase        READ heaterPhase        NOTIFY dataChanged)
     Q_PROPERTY(QString heaterControl      READ heaterControl      NOTIFY dataChanged)
+    // AUTOTERM control mode (G0B1 1.3.17+): "temperature" | "power", or ""
+    // where it can't be chosen (VEVOR, older firmware).
+    Q_PROPERTY(QString heaterMode         READ heaterMode         NOTIFY dataChanged)
     Q_PROPERTY(int     heaterSetpointF    READ heaterSetpointF    NOTIFY dataChanged)
     Q_PROPERTY(QString heaterVendorState  READ heaterVendorState  NOTIFY dataChanged)
     Q_PROPERTY(bool    heaterFault        READ heaterFault        NOTIFY dataChanged)
@@ -99,6 +102,7 @@ public:
     Q_INVOKABLE void setHeaterOn(bool on);               // heater_on 0|1
     Q_INVOKABLE void setHeaterLevel(int level);          // heater_level 1..10
     Q_INVOKABLE void setHeaterSetpointF(int degF);       // heater_setpoint_f 41..86
+    Q_INVOKABLE void setHeaterMode(const QString &mode); // heater_mode "temperature"|"power"
     Q_INVOKABLE void checkForUpdate();                   // ota_check 1
     Q_INVOKABLE void installUpdate(const QString &ver);  // ota_install "N.N.N"
     Q_INVOKABLE void clearHeaterFault();                 // heater_clear_fault 1
@@ -152,6 +156,7 @@ public:
     QString heaterType()         const { return m_heaterType; }
     QString heaterPhase()        const { return m_heaterPhase; }
     QString heaterControl()      const { return m_heaterControl; }
+    QString heaterMode()         const { return m_heaterMode; }
     int     heaterSetpointF()    const { return m_heaterSetpointF; }
     QString heaterVendorState()  const { return m_heaterVendorState; }
     bool    heaterFault()        const { return m_heaterFault; }
@@ -217,6 +222,7 @@ private:
     QString m_heaterType         = QStringLiteral("none");
     QString m_heaterPhase        = QStringLiteral("off");
     QString m_heaterControl      = QStringLiteral("level");
+    QString m_heaterMode;
     int     m_heaterSetpointF    = 68;
     QString m_heaterVendorState;
     bool    m_heaterFault        = false;

@@ -54,8 +54,14 @@ function validateCommand(body) {
       if (h.clear_fault !== true) return { ok: false, error: 'heater.clear_fault must be true' };
       out.clear_fault = true;
     }
+    // AUTOTERM control mode (G0B1 1.3.17+); the unit refuses it elsewhere.
+    if (h.mode !== undefined) {
+      if (h.mode !== 'temperature' && h.mode !== 'power')
+        return { ok: false, error: 'heater.mode must be "temperature" or "power"' };
+      out.mode = h.mode;
+    }
     if (Object.keys(out).length === 0)
-      return { ok: false, error: 'heater needs at least one of on, level, setpoint_f, clear_fault' };
+      return { ok: false, error: 'heater needs at least one of on, level, setpoint_f, clear_fault, mode' };
     desired.heater = out;
   }
 

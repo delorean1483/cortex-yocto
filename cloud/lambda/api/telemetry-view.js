@@ -21,6 +21,8 @@ const TELEMETRY_FIELD_NAMES = [
   'heater_vendor_state', 'heater_fault', 'heater_cmd_result',
   // L011 diagnostics (optional; G0B1 1.3.16+, regs 2227..2229)
   'heater_l011_fw', 'heater_l011_reject',
+  // AUTOTERM control mode (optional; G0B1 1.3.17+, reg 2230)
+  'heater_mode',
 ];
 
 function mapTelemetryRow(r) {

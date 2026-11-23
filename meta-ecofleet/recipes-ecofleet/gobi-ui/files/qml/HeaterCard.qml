@@ -6,8 +6,10 @@ import "atoms"
 // Compact Heater control card for the Home screen. Reads telemetry.heater*
 // (Modbus regs 53-75 via the heater coprocessor: VEVOR level 1-10 or AUTOTERM
 // setpoint) and issues an optimistic On/Off toggle + a debounced level or
-// setpoint stepper, mirroring HomeScreen's uiMode/target idioms. On firmware
-// without the coprocessor block (heaterExt false) it behaves exactly as before.
+// setpoint stepper, mirroring HomeScreen's uiMode/target idioms. Where the
+// AUTOTERM's control mode can be chosen (G0B1 1.3.17+, heaterMode not "") a
+// TEMP/POWER switch picks setpoint or power level. On firmware without the
+// coprocessor block (heaterExt false) it behaves exactly as before.
 //
 // The heater runs its own state machine (off/preheat/ignition/running/
 // cooldown) that is UNRELATED to the APU's control_status enum, so it gets
@@ -26,7 +28,16 @@ Rectangle {
     // ---- On/Off (optimistic; cleared once telemetry reconciles) ----
     property var uiOn: null
     readonly property bool effOn: uiOn !== null ? uiOn : (telemetry.heaterState !== "off")
-    readonly property bool useSetpoint: telemetry.heaterExt && telemetry.heaterControl === "setpoint"
+    // ---- Control mode (AUTOTERM, G0B1 1.3.17+): optimistic like On/Off,
+    // cleared once the APPLIED mode reads back, or after 30 s if it never
+    // does (refused, e.g. during maintenance) so the switch shows the truth.
+    readonly property bool modeSelectable: telemetry.heaterExt && telemetry.heaterMode !== ""
+    property string uiMode: ""
+    readonly property string effMode: uiMode !== "" ? uiMode : telemetry.heaterMode
+    Timer { id: modeSettle; interval: 30000; onTriggered: card.uiMode = "" }
+    function pickMode(m) { card.uiMode = m; modeSettle.restart(); telemetry.setHeaterMode(m) }
+    readonly property bool useSetpoint: card.modeSelectable ? card.effMode === "temperature"
+                                        : (telemetry.heaterExt && telemetry.heaterControl === "setpoint")
     readonly property bool faulted: telemetry.heaterExt && telemetry.heaterFault
     function setOn(v) { card.uiOn = v; telemetry.setHeaterOn(v) }
     // NOTE: turning OFF only reconciles once heaterState actually reaches
@@ -58,6 +69,9 @@ Rectangle {
         target: telemetry
         function onDataChanged() {
             if (card.uiOn !== null && (telemetry.heaterState !== "off") === card.uiOn) card.uiOn = null
+            if (card.uiMode !== "" && (telemetry.heaterMode === card.uiMode || telemetry.heaterMode === "")) {
+                card.uiMode = ""; modeSettle.stop()
+            }
             if (card.levelDirty && telemetry.heaterTargetLevel === card.level) card.levelDirty = false
             if (!card.levelDirty) card.level = card.clampLevel(telemetry.heaterTargetLevel)
             if (card.spDirty && Math.abs(telemetry.heaterSetpointF - card.setpoint) <= 1) card.spDirty = false
@@ -135,10 +149,20 @@ Rectangle {
                 color: Theme.textMute; font.pixelSize: Theme.fsCaption }
         }
 
-        // level (VEVOR / legacy) or setpoint (AUTOTERM) stepper
+        // level (VEVOR / legacy / AUTOTERM power) or setpoint (AUTOTERM
+        // temperature) stepper; the AUTOTERM mode switch replaces its caption
         RowLayout { Layout.fillWidth: false; spacing: 8
-            Text { text: card.useSetpoint ? "SET" : "LEVEL"; color: Theme.textMute; font.pixelSize: Theme.fsCaption
+            Text { visible: !card.modeSelectable
+                text: card.useSetpoint ? "SET" : "LEVEL"; color: Theme.textMute; font.pixelSize: Theme.fsCaption
                 font.letterSpacing: Theme.lsCaps; font.weight: Font.DemiBold }
+            SegmentedControl {
+                visible: card.modeSelectable
+                Layout.preferredWidth: 132; Layout.preferredHeight: 44; trackColor: Theme.bg
+                fontSize: Theme.fsCaption
+                options: [{label:"TEMP", value:"temperature"}, {label:"POWER", value:"power"}]
+                current: card.effMode
+                onPicked: function(v) { if (v !== card.effMode) card.pickMode(v) }
+            }
             Stepper { Layout.fillWidth: false
                 text: card.useSetpoint ? (card.setpoint + "°") : card.level
                 textSize: 24; textWidth: card.useSetpoint ? 52 : 34

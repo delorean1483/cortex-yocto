@@ -5,6 +5,15 @@ import { useCommand, useShadow } from '../../data/hooks.js'
 import { useCan } from '../../components/RoleGate.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 
+// AUTOTERM control mode (G0B1 1.3.17+): heater_mode is only sent where it
+// can be chosen. heater_control already follows the APPLIED mode.
+const MODES = [
+  { value: 'temperature', label: 'Temperature',
+    body: 'The heater regulates to the setpoint, using the cabin temperature the unit reports.' },
+  { value: 'power', label: 'Power',
+    body: 'The heater runs at a fixed power level (1–10) whatever the cabin temperature.' },
+]
+
 function Cell({ label, value }) {
   return (
     <div className="tcell">
@@ -54,6 +63,7 @@ export default function HeaterTab({ tele, unit, isDemo }) {
   const disabledReason = isDemo ? 'Demo units cannot be controlled.' : reason
   const showPending = pending || heaterDesiredPending(shadow)
   const l011Reject = l011RejectLabel(tele.heater_l011_reject)
+  const mode = MODES.find((m) => m.value === tele.heater_mode)
 
   const ask = (title, body, cmd) => setConfirm({ title, body, cmd })
   const run = () => {
@@ -76,6 +86,7 @@ export default function HeaterTab({ tele, unit, isDemo }) {
       </div>
 
       <div className="tgrid" style={{ marginTop: 4 }}>
+        {mode && <Cell label="Mode" value={mode.label} />}
         {useSetpoint
           ? <Cell label="Setpoint" value={fmt.tempF(tele.heater_setpoint_f)} />
           : <Cell label="Target level" value={fmt.int(tele.heater_target_level)} />}
@@ -136,6 +147,21 @@ export default function HeaterTab({ tele, unit, isDemo }) {
                 { heater: { clear_fault: true } })}>
               Clear fault
             </button>
+          )}
+
+          {mode && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11.5, color: 'var(--color-text-tertiary)' }}>Mode</span>
+            {MODES.map((m) => (
+              <button key={m.value} className={`btn btn-sm ${m === mode ? 'btn-primary' : ''}`}
+                aria-pressed={m === mode} disabled={disabled}
+                onClick={() => m !== mode && ask(`Switch heater to ${m.label.toLowerCase()} mode`,
+                  `${m.body} Switch the heater on ${unit}? A running heater changes over without restarting.`,
+                  { heater: { mode: m.value } })}>
+                {m.label}
+              </button>
+            ))}
+          </div>
           )}
 
           {useSetpoint ? (

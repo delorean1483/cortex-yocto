@@ -17,13 +17,15 @@ heater_apply_t heater_cmd_apply(bool ext, uint64_t now_ms, heater_write_fn wr, v
         hc.on = -1;
     }
 
-    /* Order: clear_fault -> setpoint -> level -> on, so a single "clear then
-     * start" message lands in a usable order (the firmware still refuses the
-     * start if the clear was BUSY). On older firmware (no regs 68..75) the
-     * planner drops setpoint/clear, which would otherwise fail forever. */
-    heater_write_t hw[4];
-    int res[4];
-    int n = heater_plan_writes(hc.on, hc.level, hc.setpoint_f, hc.clear_fault, ext, hw);
+    /* Order: clear_fault -> mode -> setpoint -> level -> on, so a single
+     * "clear then start" message lands in a usable order (the firmware still
+     * refuses the start if the clear was BUSY) and a START goes out in the
+     * chosen mode. On older firmware (no regs 68..75) the planner drops
+     * setpoint/clear/mode, which would otherwise fail forever. */
+    heater_write_t hw[HEATER_MAX_WRITES];
+    int res[HEATER_MAX_WRITES];
+    int n = heater_plan_writes(hc.on, hc.level, hc.setpoint_f, hc.clear_fault,
+                               hc.mode, ext, hw);
     /* After a write with no answer, only a STOP is still tried this tick:
      * the bus is suspect, each try can block ~3 s, and the rest waits for the
      * next tick (SKIPPED keeps it pending, an ON included).

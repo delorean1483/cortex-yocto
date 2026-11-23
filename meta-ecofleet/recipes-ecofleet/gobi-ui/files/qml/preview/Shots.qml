@@ -79,7 +79,12 @@ Item {
                                           telemetry.heaterControl = "setpoint"; telemetry.heaterPhase = "running"
                                           telemetry.heaterState = "running"; telemetry.heaterSetpointF = 72
                                           telemetry.heaterCommsOk = true; root.poke() }],
-        ["02c-heater-fault", function() { telemetry.heaterType = "vevor"; telemetry.heaterControl = "level"
+        ["02b2-heater-autoterm-power", function() { telemetry.heaterMode = "power"; telemetry.heaterControl = "level"
+                                          telemetry.heaterTargetLevel = 6; root.poke() }],
+        ["02b3-heater-autoterm-temp", function() { telemetry.heaterMode = "temperature"; telemetry.heaterControl = "setpoint"
+                                          root.poke() }],
+        ["02c-heater-fault", function() { telemetry.heaterMode = ""
+                                          telemetry.heaterType = "vevor"; telemetry.heaterControl = "level"
                                           telemetry.heaterPhase = "fault"; telemetry.heaterState = "off"
                                           telemetry.heaterFault = true; telemetry.heaterError = 255
                                           telemetry.heaterFanRpm = 0; telemetry.heaterExchanger = 0; root.poke() }],

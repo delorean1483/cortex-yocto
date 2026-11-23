@@ -18,9 +18,39 @@ int main(void){
     CHECK(strcmp(heater_phase_name(6),"fault")==0);
     CHECK(strcmp(heater_phase_name(7),"unknown")==0);
 
-    CHECK(strcmp(heater_control_name(HEATER_CAP_LEVEL),"level")==0);
-    CHECK(strcmp(heater_control_name(HEATER_CAP_SETPOINT|0x24u),"setpoint")==0);
-    CHECK(strcmp(heater_control_name(0),"level")==0);
+    CHECK(strcmp(heater_control_name(HEATER_CAP_LEVEL, -1),"level")==0);
+    CHECK(strcmp(heater_control_name(HEATER_CAP_SETPOINT|0x24u, -1),"setpoint")==0);
+    CHECK(strcmp(heater_control_name(0, -1),"level")==0);
+    /* G0B1 1.3.17 AUTOTERM control mode (caps bit 8, fw 2230 = APPLIED mode):
+       power mode is driven by the level, temperature mode by the setpoint */
+    unsigned at = HEATER_CAP_SETPOINT | HEATER_CAP_MODE;
+    CHECK(strcmp(heater_control_name(at, HEATER_MODE_POWER),"level")==0);
+    CHECK(strcmp(heater_control_name(at, HEATER_MODE_TEMPERATURE),"setpoint")==0);
+    CHECK(strcmp(heater_control_name(at, -1),"setpoint")==0);      /* mode not read yet */
+    CHECK(strcmp(heater_control_name(HEATER_CAP_SETPOINT, HEATER_MODE_POWER),"setpoint")==0); /* no caps bit: mode ignored */
+    CHECK(strcmp(heater_mode_name(at, 0),"temperature")==0);
+    CHECK(strcmp(heater_mode_name(at, 1),"power")==0);
+    CHECK(heater_mode_name(at, -1)==NULL);
+    CHECK(heater_mode_name(at, 2)==NULL);                           /* unknown value */
+    CHECK(heater_mode_name(HEATER_CAP_SETPOINT, 1)==NULL);          /* not selectable (VEVOR, old fw) */
+    /* fw 2230 reads 0 (not an exception) while the L011 is unidentified,
+       lost, in maintenance, or after a Cortex-silence latch (g0b1 #23
+       review), so a 0 then is "unknown", not "temperature": keep the last
+       good mode. Identified = 2227/2228 not both 0; flags bits 3/5/6 clear. */
+    CHECK(heater_mode_next(-1, 0x0002u, 4, 0x0001u, 1) == HEATER_MODE_POWER);
+    CHECK(heater_mode_next( 1, 0x0002u, 4, 0x0001u, 0) == HEATER_MODE_TEMPERATURE);
+    CHECK(heater_mode_next( 1, 0, 0, 0x0001u, 0) == HEATER_MODE_POWER);      /* unidentified */
+    CHECK(heater_mode_next(-1, 0, 0, 0x0001u, 0) == -1);
+    CHECK(heater_mode_next( 1, 0x0002u, 4, 0x0008u, 0) == HEATER_MODE_POWER); /* heater link fault */
+    CHECK(heater_mode_next( 1, 0x0002u, 4, 0x0020u, 0) == HEATER_MODE_POWER); /* map mismatch */
+    CHECK(heater_mode_next( 1, 0x0002u, 4, 0x0040u, 0) == HEATER_MODE_POWER); /* map unreadable */
+    CHECK(heater_mode_next( 1, 0x0002u, 4, 0x0081u, 0) == HEATER_MODE_TEMPERATURE); /* request_again is fine */
+    CHECK(heater_mode_next( 0, 0x0002u, 4, 0x0001u, 7) == -1);              /* unknown value */
+    CHECK(heater_mode_parse("temperature")==HEATER_MODE_TEMPERATURE);
+    CHECK(heater_mode_parse("power")==HEATER_MODE_POWER);
+    CHECK(heater_mode_parse("Power")==-1);
+    CHECK(heater_mode_parse("")==-1);
+    CHECK(heater_mode_parse(NULL)==-1);
 
     /* degC <-> degF: firmware range ends + a typical cabin setting */
     CHECK(heater_c_to_f(5)==41);  CHECK(heater_c_to_f(30)==86);
@@ -41,24 +71,29 @@ int main(void){
     CHECK(heater_present_from(true, true, 0)==false);  /* new fw, nothing detected */
     CHECK(heater_present_from(true, true, 2)==true);   /* new fw, AUTOTERM */
     CHECK(heater_present_from(false,true, 1)==false);  /* state read failed */
-    /* write plan: safe order clear -> setpoint -> level -> on */
-    heater_write_t w[4];
-    int n = heater_plan_writes(1, 4, 72, true, true, w);
-    CHECK(n==4);
+    /* write plan: safe order clear -> mode -> setpoint -> level -> on, so a
+       START goes out with the mode already applied */
+    heater_write_t w[HEATER_MAX_WRITES];
+    int n = heater_plan_writes(1, 4, 72, true, HEATER_MODE_POWER, true, w);
+    CHECK(n==5);
     CHECK(w[0].reg==75 && w[0].value==HEATER_CMD_CLEAR_FAULT);
-    CHECK(w[1].reg==69 && w[1].value==22);
-    CHECK(w[2].reg==54 && w[2].value==4);
-    CHECK(w[3].reg==53 && w[3].value==1);
-    /* review #2: old firmware (no ext block) never gets setpoint/clear writes,
-       which would fail forever and leave the command (and its ON) pending */
-    n = heater_plan_writes(0, -1, 72, true, false, w);
+    CHECK(w[1].reg==HEATER_REG_MODE && w[1].value==1);
+    CHECK(w[2].reg==69 && w[2].value==22);
+    CHECK(w[3].reg==54 && w[3].value==4);
+    CHECK(w[4].reg==53 && w[4].value==1);
+    n = heater_plan_writes(-1, -1, -1, false, HEATER_MODE_TEMPERATURE, true, w);
+    CHECK(n==1 && w[0].reg==2230 && w[0].value==0);
+    /* review #2: old firmware (no ext block) never gets setpoint/clear/mode
+       writes, which would fail forever and leave the command (and its ON)
+       pending */
+    n = heater_plan_writes(0, -1, 72, true, HEATER_MODE_POWER, false, w);
     CHECK(n==1 && w[0].reg==53 && w[0].value==0);
-    n = heater_plan_writes(-1, -1, 72, true, false, w);
+    n = heater_plan_writes(-1, -1, 72, true, HEATER_MODE_POWER, false, w);
     CHECK(n==0);
     /* unset / invalid fields skipped */
-    n = heater_plan_writes(-1, 0, 40, false, true, w);
+    n = heater_plan_writes(-1, 0, 40, false, -1, true, w);
     CHECK(n==0);
-    n = heater_plan_writes(2, 11, 87, false, true, w);
+    n = heater_plan_writes(2, 11, 87, false, 2, true, w);
     CHECK(n==0);
     /* a command is settled (ack it, never re-send) unless a write got no
        answer; a write the firmware refused is an answer */

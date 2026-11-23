@@ -21,8 +21,8 @@ export function heaterStateLabel(state) {
   return String(state).charAt(0).toUpperCase() + String(state).slice(1)
 }
 
-// Heater coprocessor firmware adds heater_type/phase/control/setpoint_f/fault
-// (cloud/CONTRACT.md). heaterExt() is false for older units, which keep the
+// Heater coprocessor firmware adds heater_type/phase/control/setpoint_f/fault,
+// and G0B1 1.3.17+ adds heater_mode for the AUTOTERM (cloud/CONTRACT.md). heaterExt() is false for older units, which keep the
 // legacy heater_state view.
 export function heaterExt(tele) {
   return !!tele && tele.heater_phase != null

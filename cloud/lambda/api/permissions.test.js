@@ -53,6 +53,20 @@ check('heater setpoint_f out of range / non-integer rejected', () => {
   assert.strictEqual(validateCommand({ heater: { setpoint_f: 87 } }).ok, false);
   assert.strictEqual(validateCommand({ heater: { setpoint_f: 72.5 } }).ok, false);
 });
+check('heater mode (AUTOTERM, G0B1 1.3.17) accepted', () => {
+  const r = validateCommand({ heater: { mode: 'power', level: 6 } });
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.desired, { heater: { mode: 'power', level: 6 } });
+  assert.deepStrictEqual(commandActions(r.desired), ['heater']);
+  assert.deepStrictEqual(validateCommand({ heater: { mode: 'temperature' } }).desired,
+    { heater: { mode: 'temperature' } });
+});
+check('heater mode other than temperature/power rejected', () => {
+  // rejected outright, never silently dropped beside a valid field
+  assert.strictEqual(validateCommand({ heater: { mode: 'Power', level: 6 } }).ok, false);
+  assert.strictEqual(validateCommand({ heater: { mode: 1, level: 6 } }).ok, false);
+  assert.strictEqual(validateCommand({ heater: { mode: '', level: 6 } }).ok, false);
+});
 check('heater clear_fault must be true', () => {
   assert.strictEqual(validateCommand({ heater: { clear_fault: false } }).ok, false);
   assert.strictEqual(validateCommand({ heater: { clear_fault: 1 } }).ok, false);

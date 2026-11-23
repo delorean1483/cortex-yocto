@@ -178,6 +178,10 @@ export const mockApi = {
         if (snap.heater_state === 'running') snap.heater_active_level = body.heater.level
       }
       if (body.heater.setpoint_f !== undefined) snap.heater_setpoint_f = body.heater.setpoint_f
+      if (body.heater.mode !== undefined && snap.heater_mode !== undefined) {
+        snap.heater_mode = body.heater.mode
+        snap.heater_control = body.heater.mode === 'power' ? 'level' : 'setpoint'
+      }
       if (body.heater.clear_fault && snap.heater_fault) {
         snap.heater_fault = false
         snap.heater_phase = 'off'

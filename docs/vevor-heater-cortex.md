@@ -177,6 +177,38 @@ They go out as `heater_l011_fw` (`0.2.3`) and `heater_l011_reject`, the agent
 logs each new L011 version and each new rejection, and the dashboard Heater tab
 shows both under Link health.
 
+### AUTOTERM control mode (G0B1 1.3.17 + L011 0.2.4)
+
+The AUTOTERM can run in **temperature** mode (regulates to the setpoint, reg
+69, using the cabin temperature the G0B1 sends) or **power** mode (a fixed
+power level, reg 54 1–10 → heater 0–9). Both values stay stored in either mode.
+- **Reg 70 bit 8 (0x0100):** the mode can be chosen (AUTOTERM only).
+- **2230 (wire 2229), RW:** 0 temperature, 1 power. Reads the APPLIED mode.
+  Writes are refused (ILLEGAL_VALUE) on a heater without the bit and during
+  maintenance; an explicit OFF beats a pending mode change. A running heater
+  changes over with one SETTINGS frame, never a second START.
+
+The agent reads 2230 in the same FC03 as 2227–2229 (quantity 4) only while
+reg 70 has bit 8. If the G0B1 refuses it (a G0B1 rolled back under L011 0.2.4,
+which keeps its stored mode), the agent reads 2227–2229 alone and doesn't ask
+for 2230 again until the G0B1 firmware changes; no mode is shown then. A read
+with no answer keeps the last mode. So does a reading taken while the L011 is
+unidentified (2227/2228 both 0) or reg 64 shows a heater-link or map fault
+(bits 3, 5, 6): 1.3.17 answers 2230 with 0 then (no exception), which means
+"unknown", not "temperature".
+
+- `heater_mode` (`temperature` / `power`) and `reported.heater.mode`: only
+  where the mode can be chosen. `heater_control` follows the applied mode
+  (power → `level`, temperature → `setpoint`), so the panel, the Heater tab
+  and the Overview show the matching control.
+- Commands: panel `heater_mode` and shadow `desired.heater.mode`
+  (`"temperature"` | `"power"`), written to fw 2230 after `clear_fault` and
+  before setpoint → level → on, so a START goes out in the chosen mode.
+  Delivered at least once like a setpoint; only on coprocessor firmware.
+- Panel: the card's SET/LEVEL caption becomes a TEMP | POWER switch. It is
+  optimistic and clears when the applied mode reads back, or after 30 s.
+- Dashboard: a Mode cell and Temperature/Power buttons with a confirm.
+
 For the complete register map, bit-field definitions, and safety invariants, consult:
 - **Spec:** [`docs/superpowers/specs/2026-09-03-vevor-heater-control-design.md`](./superpowers/specs/2026-09-03-vevor-heater-control-design.md) — Register table, Component F1.d
 - **Firmware plan:** [`docs/superpowers/plans/2026-09-03-vevor-heater-firmware.md`](./superpowers/plans/2026-09-03-vevor-heater-firmware.md) — Implementation details & safety semantics
