@@ -746,7 +746,10 @@ static void l011_diag_read(telemetry_t *t)
     /* A read with no answer keeps the last mode, so the panel and dashboard
      * don't flip between level and setpoint over one lost reply. */
     t->heater_mode = g_heater_mode;
-    if (!heater_l011_probe_due(&g_l011_probe, g_heater_ext, t->fw_version)) return;
+    if (!heater_l011_probe_due(&g_l011_probe, g_heater_ext, t->fw_version)) {
+        g_heater_mode = t->heater_mode = -1;   /* no diagnostics, no mode */
+        return;
+    }
 
     bool mode_cap = (t->heater_caps & HEATER_CAP_MODE) != 0;
     int nregs = heater_l011_probe_due(&g_mode_probe, mode_cap, t->fw_version)
