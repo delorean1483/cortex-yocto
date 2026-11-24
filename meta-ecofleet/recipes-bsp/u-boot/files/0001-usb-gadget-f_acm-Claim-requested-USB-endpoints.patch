@@ -1,0 +1,59 @@
+From c171cc39d0faee5ad34b99e0115215f640314e0b Mon Sep 17 00:00:00 2001
+From: Stephan Gerhold <stephan.gerhold@linaro.org>
+Date: Mon, 7 Apr 2025 16:59:35 +0200
+Subject: [PATCH 1/4] usb: gadget: f_acm: Claim requested USB endpoints
+
+U-Boot has an older version of the Linux gadget API, where USB endpoints
+returned by usb_ep_autoconfig() are not automatically claimed. As written
+in the documentation comment:
+
+ "To prevent the endpoint from being returned by a later autoconfig call,
+  claim it by assigning ep->driver_data to some non-null value."
+
+Right now f_acm doesn't do that, which means that e.g. ep_in and ep_notify
+may end up being assigned the same endpoint. Surprisingly, the ACM console
+is still somehow working, but this is not the expected behavior. It will
+break with a later commit that disallows calling usb_ep_enable() multiple
+times.
+
+Fix this by assigning some data to ep->driver_data, similar to the other
+gadget drivers.
+
+Fixes: fc2b399ac03b ("usb: gadget: Add CDC ACM function")
+Signed-off-by: Stephan Gerhold <stephan.gerhold@linaro.org>
+Reviewed-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+Link: https://lore.kernel.org/r/20250407-acm-fixes-v1-1-e3dcb592d6d6@linaro.org
+Signed-off-by: Mattijs Korpershoek <mkorpershoek@kernel.org>
+---
+ drivers/usb/gadget/f_acm.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/usb/gadget/f_acm.c b/drivers/usb/gadget/f_acm.c
+index de42e018..78e25d6c 100644
+--- a/drivers/usb/gadget/f_acm.c
++++ b/drivers/usb/gadget/f_acm.c
+@@ -239,18 +239,21 @@ static int acm_bind(struct usb_configuration *c, struct usb_function *f)
+ 		return -ENODEV;
+ 
+ 	f_acm->ep_in = ep;
++	ep->driver_data = c->cdev; /* claim */
+ 
+ 	ep = usb_ep_autoconfig(gadget, &acm_fs_out_desc);
+ 	if (!ep)
+ 		return -ENODEV;
+ 
+ 	f_acm->ep_out = ep;
++	ep->driver_data = c->cdev; /* claim */
+ 
+ 	ep = usb_ep_autoconfig(gadget, &acm_fs_notify_desc);
+ 	if (!ep)
+ 		return -ENODEV;
+ 
+ 	f_acm->ep_notify = ep;
++	ep->driver_data = c->cdev; /* claim */
+ 
+ 	if (gadget_is_dualspeed(gadget)) {
+ 		/* Assume endpoint addresses are the same for both speeds */
+-- 
+2.50.1 (Apple Git-155)
+

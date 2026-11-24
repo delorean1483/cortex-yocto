@@ -1,0 +1,28 @@
+uuu_version 1.4.149
+
+# EcoFleet R1 (EF-MX8MM): write a whole image to the DART SoM's eMMC (mmc 2)
+# over R1's USB-C port, with the board in USB serial download.
+#
+#   uuu -b docs/bench/tools/r1-flash.uuu ecofleet-image-imx8mm-var-dart.rootfs.wic
+#
+# Give it the decompressed .wic (zstd -d). U-Boot is read from the image itself
+# (imx-boot at 33 KiB). It stays in the user area, and the eMMC boot partitions
+# stay disabled (PARTITION_CONFIG 0x00, as on .86), so later image writes
+# update U-Boot too. uuu's built-in emmc_all would move U-Boot to boot0.
+#
+# @_image | wic image to write (U-Boot is taken from it)
+
+# Boot ROM: load SPL, then SPL loads U-Boot proper (both from the image).
+SDP: boot -f _image -scanlimited 0x800000
+
+SDPV: delay 1000
+SDPV: write -f _image -skipspl -scanterm -scanlimited 0x800000
+SDPV: jump -scanlimited 0x800000
+
+# U-Boot (booted over USB, so it runs fastboot; its USB console stays off).
+FB: ucmd setenv fastboot_dev mmc
+FB: ucmd setenv mmcdev 2
+FB: ucmd mmc dev 2
+FB: flash -raw2sparse all _image
+FB: ucmd mmc partconf 2 0 0 0
+FB: done

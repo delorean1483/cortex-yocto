@@ -1,0 +1,157 @@
+From 568c2d6c1b4211db63f58f5c297fbbaede8c1efe Mon Sep 17 00:00:00 2001
+From: sjkang2025 <skang@protekweb.com>
+Date: Wed, 14 Oct 2026 13:51:22 -0500
+Subject: [PATCH 4/4] imx8mm_var_dart: EcoFleet R1, U-Boot console on the USB-C
+ port too
+
+On the EcoFleet EF-MX8MM carrier (R1) UART1, the only console SPL and
+U-Boot have, is wired to the Ezurio module: getting at U-Boot needs
+wires tacked onto the board. With the CDC ACM function, U-Boot now
+also runs its console on usbotg1, the USB-C port used for programming
+(stdin/stdout/stderr = serial,usbacm), from board_late_init on, so the
+autoboot prompt and the shell work over USB. SPL and the early banner
+stay on UART1 only.
+
+- R1 only: told apart from the dev kit by its MCP7940N RTC at 0x6f on
+  I2C3, as the EcoFleet boot script does. ecofleet_usbcon=1 turns it
+  on anyway, for bench tests on the dev kit.
+- Not when booted by uuu (USB serial download): fastboot needs the
+  port, so a saved serial,usbacm is undone there.
+- With a host on the port (VBUS: OTGSC B-session valid) bootdelay
+  becomes 3 s so a person can type the stop string; with nothing
+  plugged in it stays as configured.
+- ft_board_setup() puts the console back on serial only before the
+  kernel starts, which stops the gadget and the controller: Linux must
+  not inherit a running gadget with a queued OUT transfer (on i.MX8M
+  with POWER_DOMAIN, bootm does not remove devices first).
+
+Signed-off-by: sjkang2025 <skang@protekweb.com>
+---
+ .../imx8mm_var_dart/imx8mm_var_dart.c         | 97 +++++++++++++++++++
+ 1 file changed, 97 insertions(+)
+
+diff --git a/board/variscite/imx8mm_var_dart/imx8mm_var_dart.c b/board/variscite/imx8mm_var_dart/imx8mm_var_dart.c
+index 272fabcf..2ccf542b 100644
+--- a/board/variscite/imx8mm_var_dart/imx8mm_var_dart.c
++++ b/board/variscite/imx8mm_var_dart/imx8mm_var_dart.c
+@@ -19,6 +19,10 @@
+ #include <asm/arch/clock.h>
+ #include <usb.h>
+ #include <dm.h>
++#include <fdt_support.h>
++#include <i2c.h>
++#include <stdio_dev.h>
++#include <linux/bitops.h>
+ #include <linux/arm-smccc.h>
+ 
+ #include "../common/extcon-ptn5150.h"
+@@ -174,6 +178,95 @@ int board_init(void)
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_USB_FUNCTION_ACM
++/*
++ * EcoFleet EF-MX8MM (R1): UART1, the only console SPL and U-Boot have, is
++ * wired to the Ezurio module. Run the U-Boot console on the USB-C port as
++ * well (usbotg1, CDC ACM). R1 is told apart from the dev kit by its
++ * MCP7940N RTC at 0x6f on I2C3 (bus 2), as the boot script does;
++ * ecofleet_usbcon=1 turns it on anyway (dev kit bench test).
++ */
++#define ECOFLEET_USB1_OTGSC	(USB1_BASE_ADDR + 0x1a4)
++#define ECOFLEET_OTGSC_BSV	BIT(11)	/* B-session valid: VBUS from a host */
++#define ECOFLEET_CONSOLE_USB	"serial,usbacm"
++
++static bool ecofleet_is_r1(void)
++{
++	struct udevice *bus, *dev;
++
++	if (uclass_get_device_by_seq(UCLASS_I2C, 2, &bus))
++		return false;
++
++	return !dm_i2c_probe(bus, 0x6f, 0, &dev);
++}
++
++static bool ecofleet_console_on_usb(void)
++{
++	static const char * const names[] = { "stdin", "stdout", "stderr" };
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(names); i++) {
++		const char *val = env_get(names[i]);
++
++		if (val && strstr(val, "usbacm"))
++			return true;
++	}
++
++	return false;
++}
++
++/* Back to serial only; dropping usbacm stops the gadget and the controller */
++static void ecofleet_console_serial(void)
++{
++	env_set("stdin", "serial");
++	env_set("stdout", "serial");
++	env_set("stderr", "serial");
++}
++
++static void ecofleet_usb_console(void)
++{
++	struct stdio_dev *acm;
++
++	/* Booted by uuu (USB serial download): fastboot needs the port */
++	if (is_usb_boot()) {
++		if (ecofleet_console_on_usb())
++			ecofleet_console_serial();
++		return;
++	}
++
++	if (!ecofleet_is_r1() && env_get_yesno("ecofleet_usbcon") != 1)
++		return;
++
++	env_set("stdout", ECOFLEET_CONSOLE_USB);
++	env_set("stderr", ECOFLEET_CONSOLE_USB);
++	env_set("stdin", ECOFLEET_CONSOLE_USB);
++
++	/* The gadget did not start: the console just stays on serial */
++	acm = stdio_get_by_name("usbacm");
++	if (!acm || !acm->priv)
++		return;
++
++	/*
++	 * A host on the port (it powers VBUS): give a person time to type the
++	 * stop string. The gadget enumerates while autoboot polls the console.
++	 */
++	if (readl(ECOFLEET_USB1_OTGSC) & ECOFLEET_OTGSC_BSV)
++		env_set("bootdelay", "3");
++}
++#endif
++
++#ifdef CONFIG_OF_BOARD_SETUP
++/* Runs just before the kernel starts: never hand Linux a running gadget */
++int ft_board_setup(void *blob, struct bd_info *bd)
++{
++#ifdef CONFIG_USB_FUNCTION_ACM
++	if (ecofleet_console_on_usb())
++		ecofleet_console_serial();
++#endif
++	return 0;
++}
++#endif
++
+ #define SDRAM_SIZE_STR_LEN 5
+ int board_late_init(void)
+ {
+@@ -224,6 +317,10 @@ int board_late_init(void)
+ 	board_late_mmc_env_init();
+ #endif
+ 
++#ifdef CONFIG_USB_FUNCTION_ACM
++	ecofleet_usb_console();
++#endif
++
+ 	return 0;
+ }
+ 
+-- 
+2.50.1 (Apple Git-155)
+

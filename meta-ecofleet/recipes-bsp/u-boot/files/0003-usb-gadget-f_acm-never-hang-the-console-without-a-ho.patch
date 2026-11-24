@@ -1,0 +1,133 @@
+From f53984d340e9b79f6fac7d3e0bf1472d926e4019 Mon Sep 17 00:00:00 2001
+From: sjkang2025 <skang@protekweb.com>
+Date: Wed, 14 Oct 2026 13:50:07 -0500
+Subject: [PATCH 3/4] usb: gadget: f_acm: never hang the console without a host
+
+The ACM console is meant to sit next to the serial console
+(stdout=serial,usbacm) on a board whose USB port may have nothing
+plugged in. Three places could then hang or crash U-Boot:
+
+- acm_stdio_start() waited, forever, for a host to enumerate the port.
+  Start returns at once now: output stays in tx_buf until a host opens
+  the port, and tstc() keeps servicing the controller meanwhile, so a
+  host plugged in later still enumerates.
+- __acm_tx() spun forever on a queued IN packet the host never took
+  (cable pulled without a bus reset). After 100 ms it now drops DTR and
+  stops sending until the host raises DTR again.
+- acm_disable() freed the requests but left connected/tx_on/DTR set, so
+  the next putc after a bus reset or unplug wrote through a freed
+  req_in. It now forgets the host until set_alt() runs again.
+
+Signed-off-by: sjkang2025 <skang@protekweb.com>
+---
+ drivers/usb/gadget/f_acm.c | 44 ++++++++++++++++++++++----------------
+ 1 file changed, 26 insertions(+), 18 deletions(-)
+
+diff --git a/drivers/usb/gadget/f_acm.c b/drivers/usb/gadget/f_acm.c
+index 4d106ec4..43b4a69a 100644
+--- a/drivers/usb/gadget/f_acm.c
++++ b/drivers/usb/gadget/f_acm.c
+@@ -17,6 +17,7 @@
+ #include <malloc.h>
+ #include <memalign.h>
+ #include <stdio_dev.h>
++#include <time.h>
+ #include <version.h>
+ #include <watchdog.h>
+ 
+@@ -26,6 +27,8 @@
+ #include <linux/usb/cdc.h>
+ 
+ #define REQ_SIZE_MAX	512
++/* A queued IN packet the host has not taken by then means it is gone */
++#define ACM_TX_TIMEOUT_MS	100
+ 
+ struct f_acm {
+ 	int ctrl_id;
+@@ -467,6 +470,11 @@ static void acm_disable(struct usb_function *f)
+ 		usb_ep_free_request(f_acm->ep_in, f_acm->req_in);
+ 		f_acm->req_in = NULL;
+ 	}
++
++	/* Bus reset or unplug: buffer output until the host is back */
++	f_acm->connected = false;
++	f_acm->tx_on = false;
++	f_acm->handshake_bits = 0;
+ }
+ 
+ /* static strings, in UTF-8 */
+@@ -489,6 +497,7 @@ static struct usb_gadget_strings *acm_strings[] = {
+ 
+ static void __acm_tx(struct f_acm *f_acm)
+ {
++	ulong start = get_timer(0);
+ 	int len, ret;
+ 
+ 	do {
+@@ -497,8 +506,18 @@ static void __acm_tx(struct f_acm *f_acm)
+ 		if (!(f_acm->handshake_bits & ACM_CTRL_DTR))
+ 			break;
+ 
+-		if (!f_acm->tx_on)
++		if (!f_acm->tx_on) {
++			/*
++			 * The host stopped reading (e.g. cable pulled without
++			 * a bus reset): stop sending until it raises DTR again
++			 * instead of hanging the console.
++			 */
++			if (get_timer(start) > ACM_TX_TIMEOUT_MS) {
++				f_acm->handshake_bits &= ~ACM_CTRL_DTR;
++				break;
++			}
+ 			continue;
++		}
+ 
+ 		len = buf_pop(&f_acm->tx_buf, f_acm->req_in->buf, REQ_SIZE_MAX);
+ 		if (!len)
+@@ -511,6 +530,7 @@ static void __acm_tx(struct f_acm *f_acm)
+ 			break;
+ 
+ 		f_acm->tx_on = false;
++		start = get_timer(0);
+ 
+ 		/* Do not reset the watchdog, if TX is stuck there is probably
+ 		 * a real issue.
+@@ -518,16 +538,6 @@ static void __acm_tx(struct f_acm *f_acm)
+ 	} while (1);
+ }
+ 
+-static bool acm_connected(struct stdio_dev *dev)
+-{
+-	struct f_acm *f_acm = stdio_to_acm(dev);
+-
+-	/* give a chance to process udc irq */
+-	dm_usb_gadget_handle_interrupts(f_acm->udc);
+-
+-	return f_acm->connected;
+-}
+-
+ static int acm_add(struct usb_configuration *c)
+ {
+ 	struct f_acm *f_acm;
+@@ -641,13 +651,11 @@ static int acm_stdio_start(struct stdio_dev *dev)
+ 	else
+ 		return -ENODEV;
+ 
+-	while (!acm_connected(dev)) {
+-		if (ctrlc())
+-			return -ECANCELED;
+-
+-		schedule();
+-	}
+-
++	/*
++	 * Do not wait for a host: with nothing plugged in that would hang
++	 * the boot. Output stays in tx_buf until a host opens the port, and
++	 * tstc() keeps servicing the controller so it can enumerate later.
++	 */
+ 	return 0;
+ }
+ 
+-- 
+2.50.1 (Apple Git-155)
+
