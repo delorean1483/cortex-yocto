@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 /*
- * EcoFleet EF-MX8MM "Cortex Controller" R1 carrier for the Variscite
+ * EcoFleet EF-MX8MM "Cortex Controller" carrier (R1 and R2) for the Variscite
  * DART-MX8M-MINI (R1-spec SoM: no on-SoM Ethernet PHY, LVDS bridge, WiFi/BT).
+ * R2 changes that software sees: Ethernet I/O at 1.8 V, PHY address 7,
+ * buffered PHY interrupt, JK4 LED colour select, CAN not fitted.
  *
  * Only the carrier is described here; DDR, PMIC, SoM eMMC, WiFi/BT and the
  * SN65DSI84 LVDS bridge come from Variscite's imx8mm-var-dart.dtsi.
- * Schematic: EF-MX8MM R1.00.00. Design:
+ * Schematics: EF-MX8MM R1.00.00; R2 per Robb's review of 2026-11-23. Design:
  * docs/superpowers/specs/2026-10-14-r1-board-support-design.md
  */
 
 #include "imx8mm-var-dart.dtsi"
 
 / {
-	model = "EcoFleet EF-MX8MM Cortex Controller R1";
+	model = "EcoFleet EF-MX8MM Cortex Controller";
 	compatible = "ecofleet,ef-mx8mm", "variscite,imx8mm-var-dart", "fsl,imx8mm";
 
 	aliases {
@@ -48,6 +50,22 @@
 		status = "okay";
 	};
 
+	/* JK4 link LED colour (R2): U26 NOR gate, select on ETH_LNK_MD
+	 * (GPIO3_IO22, SOK2-42, 10k pull-down). 0 = green, 1 = orange; the LED
+	 * is dark without a link (hardware). The netdev trigger lights it
+	 * (orange) at 10/100 and leaves it off (green) at 1000; its device_name
+	 * and link_10/link_100 are set by 99-ecofleet-eth-led.rules. */
+	leds {
+		compatible = "gpio-leds";
+
+		led-eth-speed {
+			label = "eth-speed";
+			gpios = <&gpio3 22 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+			linux,default-trigger = "netdev";
+		};
+	};
+
 	/* 100 MHz PCIe reference clock from the carrier's clock generator (U24) */
 	pcie0_refclk: pcie0-refclk {
 		compatible = "fixed-clock";
@@ -76,8 +94,9 @@
 	status = "okay";
 };
 
-/* Wired to the TCAN3414 CAN transceiver, but the i.MX8M Mini has no CAN
- * controller, so there is nothing to drive it with. */
+/* Wired to the TCAN3414 CAN transceiver on R1, but the i.MX8M Mini has no CAN
+ * controller, so there is nothing to drive it with. R2: all CAN circuitry DNP
+ * (a truck CAN bus would need certification). FD_CAN_EN is held low below. */
 &uart3 {
 	status = "disabled";
 };
@@ -189,24 +208,60 @@
 
 /* ------------------------------------------------------------- Ethernet */
 
-/* KSZ9031 on the carrier over RGMII. No PHY node: the driver resets the PHY
- * through ETH_dReset and takes the first PHY it finds on MDIO, so the strap
- * address does not need to be known.
+/* KSZ9031RNX on the carrier over RGMII, gigabit.
  *
- * OFF on R1: NVCC_ENET is 1.8 V but the PHY's DVDDH is 3.3 V (R1 hardware
- * finding 3), so its RGMII outputs would drive 3.3 V into 1.8 V SoC pads. The
- * PHY is held in reset instead (eth-rst-hog), where its strap pins are inputs.
- * To turn Ethernet on once the hardware is fixed: status = "okay" here and
- * delete eth-rst-hog (phy-reset-gpios needs that line). */
+ * R2: PHY I/O (DVDDH), its pull-ups and NVCC_ENET all on 1.8 V; PHYAD 7;
+ * RXD0-3 strapped high = RGMII, advertise 10/100/1000; INT_N buffered (U25,
+ * open drain, 10k to 3.3 V) to ETH_INTb on GPIO5_IO02, active low.
+ *
+ * OFF by default: an unreworked R1 has NVCC_ENET at 1.8 V but DVDDH at 3.3 V
+ * (R1 hardware finding 3), so its PHY would drive 3.3 V into 1.8 V SoC pads.
+ * The PHY is held in reset instead (eth-rst-hog), where its strap pins are
+ * inputs. The boot script turns Ethernet on with `fw_setenv ecofleet_eth 1`
+ * (status okay, hog removed, ETH_dReset released). U-Boot deletes
+ * phy-reset-gpios from this node every boot (cleanup_nodes_for_efi), which is
+ * why the boot script releases the reset itself. */
 &fec1 {
 	phy-mode = "rgmii-id";
-	/delete-property/ phy-handle;
+	phy-handle = <&ethphy_carrier>;
 	/delete-property/ phy-supply;
 	phy-reset-gpios = <&gpio4 31 GPIO_ACTIVE_LOW>;
 	phy-reset-duration = <10>;
 	phy-reset-post-delay = <1>;
 	status = "disabled";
-	/delete-node/ mdio;
+
+	mdio {
+		/* The SoM's own PHY, absent on the R1/R2-spec SoM */
+		/delete-node/ ethernet-phy@0;
+
+		/* No reg: the kernel scans MDIO and binds this node to the first
+		 * PHY that answers (of_mdio "scan phy"). R2 straps address 7, the
+		 * R1s answer at 3. Pin reg = <7> once no R1 runs this image. */
+		ethphy_carrier: ethernet-phy {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			interrupt-parent = <&gpio5>;
+			interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
+
+			/* Pad skews in ps (60 ps steps). The KSZ9031 adds 1.2 ns to
+			 * RX on its own; the MAC adds nothing. These are the values
+			 * the micrel driver programs for rgmii-id (RX clock +0.6 ns
+			 * = 1.8 ns; TX clock +0.96 ns, TX data -0.42 ns = 1.38 ns),
+			 * written out so they can be tuned on a length-matched R2.
+			 * "No adjustment" is 900 for a clock, 420 for data/control. */
+			rxc-skew-ps = <1500>;
+			rxdv-skew-ps = <420>;
+			rxd0-skew-ps = <420>;
+			rxd1-skew-ps = <420>;
+			rxd2-skew-ps = <420>;
+			rxd3-skew-ps = <420>;
+			txc-skew-ps = <1860>;
+			txen-skew-ps = <0>;
+			txd0-skew-ps = <0>;
+			txd1-skew-ps = <0>;
+			txd2-skew-ps = <0>;
+			txd3-skew-ps = <0>;
+		};
+	};
 };
 
 /* Powered the SoM's own PHY, which the R1 SoM does not have */
@@ -246,7 +301,13 @@
 
 /* ----------------------------------------------------------------- PCIe */
 
-/* M.2 Key-M NVMe; reference clock comes in on the PCIE1_REF_CLK pads */
+/* M.2 Key-M NVMe, PCIe Gen2 x1; reference clock comes in on the
+ * PCIE1_REF_CLK pads (R1 had it unterminated and P/N swapped at the connector;
+ * fixed on R2). PERST# = PCIE1_dRST, WAKE# = PCIE1_WAKE.
+ * R2 supports 2230/2242 DRAM-less SSDs of at most 3.5 W on the shared 3 A
+ * 3.3 V rail. NVMe power-state management (APST) needs nothing here: the NVMe
+ * driver is built in and turns APST on for any drive that offers it
+ * (nvme_core.default_ps_max_latency_us = 100000). */
 &pcie_phy {
 	fsl,refclk-pad-mode = <IMX8_PCIE_REFCLK_PAD_INPUT>;
 	fsl,tx-deemph-gen1 = <0x2d>;
@@ -324,7 +385,7 @@
 &gpio3 {
 	gpio-line-names = "", "", "", "", "", "", "", "", "", "",
 			  "", "", "", "", "", "", "", "", "", "",
-			  "", "RS485_DE";
+			  "", "RS485_DE", "ETH_LNK_MD";
 };
 
 &gpio4 {
@@ -339,6 +400,15 @@
 		gpios = <24 GPIO_ACTIVE_HIGH>;
 		output-low;
 		line-name = "BT_nRST";
+	};
+
+	/* CAN unused: R1's transceiver kept in standby, nothing fitted on R2.
+	 * The hog also keeps userspace off the line. */
+	fd-can-en-hog {
+		gpio-hog;
+		gpios = <22 GPIO_ACTIVE_HIGH>;
+		output-low;
+		line-name = "FD_CAN_EN";
 	};
 
 	usb-hub-rst-hog {
@@ -382,7 +452,7 @@
 			MX8MM_IOMUXC_GPIO1_IO14_GPIO1_IO14		0x1c0	/* PCIE1_WAKE */
 			MX8MM_IOMUXC_SD2_RESET_B_GPIO2_IO19		0x16	/* SD2_dRST */
 			MX8MM_IOMUXC_SAI2_RXFS_GPIO4_IO21		0x100	/* BT_RCVRY_MD */
-			MX8MM_IOMUXC_SAI2_RXC_GPIO4_IO22		0x100	/* FD_CAN_EN: off = CAN standby */
+			MX8MM_IOMUXC_SAI2_RXC_GPIO4_IO22		0x116	/* FD_CAN_EN: held low = CAN standby */
 			MX8MM_IOMUXC_SAI2_TXFS_GPIO4_IO24		0x16	/* BT_nRST */
 			MX8MM_IOMUXC_SAI2_TXC_GPIO4_IO25		0x1c0	/* NVMe_ACT */
 			MX8MM_IOMUXC_SAI2_TXD0_GPIO4_IO26		0x16	/* USB_HUB_dRST */
@@ -390,7 +460,8 @@
 			MX8MM_IOMUXC_SAI3_TXFS_GPIO4_IO31		0x16	/* ETH_dReset */
 			MX8MM_IOMUXC_SAI3_TXC_GPIO5_IO0			0x100	/* EZURIO_WAKE */
 			MX8MM_IOMUXC_SAI3_TXD_GPIO5_IO1			0x1c0	/* RTC_WKUP */
-			MX8MM_IOMUXC_SAI3_MCLK_GPIO5_IO2		0x1c0	/* ETH_INT */
+			MX8MM_IOMUXC_SAI3_MCLK_GPIO5_IO2		0x1c0	/* ETH_INTb (R2: 10k to 3.3 V) */
+			MX8MM_IOMUXC_SAI5_RXD1_GPIO3_IO22		0x16	/* ETH_LNK_MD: LED colour */
 		>;
 	};
 

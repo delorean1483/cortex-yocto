@@ -58,7 +58,7 @@ sym() { fdtget "$DTB" /__symbols__ "$1"; }
 prop() { fdtget "$DTB" "$1" "$2" 2>/dev/null; }
 has() { fdtget "$DTB" "$1" "$2" >/dev/null 2>&1; }
 
-[ "$(prop / model)" = "EcoFleet EF-MX8MM Cortex Controller R1" ] && ok "model" || bad "model: $(prop / model)"
+[ "$(prop / model)" = "EcoFleet EF-MX8MM Cortex Controller" ] && ok "model" || bad "model: $(prop / model)"
 [ "$(prop / compatible | cut -d' ' -f1)" = "ecofleet,ef-mx8mm" ] && ok "compatible" || bad "compatible: $(prop / compatible)"
 
 alias=ecofleet-rs485-uart
@@ -80,7 +80,23 @@ has /sound-wm8904 compatible && bad "sound-wm8904 still present" || ok "sound-wm
 
 F=$(sym fec1 || true)
 [ "$(prop "$F" phy-mode)" = rgmii-id ] && ok "fec1 rgmii-id" || bad "fec1 phy-mode"
-has "$F" phy-handle && bad "fec1 still has the SoM phy-handle" || ok "fec1 scans MDIO"
+# Carrier KSZ9031: one node for R1 (answers at 3) and R2 (strapped to 7), so no
+# reg (the kernel scans and binds it); IRQ = ETH_INTb, GPIO5_IO02 active low.
+PH=$(sym ethphy_carrier || true)
+[ -n "$PH" ] && [ "$(prop "$F" phy-handle)" = "$(fdtget "$DTB" "$PH" phandle 2>/dev/null)" ] \
+    && ok "fec1 phy-handle -> carrier PHY $PH" || bad "fec1 phy-handle must point at ethphy_carrier"
+has "$F/mdio/ethernet-phy@0" compatible && bad "SoM PHY node ethernet-phy@0 still present" || ok "SoM PHY node removed"
+has "$PH" reg && bad "carrier PHY has a reg: R1 (3) and R2 (7) differ, leave it to the scan" || ok "carrier PHY address scanned"
+[ "$(prop "$PH" interrupt-parent)" = "$(fdtget "$DTB" "$(sym gpio5)" phandle 2>/dev/null)" ] \
+    && [ "$(prop "$PH" interrupts)" = "2 8" ] && ok "PHY IRQ GPIO5_IO02 level low" || bad "PHY interrupts: $(prop "$PH" interrupts)"
+# rgmii-id values of the micrel driver (RX clock 1.8 ns incl. the PHY's 1.2 ns,
+# TX 1.38 ns), each a multiple of 60 ps inside the field (clock 0-1860, data 0-900)
+skew_ok=1
+for kv in rxc:1500 txc:1860 rxdv:420 txen:0 rxd0:420 rxd1:420 rxd2:420 rxd3:420 txd0:0 txd1:0 txd2:0 txd3:0; do
+    v=$(prop "$PH" "${kv%%:*}-skew-ps")
+    [ "$v" = "${kv#*:}" ] || { skew_ok=0; bad "${kv%%:*}-skew-ps = '$v', want ${kv#*:}"; }
+done
+[ $skew_ok = 1 ] && ok "KSZ9031 pad skews = the driver's rgmii-id preset"
 [ "$(fdtget -t u "$DTB" "$F" phy-reset-gpios 2>/dev/null | cut -d' ' -f2-)" = "31 1" ] \
     && ok "PHY reset = GPIO4_IO31 active low" || bad "fec1 phy-reset-gpios"
 # Until the R1 Ethernet I/O-voltage finding is settled (KSZ9031 DVDDH 3.3 V vs
@@ -95,6 +111,18 @@ has "$(sym gpio4 || true)/eth-rst-hog" output-low && ok "KSZ9031 held in reset (
 BOOT=$REPO/meta-ecofleet/recipes-bsp/ecofleet-bootscript/files/ecofleet-boot.cmd
 grep -q -F "fdt set $F status okay" "$BOOT" && ok "boot script opt-in turns on $F" || bad "boot script opt-in does not name the FEC path $F"
 grep -q -F "fdt rm $(sym gpio4 || true)/eth-rst-hog" "$BOOT" && ok "boot script opt-in removes $(sym gpio4 || true)/eth-rst-hog" || bad "boot script opt-in does not name the eth-rst-hog path"
+
+# JK4 link-LED colour select: ETH_LNK_MD = GPIO3_IO22; the udev rule finds the
+# LED by its label.
+L=/leds/led-eth-speed
+[ "$(prop /leds compatible)" = gpio-leds ] && ok "gpio-leds node" || bad "/leds compatible"
+[ "$(fdtget -t u "$DTB" $L gpios 2>/dev/null | cut -d' ' -f2-)" = "22 0" ] \
+    && [ "$(prop $L gpios | cut -d' ' -f1)" = "$(fdtget "$DTB" "$(sym gpio3)" phandle 2>/dev/null)" ] \
+    && ok "eth-speed LED on GPIO3_IO22 active high" || bad "eth-speed LED gpios: $(prop $L gpios)"
+[ "$(prop $L linux,default-trigger)" = netdev ] && ok "eth-speed LED on the netdev trigger" || bad "eth-speed trigger"
+RULE=$REPO/meta-ecofleet/recipes-bsp/ecofleet-eth-led/files/99-ecofleet-eth-led.rules
+grep -q "KERNEL==\"$(prop $L label)\"" "$RULE" && ok "udev rule matches LED label $(prop $L label)" || bad "udev rule does not match LED label '$(prop $L label)'"
+has "$(sym gpio4)/fd-can-en-hog" output-low && ok "FD_CAN_EN held low (CAN unused)" || bad "fd-can-en-hog (GPIO4_IO22 output-low)"
 
 [ "$(prop "$(sym usbotg1)" dr_mode)" = peripheral ] && ok "USB-C device only" || bad "usbotg1 dr_mode"
 [ "$(prop "$(sym usbotg2)" dr_mode)" = host ] && ok "USB hub port host" || bad "usbotg2 dr_mode"

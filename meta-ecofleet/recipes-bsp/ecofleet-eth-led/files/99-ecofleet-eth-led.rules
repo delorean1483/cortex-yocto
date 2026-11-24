@@ -1,0 +1,8 @@
+# EF-MX8MM JK4 link LED colour (device tree: leds/led-eth-speed on
+# ETH_LNK_MD = GPIO3_IO22; 0 = green, 1 = orange; dark without a link).
+# The netdev trigger turns it on (orange) at 10 or 100 Mb/s and leaves it off
+# (green) at 1000. The trigger waits for eth0 if it is not there yet.
+# Dev kit: no such LED, the rule never matches.
+ACTION=="add", SUBSYSTEM=="leds", KERNEL=="eth-speed", \
+    ATTR{trigger}="netdev", ATTR{device_name}="eth0", \
+    ATTR{link_10}="1", ATTR{link_100}="1"

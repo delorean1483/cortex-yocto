@@ -8,6 +8,7 @@ SRC_URI:append = " file://imx8mm-ecofleet-ef-mx8mm.dts"
 # Kernel config fragment (kernel-yocto merges it over imx8_var_defconfig).
 # Host check: scripts/tests/test-kernel-config.sh
 SRC_URI:append = " file://ilitek-touch-module.cfg"
+SRC_URI:append = " file://ecofleet-board.cfg"
 
 KERNEL_DEVICETREE:append = " freescale/imx8mm-ecofleet-ef-mx8mm.dtb"
 

@@ -58,3 +58,29 @@ U-Boot environment; every other board stays off.
    link and speed.
 
 To switch it off again: `fw_setenv ecofleet_eth` and reboot.
+
+R2 has the PHY's I/O, its pull-ups and `NVCC_ENET` all on 1.8 V, so step 1
+holds by design; it still needs `ecofleet_eth 1` until the image can tell R2
+from an unreworked R1.
+
+## Ethernet checks (R2, or a reworked R1)
+
+- PHY found and bound to the device-tree node: `dmesg | grep -iE 'scan phy|KSZ9031'`
+  shows `scan phy ethernet-phy at address N` up to the strap address (R2: 7,
+  R1: 3) and `Micrel KSZ9031 Gigabit PHY`.
+- Interrupt in use, not polling: `grep -i 30be0000 /proc/interrupts` lists the
+  PHY's IRQ on gpio5 2, and its count grows when the cable is pulled and replugged.
+- Skews: `rxc-skew-ps`/`txc-skew-ps` and friends in the device tree are the
+  driver's `rgmii-id` preset. If gigabit drops frames, read
+  `ethtool -S eth0 | grep -iE 'crc|align|frame'` before and after a transfer.
+- Link LED colour (R2): orange at 10/100, green at 1000, dark with no link.
+  `cat /sys/class/leds/eth-speed/{trigger,device_name,link_10,link_100}` shows
+  `[netdev]`, `eth0`, `1`, `1`. Force 100 Mb/s on the switch port to see orange.
+
+## NVMe (R2)
+
+APST (autonomous power-state transitions) is on by default for any drive that
+supports it: `cat /sys/module/nvme_core/parameters/default_ps_max_latency_us`
+reads 100000, and `dmesg | grep -i nvme` shows the drive. With nvme-cli,
+`nvme get-feature /dev/nvme0 -f 0x0c -H` reports `Autonomous Power State
+Transition Enable (APSTE): Enabled`.
