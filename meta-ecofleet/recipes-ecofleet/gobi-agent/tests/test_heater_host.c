@@ -194,6 +194,56 @@ int main(void)
     unlink(path);
 
     CHECK(strcmp(heater_host_reason_name(HEATER_HOST_MISMATCH), "G0B1 lost settings") == 0);
+    CHECK(strcmp(heater_host_reason_name(HEATER_HOST_MODE_LOST), "mode not applied") == 0);
+
+    /* Mode not applied: the L011 reset alone and came back in temperature
+       mode (54/69 live on the G0B1 and still match). Only a difference that
+       lasts HEATER_HOST_MODE_HOLD_MS counts: 2230 lags a write. */
+    {
+        heater_host_settings_t want = { 5, 22, 1 };
+        heater_host_init(&h, &want);
+        uint64_t m = 5000000;
+        heater_host_readback_t ok = rb(5, 22, 1, AT), lost = rb(5, 22, 0, AT);
+        CHECK(plan(&h, ok, false, m, w, &why) == 3 && why == HEATER_HOST_STARTUP);
+        all_ok(&h, w, 3, m);
+        m += 20000;
+        CHECK(plan(&h, ok, false, m, w, &why) == 0);
+        CHECK(plan(&h, lost, false, m, w, &why) == 0);                 /* starts the hold */
+        CHECK(plan(&h, lost, false, m + HEATER_HOST_MODE_HOLD_MS - 1, w, &why) == 0);
+        int n = plan(&h, lost, false, m + HEATER_HOST_MODE_HOLD_MS, w, &why);
+        CHECK(n == 3 && why == HEATER_HOST_MODE_LOST);
+        CHECK(w[2].reg == HEATER_REG_MODE && w[2].value == 1);
+        for (int i = 0; i < n; i++) CHECK(w[i].reg != 53 && w[i].reg != 75);
+        all_ok(&h, w, n, m + HEATER_HOST_MODE_HOLD_MS);
+        /* Still not applied: the next try waits out the back-off. */
+        uint64_t m2 = m + HEATER_HOST_MODE_HOLD_MS;
+        CHECK(plan(&h, lost, false, m2 + HEATER_HOST_BACKOFF_MS - 1, w, &why) == 0);
+        CHECK(plan(&h, lost, false, m2 + HEATER_HOST_BACKOFF_MS, w, &why) == 3 &&
+              why == HEATER_HOST_MODE_LOST);
+        all_ok(&h, w, 3, m2 + HEATER_HOST_BACKOFF_MS);
+
+        /* Applied again: the hold resets; a later loss starts a new hold and
+           gets the short gap (it was fixed in between). */
+        uint64_t m3 = m2 + HEATER_HOST_BACKOFF_MS + 1000;
+        CHECK(plan(&h, ok, false, m3, w, &why) == 0);
+        CHECK(plan(&h, lost, false, m3 + 1, w, &why) == 0);
+        CHECK(plan(&h, lost, false, m3 + 1 + HEATER_HOST_MODE_HOLD_MS, w, &why) == 3 &&
+              why == HEATER_HOST_MODE_LOST);
+        all_ok(&h, w, 3, m3 + 1 + HEATER_HOST_MODE_HOLD_MS);
+
+        /* Untrusted readback (-1), a pending command, or no CAP_MODE: no hold. */
+        heater_host_init(&h, &want);
+        CHECK(plan(&h, ok, false, m, w, &why) == 3);
+        all_ok(&h, w, 3, m);
+        uint64_t m4 = m + 20000;
+        CHECK(plan(&h, lost, false, m4, w, &why) == 0);
+        CHECK(plan(&h, rb(5, 22, -1, AT), false, m4 + 1000, w, &why) == 0);   /* hold reset */
+        CHECK(plan(&h, lost, false, m4 + 2000, w, &why) == 0);
+        CHECK(plan(&h, lost, false, m4 + 2000 + HEATER_HOST_MODE_HOLD_MS - 1, w, &why) == 0);
+        CHECK(plan(&h, lost, true, m4 + 2000 + HEATER_HOST_MODE_HOLD_MS, w, &why) == 0);  /* pending */
+        CHECK(plan(&h, rb(5, 22, 0, HEATER_CAP_SETPOINT), false,
+                   m4 + 3000 + 2 * HEATER_HOST_MODE_HOLD_MS, w, &why) == 0);           /* no cap */
+    }
 
     printf(fails ? "test_heater_host FAILED (%d)\n" : "test_heater_host ok\n", fails);
     return fails ? 1 : 0;

@@ -15,11 +15,15 @@
  * Re-assert = write 54, 69, then 2230 (2230 only while reg 70 offers the
  * mode). Never reg 53 or 75: it never starts or stops the heater. Triggers:
  * the first good poll after the agent starts (with a file), the first good
- * poll after any read with no answer, a 54/69 mismatch, a retry after a
- * refused or unanswered write, and the mode becoming selectable after a
- * re-assert that had to leave it out. Not while a heater command is pending,
+ * poll after any read with no answer, a 54/69 mismatch, a trusted 2230
+ * readback that has differed from the remembered mode for
+ * HEATER_HOST_MODE_HOLD_MS (the L011 reset on its own and came back in
+ * temperature mode; 2230 lags a write by a few seconds, hence the hold), a
+ * retry after a refused or unanswered write, and the mode becoming
+ * selectable after a re-assert that had to leave it out. Not while a heater command is pending,
  * at most one per HEATER_HOST_MIN_GAP_MS, HEATER_HOST_BACKOFF_MS after a
- * refusal or after a mismatch that the previous re-assert didn't fix.
+ * refusal or after a mismatch (54/69 or mode) that the previous re-assert
+ * didn't fix.
  *
  * Decision logic is pure (no I/O) and host-tested by
  * ../tests/test_heater_host.c; the file helpers take a path.
@@ -34,6 +38,7 @@
 #define HEATER_HOST_MIN_GAP_MS  10000u
 #define HEATER_HOST_BACKOFF_MS  60000u
 #define HEATER_HOST_MAX_WRITES  3
+#define HEATER_HOST_MODE_HOLD_MS 30000u
 
 typedef struct {
     int level;        /* fw 54, 1..10; 0 = not known   */
@@ -49,6 +54,8 @@ typedef struct {
     bool mode_owed;        /* mode remembered but left out (no CAP_MODE)   */
     bool ever;             /* a re-assert has run (rate limit applies)     */
     int  last_why;         /* heater_host_reason_t of the last re-assert   */
+    bool mode_off;         /* trusted 2230 readback != remembered mode ... */
+    uint64_t mode_off_since_ms;   /* ... since this time                   */
     uint64_t last_ms;
     uint64_t backoff_until_ms;
 } heater_host_t;
@@ -66,6 +73,7 @@ typedef enum {
     HEATER_HOST_STARTUP,    /* agent started with remembered settings      */
     HEATER_HOST_LINK,       /* APU answering again after a missed read     */
     HEATER_HOST_MISMATCH,   /* 54/69 readback differs: G0B1 lost them      */
+    HEATER_HOST_MODE_LOST,  /* 2230 applied != remembered for the hold     */
     HEATER_HOST_RETRY,      /* previous re-assert refused / unanswered     */
     HEATER_HOST_MODE        /* mode selectable again after being left out  */
 } heater_host_reason_t;
@@ -100,8 +108,8 @@ int heater_host_plan(heater_host_t *h, const heater_host_readback_t *rb,
 void heater_host_done(heater_host_t *h, const heater_write_t *w,
                       const int *results, int n, uint64_t now_ms);
 
-/* "agent start" | "APU link back" | "G0B1 lost settings" | "retry" |
- * "mode selectable" | "none". */
+/* "agent start" | "APU link back" | "G0B1 lost settings" |
+ * "mode not applied" | "retry" | "mode selectable" | "none". */
 const char *heater_host_reason_name(heater_host_reason_t why);
 
 /* File format: {"level":5,"setpoint_c":22,"mode":1}, unknown fields left

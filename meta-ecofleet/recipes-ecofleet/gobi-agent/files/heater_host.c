@@ -74,10 +74,25 @@ int heater_host_plan(heater_host_t *h, const heater_host_readback_t *rb,
     if (!mismatch && h->last_why == HEATER_HOST_MISMATCH)
         h->last_why = HEATER_HOST_NONE;   /* the last one fixed it */
 
+    /* Applied mode (trusted readback only) differing from the remembered one.
+     * It lags any mode write by a settings round trip (~5 s), and a pending
+     * command may be changing it, so only a difference that lasts counts. */
+    bool off = cap && mode_ok(h->want.mode) && mode_ok(rb->mode) &&
+               rb->mode != h->want.mode && !cmd_pending;
+    if (!off) {
+        h->mode_off = false;
+        if (h->last_why == HEATER_HOST_MODE_LOST) h->last_why = HEATER_HOST_NONE;
+    } else if (!h->mode_off) {
+        h->mode_off = true;
+        h->mode_off_since_ms = now_ms;
+    }
+    bool mode_lost = h->mode_off && now_ms - h->mode_off_since_ms >= HEATER_HOST_MODE_HOLD_MS;
+
     heater_host_reason_t r =
         h->startup   ? HEATER_HOST_STARTUP  :
         h->link_down ? HEATER_HOST_LINK     :
         mismatch     ? HEATER_HOST_MISMATCH :
+        mode_lost    ? HEATER_HOST_MODE_LOST :
         h->retry     ? HEATER_HOST_RETRY    :
         (h->mode_owed && cap && mode_ok(h->want.mode)) ? HEATER_HOST_MODE :
                        HEATER_HOST_NONE;
@@ -87,9 +102,10 @@ int heater_host_plan(heater_host_t *h, const heater_host_readback_t *rb,
     if (cmd_pending) return 0;                      /* the command writes first */
     if (now_ms < h->backoff_until_ms) return 0;
     if (h->ever) {
-        uint64_t gap = (r == HEATER_HOST_MISMATCH && h->last_why == HEATER_HOST_MISMATCH)
-                     ? HEATER_HOST_BACKOFF_MS       /* the last one didn't fix it */
-                     : HEATER_HOST_MIN_GAP_MS;
+        bool again = (r == HEATER_HOST_MISMATCH || r == HEATER_HOST_MODE_LOST) &&
+                     h->last_why == (int)r;
+        uint64_t gap = again ? HEATER_HOST_BACKOFF_MS       /* the last one didn't fix it */
+                             : HEATER_HOST_MIN_GAP_MS;
         if (now_ms - h->last_ms < gap) return 0;
     }
 
@@ -109,6 +125,7 @@ int heater_host_plan(heater_host_t *h, const heater_host_readback_t *rb,
 
     h->ever = true;
     h->last_ms = now_ms;
+    if (h->mode_off) h->mode_off_since_ms = now_ms;   /* give this write its hold */
     h->last_why = r;
     *why = r;
     return n;
@@ -134,6 +151,7 @@ const char *heater_host_reason_name(heater_host_reason_t why)
     case HEATER_HOST_STARTUP:  return "agent start";
     case HEATER_HOST_LINK:     return "APU link back";
     case HEATER_HOST_MISMATCH: return "G0B1 lost settings";
+    case HEATER_HOST_MODE_LOST: return "mode not applied";
     case HEATER_HOST_RETRY:    return "retry";
     case HEATER_HOST_MODE:     return "mode selectable";
     default:                   return "none";
