@@ -21,6 +21,7 @@
 #include "heater_ext.h"
 #include "heater_cmd.h"
 #include "heater_host.h"
+#include "tmp05.h"
 #include "state_path.h"
 #include "apu_command.h"
 #include "ota_status.h"
@@ -1621,6 +1622,10 @@ int main(void)
     uint64_t apu_down_since = mono_ms();   /* when the APU last went silent */
     led_load_saved();
     heater_host_load_saved();
+    /* Cab temperature (EF-MX8MM TMP05 on CAB_TEMP; none on the dev kit).
+     * Logged for now; it becomes the AUTOTERM ambient once the G0B1 has a
+     * register to take it. */
+    tmp05_start();
 
     uint64_t last_heater_tick = 0;
 

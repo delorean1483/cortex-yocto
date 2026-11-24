@@ -1,0 +1,6 @@
+# gobi-agent (user ecofleet, group dialout) reads the EF-MX8MM cab
+# temperature sensor (TMP05 on CAB_TEMP = GPIO4_IO27) through the GPIO
+# character device. Open only GPIO4's chip (30230000.gpio) to the group; its
+# other outputs are kernel hogs, which userspace cannot claim. Dev kit: the
+# chip exists but has no CAB_TEMP line, and the agent leaves it alone.
+SUBSYSTEM=="gpio", KERNEL=="gpiochip*", KERNELS=="30230000.gpio", GROUP="dialout", MODE="0660"
