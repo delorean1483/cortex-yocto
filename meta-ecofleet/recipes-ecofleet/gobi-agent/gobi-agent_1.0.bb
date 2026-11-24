@@ -15,6 +15,8 @@ SRC_URI = " \
     file://heater_ext.c \
     file://heater_cmd.h \
     file://heater_cmd.c \
+    file://heater_host.h \
+    file://heater_host.c \
     file://apu_command.h \
     file://apu_command.c \
     file://ota_status.h \

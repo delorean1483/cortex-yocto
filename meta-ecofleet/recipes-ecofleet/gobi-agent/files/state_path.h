@@ -17,6 +17,10 @@
 #endif
 #define TIMEZONE_SHARED      "/data/ecofleet/timezone"
 #define TIMEZONE_LEGACY      "/var/lib/ecofleet/timezone"
+/* Host-owned heater level/setpoint/mode, written back after a G0B1 reboot
+ * (heater_host.h). */
+#define HEATER_HOST_SHARED   "/data/ecofleet/heater-host.json"
+#define HEATER_HOST_LEGACY   "/var/lib/ecofleet/heater-host.json"
 
 /* Path to write: shared when its directory is writable, else legacy. Returns
  * one of the two pointers passed in. */

@@ -20,6 +20,8 @@
 #include "heater_fields.h"
 #include "heater_ext.h"
 #include "heater_cmd.h"
+#include "heater_host.h"
+#include "state_path.h"
 #include "apu_command.h"
 #include "ota_status.h"
 #include "ota_offer.h"
@@ -1141,11 +1143,92 @@ static int mb_write_reg(int reg1based, int value, const char *what)
     return -1;
 }
 
-/* heater_cmd_apply() writer: one heater register write via mb_write_reg(). */
+/* Host-owned heater settings (heater_host.h): the level/setpoint/mode the
+ * last accepted command wrote, kept on /data and written back after a G0B1
+ * reboot (it boots with level 1, 20 C, temperature mode). Telemetry thread
+ * only. */
+static heater_host_t g_host;
+
+static void heater_host_desc(const heater_host_settings_t *s, char *buf, size_t len)
+{
+    char lv[8] = "-", sp[8] = "-";
+    if (s->level > 0) snprintf(lv, sizeof lv, "%d", s->level);
+    if (s->setpoint_c > 0) snprintf(sp, sizeof sp, "%d", s->setpoint_c);
+    const char *md = s->mode == HEATER_MODE_POWER ? "power"
+                   : s->mode == HEATER_MODE_TEMPERATURE ? "temperature" : "-";
+    snprintf(buf, len, "level %s, setpoint %s C, mode %s", lv, sp, md);
+}
+
+static void heater_host_persist(void)
+{
+    const char *p = state_write_path(HEATER_HOST_SHARED, HEATER_HOST_LEGACY);
+    if (heater_host_save(p, &g_host.want) != 0) {
+        syslog(LOG_WARNING, "heater: could not save host settings to %s", p);
+        return;
+    }
+    state_retire_legacy(p, HEATER_HOST_LEGACY);
+}
+
+static void heater_host_load_saved(void)
+{
+    heater_host_settings_t s;
+    const char *p = state_read_path(HEATER_HOST_SHARED, HEATER_HOST_LEGACY);
+    bool ok = heater_host_load(p, &s);
+    heater_host_init(&g_host, ok ? &s : NULL);
+    if (ok) {
+        char d[64];
+        heater_host_desc(&g_host.want, d, sizeof d);
+        syslog(LOG_INFO, "heater: host settings %s from %s", d, p);
+    }
+}
+
+/* Heater command writer (shadow desired.heater via heater_cmd_apply() and
+ * panel command.json): one register write via mb_write_reg(); an accepted
+ * level/setpoint/mode becomes the host setting. */
 static int heater_mb_write(int reg, int value, const char *what, void *ctx)
 {
     (void)ctx;
-    return mb_write_reg(reg, value, what);
+    int r = mb_write_reg(reg, value, what);
+    if (heater_host_note_write(&g_host, reg, value, r)) heater_host_persist();
+    return r;
+}
+
+/* Once per good poll on coprocessor firmware: seed host settings not known
+ * yet from the readback, and write them back when the G0B1 lost them (agent
+ * start, APU link back, 54/69 readback differs, retry). Never reg 53/75. */
+static void heater_host_tick(const telemetry_t *t)
+{
+    if (!t->heater_ext) return;
+    heater_host_readback_t rb = {
+        .level      = t->heater_target_level,
+        .setpoint_c = (int16_t)t->heater_setpoint_c,
+        .mode       = t->heater_mode,
+        .caps       = t->heater_caps,
+    };
+    char d[64];
+    if (heater_host_adopt(&g_host, &rb)) {
+        heater_host_desc(&g_host.want, d, sizeof d);
+        syslog(LOG_INFO, "heater: host settings seeded from the G0B1: %s", d);
+        heater_host_persist();
+    }
+    shadow_heater_cmd_t hc;
+    unsigned seq;
+    bool pending = shadow_peek_heater_cmd(&hc, &seq);
+    heater_write_t w[HEATER_HOST_MAX_WRITES];
+    heater_host_reason_t why;
+    int n = heater_host_plan(&g_host, &rb, pending, mono_ms(), w, &why);
+    if (n == 0) return;
+    heater_host_desc(&g_host.want, d, sizeof d);
+    syslog(LOG_INFO, "heater: re-asserting host settings (%s): %s; G0B1 had level %d, setpoint %d C",
+           heater_host_reason_name(why), d, rb.level, rb.setpoint_c);
+    int res[HEATER_HOST_MAX_WRITES];
+    bool lost = false;
+    for (int i = 0; i < n; i++) {
+        /* After a write with no answer the rest waits for the retry. */
+        res[i] = lost ? HEATER_WR_SKIPPED : mb_write_reg(w[i].reg, w[i].value, w[i].what);
+        if (res[i] == HEATER_WR_FAILED) lost = true;
+    }
+    heater_host_done(&g_host, w, res, n, mono_ms());
 }
 
 /* Heater tick, every HEATER_TICK_MS from the wait loop. Delivers a pending
@@ -1176,6 +1259,7 @@ static void heater_tick(void)
             /* One more probe next tick: if the bus answers, carry on (the
              * keepalive must not stop for a whole poll over one lost reply);
              * if not, ticks pause until the next good poll. */
+            heater_host_note_link_down(&g_host);
             g_heater_tick_fails = HEATER_TICK_MAX_FAILS - 1u;
             g_link_ok = false;
             return;
@@ -1194,6 +1278,8 @@ static void heater_tick(void)
         return;
     }
     modbus_flush(g_modbus);
+    /* A G0B1 reboot can fall between two polls: the keepalive sees it. */
+    heater_host_note_link_down(&g_host);
     if (++g_heater_tick_fails >= HEATER_TICK_MAX_FAILS) {
         syslog(LOG_WARNING, "heater keepalive: %u reads failed (%s), paused until next poll",
                g_heater_tick_fails, modbus_strerror(errno));
@@ -1350,7 +1436,7 @@ static void apply_command_file(void)
                                    g_heater_ext, hw);
         int on_val = -1, on_res = HEATER_WR_OK;
         for (int i = 0; i < n; i++) {
-            int r = mb_write_reg(hw[i].reg, hw[i].value, hw[i].what);
+            int r = heater_mb_write(hw[i].reg, hw[i].value, hw[i].what, NULL);
             if (hw[i].reg == 53) { on_val = hw[i].value; on_res = r; }
         }
         /* Panel on/off is the newest request: it supersedes a remote `on`
@@ -1534,6 +1620,7 @@ int main(void)
     unsigned prev_error = last_fault_load(last_fault_path);
     uint64_t apu_down_since = mono_ms();   /* when the APU last went silent */
     led_load_saved();
+    heater_host_load_saved();
 
     uint64_t last_heater_tick = 0;
 
@@ -1560,6 +1647,8 @@ int main(void)
             } else if (g_led_desired.have) {
                 led_note_absent();
             }
+            /* Heater level/setpoint/mode: written back after a G0B1 reboot. */
+            heater_host_tick(&t);
             /* Remote STM32 APU-firmware flash request (peek → arm → ack),
              * mirrors the apu_command idiom on this same thread. main.c re-arms
              * the flash task from the shadow desired each cycle (0 = no
@@ -1746,6 +1835,7 @@ int main(void)
         } else {
             /* Modbus read failed — try reconnecting the serial port */
             g_link_ok = false;
+            heater_host_note_link_down(&g_host);
             uint64_t mono = mono_ms();
             if (shadow_note_apu_link(false, now_ms())) {
                 syslog(LOG_WARNING, "APU link down — reporting apu_link down to the shadow");
