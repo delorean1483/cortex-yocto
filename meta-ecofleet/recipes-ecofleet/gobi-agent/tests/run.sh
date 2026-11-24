@@ -241,3 +241,7 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    "$here/test_mb_blocks.c" "$files/mb_blocks.c" \
    -o "$here/test_mb_blocks"
 "$here/test_mb_blocks"
+
+# The recipe fetches sources one by one: a new file missing from SRC_URI passes
+# every test above and only fails in the Yocto build.
+sh "$here/../../../../scripts/tests/test-agent-srcuri.sh"
