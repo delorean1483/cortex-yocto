@@ -1,11 +1,15 @@
-# ── Latest Ubuntu 22.04 LTS AMI ───────────────────────────────────────────────
+# ── Latest Ubuntu 24.04 LTS AMI ───────────────────────────────────────────────
+# Only used if the instance is ever rebuilt: aws_instance.influxdb ignores `ami`
+# (see its lifecycle block), so changing this never replaces the running box.
+# The running instance was launched on 22.04 (standard support ends 2027-05-31)
+# and is upgraded in place: cloud/runbooks/influxdb-ubuntu-24.04.md.
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"] # Canonical
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
   }
 
   filter {
@@ -70,11 +74,17 @@ resource "aws_instance" "influxdb" {
     #!/bin/bash
     set -e
 
-    # Install InfluxDB 2.x
-    curl -s https://repos.influxdata.com/influxdata-archive_compat.key \
-      | gpg --dearmor > /etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg
+    # Install InfluxDB 2.x. influxdata-archive.key, not the old
+    # influxdata-archive_compat.key: that one expired 2026-01-17, and apt then
+    # rejects the repo (EXPKEYSIG). Check the published fingerprint first.
+    curl -fsSL https://repos.influxdata.com/influxdata-archive.key \
+      -o /tmp/influxdata-archive.key
+    gpg --show-keys --with-fingerprint --with-colons /tmp/influxdata-archive.key 2>&1 \
+      | grep -q '^fpr:\+24C975CBA61A024EE1B631787C3D57159FC2F927:$'
+    install -d -m 0755 /etc/apt/keyrings
+    gpg --dearmor < /tmp/influxdata-archive.key > /etc/apt/keyrings/influxdata-archive.gpg
 
-    echo "deb [signed-by=/etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg] \
+    echo "deb [signed-by=/etc/apt/keyrings/influxdata-archive.gpg] \
       https://repos.influxdata.com/debian stable main" \
       > /etc/apt/sources.list.d/influxdata.list
 
