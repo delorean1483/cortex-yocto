@@ -2,223 +2,207 @@
 
 **Why:** AWS Health notice of 2026-11-24. Ubuntu 22.04 standard support ends
 **2027-05-31**; after that the box gets no security fixes. 24.04 is supported
-to May 2029. Do this before then.
+to May 2029. The same steps work for 24.04 → 26.04 later.
 
-**Who / how long:** you, from the Mac (`aws` profile `ecofleet`, plus the
-Session Manager plugin, already in `/usr/local/bin`). Plan about 1 hour;
-InfluxDB is down for about 30 minutes of it.
+**Status: done 2026-11-24, 18:45–19:06 UTC.**
+- Ubuntu 22.04.5 → **24.04.5 LTS**, kernel 7.0.0-1018-aws. InfluxDB 2.7.6 untouched.
+- Counts matched before and after: 165,681 telemetry points for 2026-11-23, 28 fault records. New data arrived right after the reboot.
+- The release upgrade took 13 minutes. No `ERROR` lines in its log, `dpkg --audit` clean, no failed units, `apt-get update` clean.
+- `ingest` Lambda: 3 errors in total (the two reboots). No alarm changed state.
+- Pre-upgrade snapshot `snap-0e37af53baa49ae0a`: delete after 2026-12-08.
+- EC2 still lists the original 22.04 AMI for the instance; that's normal after an in-place upgrade.
 
-**Fallback if it can't be done in time:** attach Ubuntu Pro 22.04 in place
-with AWS License Manager (security fixes to 2032, small hourly charge).
+**How:** everything runs from the Mac through `aws ssm send-command` (no
+interactive session, no SSH). Plan about 1 hour. InfluxDB is down only for
+the two reboots (about 1–2 minutes each) and about 10 seconds for the
+snapshot; it keeps running during the release upgrade itself.
 
-## The box (as of 2026-11-24)
+**Fallback if it can't be done in time:** attach Ubuntu Pro in place with AWS
+License Manager (security fixes for 10 years from release, small hourly
+charge).
+
+## The box (checked 2026-11-24)
 
 | | |
 |---|---|
-| Instance | `i-0e96966315664b85f`, Name `ecofleet-prod-influxdb`, t3.micro (1 GB RAM), us-east-1a |
-| Access | private subnet, no public IP: SSM Session Manager only |
-| Disk | root volume `vol-0bcb6dda416faa06f`, gp3 100 GB, encrypted. InfluxDB data lives on it |
+| Instance | `i-0e96966315664b85f`, Name `ecofleet-prod-influxdb`, t3.micro (914 MB RAM, no swap), us-east-1a |
+| Access | private subnet, no public IP: SSM only (agent is a snap) |
+| Disk | root volume `vol-0bcb6dda416faa06f`, gp3 100 GB, encrypted, ~4 GB used |
+| InfluxDB | **installed by hand, not from apt**: `/usr/local/bin/influxd` 2.7.6 and `/usr/local/bin/influx`, unit file `/etc/systemd/system/influxdb.service`, data in `/var/lib/influxdb` (~20 MB). apt doesn't manage it, so OS upgrades don't touch it |
+| apt | the InfluxData source (`influxdata.list`) was unused and its key `influxdata-archive_compat.key` expired 2026-01-17; it was moved to `/root/apt-disabled/` |
 | Backups | DLM snapshot daily at 03:00 UTC, 14 kept |
-| Terraform | `prevent_destroy`, `ignore_changes = [ami, user_data, root_block_device]`: an in-place upgrade causes no drift and no replacement |
+| Terraform | `prevent_destroy`, `ignore_changes = [ami, user_data, root_block_device]`: an in-place upgrade causes no drift. A rebuild would install the `influxdb2` apt package instead (user_data) |
 | Writers | Lambdas `ingest`, `fault_handler`, `api` → `http://<private ip>:8086` |
 
-IDs change after a volume restore, so look them up instead of trusting the
-table:
+## What people notice
+
+- Telemetry sent while InfluxDB is down is mostly lost (the `ingest` Lambda
+  throws, Lambda retries twice over ~3 minutes, then drops the event): short
+  gaps in the charts around each reboot.
+- The `ecofleet-prod-*-errors` alarms may email and then clear on their own.
+
+## Helper
 
 ```bash
-export AWS_PROFILE=ecofleet AWS_REGION=us-east-1
+export AWS_PROFILE=ecofleet AWS_REGION=us-east-1 AWS_PAGER=""
 IID=$(aws ec2 describe-instances \
   --filters Name=tag:Name,Values=ecofleet-prod-influxdb Name=instance-state-name,Values=running \
   --query 'Reservations[].Instances[].InstanceId' --output text)
 VOL=$(aws ec2 describe-instances --instance-ids "$IID" \
   --query 'Reservations[].Instances[].BlockDeviceMappings[?DeviceName==`/dev/sda1`].Ebs.VolumeId' \
   --output text)
-echo "$IID $VOL"
+
+# ssm <<'EOF' ... EOF : run a script as root on the box, print status + output
+ssm() {
+  local p id
+  p=$(jq -n --arg c "export HOME=/root
+$(cat)" '{commands:[$c], executionTimeout:["3000"]}')
+  id=$(aws ssm send-command --instance-ids "$IID" --document-name AWS-RunShellScript \
+       --parameters "$p" --query Command.CommandId --output text) || return 1
+  until aws ssm wait command-executed --command-id "$id" --instance-id "$IID" 2>/dev/null; do
+    case $(aws ssm get-command-invocation --command-id "$id" --instance-id "$IID" \
+           --query Status --output text) in Failed|Cancelled|TimedOut) break;; esac
+  done
+  aws ssm get-command-invocation --command-id "$id" --instance-id "$IID" \
+    --query '[Status,StandardOutputContent,StandardErrorContent]' --output text
+}
 ```
 
-## What people will notice during the window
+`HOME=/root` matters: the `influx` CLI finds its token in
+`/root/.influxdbv2/configs`.
 
-- Dashboard pages that read InfluxDB (charts, reports, history) fail or show
-  gaps.
-- Telemetry sent while InfluxDB is down is mostly **lost**: the `ingest`
-  Lambda throws, Lambda retries the event twice over about 3 minutes, then
-  drops it. Expect a gap in the charts about as long as the outage.
-- Alarms `ecofleet-prod-ingest-errors`, `ecofleet-prod-fault_handler-errors`,
-  `ecofleet-prod-api-errors` go to ALARM and email the alerts topic. They
-  return to OK on their own.
+## 1. Baseline
 
-Pick a quiet time.
-
-## 1. Connect and look
+Note the numbers; step 6 compares against them.
 
 ```bash
-aws ssm start-session --target "$IID"
-sudo -i
+ssm <<'EOF'
+lsb_release -ds; df -h / | tail -1; free -m | sed -n 2,3p
+curl -s localhost:8086/health; echo
+influx query 'from(bucket:"telemetry") |> range(start: 2026-11-23T00:00:00Z, stop: 2026-11-24T00:00:00Z) |> group() |> count()' | tail -1
+influx query 'from(bucket:"faults") |> range(start: 0) |> group() |> count()' | tail -1
+EOF
 ```
 
+(Use a recent full day for the telemetry window; it must still be inside the
+90-day retention when you compare.)
+
+## 2. Patch the current release and reboot
+
+`do-release-upgrade` refuses to start while a reboot is pending.
+
 ```bash
-lsb_release -ds                     # Ubuntu 22.04.x LTS
-df -h /                             # want > 5 GB free
-free -m; swapon --show
-systemctl is-active influxdb && curl -s localhost:8086/health    # "status":"pass"
-dpkg -l influxdb2 influxdb2-cli | tail -2
-cat /etc/apt/sources.list.d/influxdata.list
-influx bucket list                  # telemetry + faults
+ssm <<'EOF'
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l
+apt-get update 2>&1 | tail -3
+apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold full-upgrade > /root/apt-full-upgrade.log 2>&1
+grep -E "^[0-9]+ upgraded" /root/apt-full-upgrade.log; ls /var/run/reboot-required
+EOF
+ssm <<'EOF'
+systemd-run --on-active=3 /bin/systemctl reboot
+EOF
 ```
 
-If `influx` asks for a token: `terraform output influx_secret_arn` (in
-`cloud/terraform`), then
-`aws secretsmanager get-secret-value --secret-id <arn> --query SecretString --output text`
-on the Mac, and `export INFLUX_TOKEN=...` on the box.
-
-Record a point count for a fixed window, to compare after the upgrade.
-**Write down START and STOP**:
+The timer can fire up to a minute late, so check `/proc/uptime` before
+trusting a "after the reboot" check:
 
 ```bash
-START=$(date -u -d 'yesterday 00:00' +%FT%TZ); STOP=$(date -u -d 'today 00:00' +%FT%TZ)
-echo "$START $STOP"
-influx query "from(bucket:\"telemetry\") |> range(start: $START, stop: $STOP) |> group() |> count()"
+ssm <<'EOF'
+cut -d. -f1 /proc/uptime; uname -r
+systemctl is-active influxdb; curl -s localhost:8086/health; echo
+EOF
 ```
 
-## 2. Replace the expired InfluxData apt key
+## 3. Swap, then snapshot
 
-The key the box was set up with (`influxdata-archive_compat.key`) **expired
-2026-01-17**, so `apt-get update` has been rejecting the InfluxData repo since
-then. Switch to `influxdata-archive.key` and check its published fingerprint:
-
-```bash
-curl -fsSL https://repos.influxdata.com/influxdata-archive.key -o /tmp/influxdata-archive.key
-gpg --show-keys --with-fingerprint --with-colons /tmp/influxdata-archive.key 2>&1 \
-  | grep -q '^fpr:\+24C975CBA61A024EE1B631787C3D57159FC2F927:$' && echo KEY OK
-install -d -m 0755 /etc/apt/keyrings
-gpg --dearmor < /tmp/influxdata-archive.key > /etc/apt/keyrings/influxdata-archive.gpg
-echo 'deb [signed-by=/etc/apt/keyrings/influxdata-archive.gpg] https://repos.influxdata.com/debian stable main' \
-  > /etc/apt/sources.list.d/influxdata.list
-rm -f /etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg
-apt-get update                      # no EXPKEYSIG / NO_PUBKEY errors
-```
-
-Stop here if `KEY OK` is not printed.
-
-## 3. Patch 22.04, keep InfluxDB at its current version
-
-Hold the InfluxDB packages so the OS upgrade doesn't also change the database
-version (that's step 7, separately):
+914 MB RAM is tight for a release upgrade: add 2 GB of swap (not in
+`/etc/fstab`, so it's gone after the next reboot). Stop InfluxDB only for the
+moment the snapshot starts; an EBS snapshot is point-in-time at the API call.
 
 ```bash
-apt-mark hold influxdb2 influxdb2-cli
-apt-get -y full-upgrade
-[ -f /var/run/reboot-required ] && reboot
-```
-
-If it rebooted, reconnect (step 1 commands) and check
-`curl -s localhost:8086/health` again.
-
-1 GB RAM is tight for a release upgrade. If `swapon --show` printed nothing,
-add temporary swap (gone after the upgrade's reboot; delete the file in step 8):
-
-```bash
-fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
-```
-
-## 4. Stop InfluxDB and snapshot the volume
-
-On the box:
-
-```bash
-systemctl stop influxdb
-```
-
-On the Mac:
-
-```bash
+ssm <<'EOF'
+fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile
+systemctl stop influxdb; sync
+EOF
 SNAP=$(aws ec2 create-snapshot --volume-id "$VOL" \
-  --description "influxdb before 24.04 upgrade $(date +%F)" \
-  --tag-specifications 'ResourceType=snapshot,Tags=[{Key=Name,Value=ecofleet-prod-influxdb-pre-2404},{Key=Project,Value=ecofleet}]' \
+  --description "influxdb before release upgrade $(date +%F)" \
+  --tag-specifications 'ResourceType=snapshot,Tags=[{Key=Name,Value=ecofleet-prod-influxdb-pre-upgrade},{Key=Project,Value=ecofleet}]' \
   --query SnapshotId --output text); echo "$SNAP"
+ssm <<'EOF'
+systemctl start influxdb; sleep 5; curl -s localhost:8086/health
+EOF
 aws ec2 wait snapshot-completed --snapshot-ids "$SNAP"   # re-run if the waiter times out
 ```
 
-It is incremental on top of the daily snapshots, so usually a few minutes.
-DLM does not manage it: delete it by hand (step 8). **Write down `$SNAP`.**
+**Write down `$SNAP`.** DLM doesn't manage it: delete it by hand (step 7).
 
-## 5. Release upgrade
+## 4. Release upgrade
 
-Run it inside tmux: an idle SSM session drops after about 20 minutes, and
-tmux keeps the upgrade running. Reattach with `tmux attach -t upg`.
+Run it as its own systemd unit, so it doesn't depend on the SSM agent's
+command staying alive. The non-interactive frontend keeps local config files
+and does not reboot by itself.
 
 ```bash
-tmux new -s upg
-grep ^Prompt /etc/update-manager/release-upgrades     # must be Prompt=lts
-do-release-upgrade
+ssm <<'EOF'
+fuser /var/lib/dpkg/lock-frontend && { echo "dpkg busy, try again later"; exit 1; }
+do-release-upgrade -c | tail -2
+systemd-run --unit=ecofleet-release-upgrade --setenv=DEBIAN_FRONTEND=noninteractive \
+  /bin/bash -c 'do-release-upgrade -f DistUpgradeViewNonInteractive > /root/release-upgrade.log 2>&1; echo "EXIT=$?" >> /root/release-upgrade.log'
+EOF
 ```
 
-It offers 24.04 only (22.04 can't jump to 26.04). Answers:
+Check every few minutes until the unit is no longer active:
 
-- Third-party sources disabled (InfluxData): OK.
-- Start the upgrade: `y`.
-- Restart services without asking: yes.
-- Modified configuration file: keep the locally installed version (the
-  default).
-- Remove obsolete packages: `y`.
-- Restart now: `y`.
+```bash
+ssm <<'EOF'
+systemctl is-active ecofleet-release-upgrade; free -m | sed -n 2,3p
+tail -2 /var/log/dist-upgrade/apt-term.log; grep EXIT= /root/release-upgrade.log
+EOF
+```
 
-The SSM agent is a snap and survives the upgrade. Reconnect a few minutes
-after the reboot.
+Then look at the end of `/root/release-upgrade.log` and
+`/var/log/dist-upgrade/main.log` for errors.
+
+## 5. Remove the swap and reboot
+
+```bash
+ssm <<'EOF'
+swapoff /swapfile && rm -f /swapfile
+systemd-run --on-active=2 --timer-property=AccuracySec=1s /bin/systemctl reboot
+EOF
+```
+
+Again, the reboot can start up to about a minute later; check `/proc/uptime`
+in step 6.
 
 ## 6. Check
 
 ```bash
-sudo -i
-lsb_release -ds                     # Ubuntu 24.04.x LTS
+ssm <<'EOF'
+cut -d. -f1 /proc/uptime; lsb_release -ds; uname -r
 snap services amazon-ssm-agent
-cat /etc/apt/sources.list.d/influxdata.list   # the upgrader commented it out
-echo 'deb [signed-by=/etc/apt/keyrings/influxdata-archive.gpg] https://repos.influxdata.com/debian stable main' \
-  > /etc/apt/sources.list.d/influxdata.list
-apt-get update                      # clean
-systemctl is-active influxdb && curl -s localhost:8086/health    # "status":"pass"
-influx bucket list
-```
-
-Same count as in step 1, using the START and STOP you wrote down:
-
-```bash
-influx query "from(bucket:\"telemetry\") |> range(start: <START>, stop: <STOP>) |> group() |> count()"
-```
-
-New data arriving (if any unit is online), within a few minutes:
-
-```bash
-influx query 'from(bucket:"telemetry") |> range(start: -10m) |> group() |> count()'
-```
-
-On the Mac: the dashboard charts load, and after about 5 minutes no alarm is
-left in ALARM:
-
-```bash
+systemctl is-active influxdb; curl -s localhost:8086/health; echo
+influx query 'from(bucket:"telemetry") |> range(start: 2026-11-23T00:00:00Z, stop: 2026-11-24T00:00:00Z) |> group() |> count()' | tail -1
+influx query 'from(bucket:"faults") |> range(start: 0) |> group() |> count()' | tail -1
+influx query 'from(bucket:"telemetry") |> range(start: -5m) |> group() |> count()' | tail -1
+apt-get update 2>&1 | grep -E "^(W|E):" || echo "apt clean"
+EOF
 aws cloudwatch describe-alarms --alarm-name-prefix ecofleet-prod --state-value ALARM \
   --query 'MetricAlarms[].AlarmName'
 ```
 
-## 7. InfluxDB package updates (separately, next day)
+Expect: the new release, InfluxDB `pass`, the same baseline counts, new
+points in the last 5 minutes (if a unit is online), and no alarm left in
+ALARM after a few minutes.
 
-After the next daily snapshot (03:00 UTC), let InfluxDB update again:
+## 7. Clean up
 
-```bash
-apt-mark unhold influxdb2 influxdb2-cli
-apt-get install --only-upgrade influxdb2 influxdb2-cli
-systemctl is-active influxdb && curl -s localhost:8086/health
-```
-
-## 8. Clean up
-
-- `rm -f /swapfile` (if you added it).
-- After about two weeks: `aws ec2 delete-snapshot --snapshot-id <SNAP>`.
+After about two weeks: `aws ec2 delete-snapshot --snapshot-id <SNAP>`.
 
 ## Rollback
 
 If the box doesn't come back, or InfluxDB is broken and not quickly fixable,
-put the step-4 snapshot back as the root volume. Same instance, same private
+put the step-3 snapshot back as the root volume. Same instance, same private
 IP, so the Lambdas need no change. Telemetry written after the snapshot is
 lost.
 
@@ -233,7 +217,6 @@ aws ec2 attach-volume --volume-id "$NEW" --instance-id "$IID" --device /dev/sda1
 aws ec2 start-instances --instance-ids "$IID"
 ```
 
-Keep the old volume (`$VOL`) until the restored box is checked (step 6
-commands), then delete it. The volume comes back encrypted with the
-snapshot's key. Terraform ignores `root_block_device`, so the swap causes no
-drift.
+Keep the old volume until the restored box passes step 6, then delete it.
+The volume comes back encrypted with the snapshot's key. Terraform ignores
+`root_block_device`, so the swap causes no drift.
