@@ -162,6 +162,14 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -o "$here/test_heater_cmd"
 "$here/test_heater_cmd"
 
+# Host-owned heater settings (fw 54/69/2230): seed, remember, re-assert after
+# a G0B1 reboot, rate limit and back-off; the settings file round trip.
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" -I"$cjson/include" \
+   "$here/test_heater_host.c" "$files/heater_host.c" \
+   -L"$cjson/lib" -lcjson -o "$here/test_heater_host"
+"$here/test_heater_host"
+
 # On-panel "Check for updates": the manifest fetch runs off the telemetry
 # thread (a slow network must not stall the G0B1 keepalive).
 cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \

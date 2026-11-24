@@ -209,6 +209,27 @@ unidentified (2227/2228 both 0) or reg 64 shows a heater-link or map fault
   optimistic and clears when the applied mode reads back, or after 30 s.
 - Dashboard: a Mode cell and Temperature/Power buttons with a confirm.
 
+### Host-owned level, setpoint and mode (after a G0B1 reboot)
+
+The G0B1 keeps reg 54 (level), 69 (setpoint °C) and 2230 (mode) in RAM and
+boots with level 1, 20 °C and temperature mode; the host owns them. The agent
+remembers the last value of each that a command (panel or shadow) got
+accepted, in `/data/ecofleet/heater-host.json` (with no file, each is seeded
+once from the first good readback), and writes them back, 54 → 69 → 2230,
+on coprocessor firmware:
+- on the first good poll after the agent starts (with a file);
+- on the first good poll after any poll, keepalive or write got no answer;
+- when the 54 or 69 readback differs from the remembered value (only the
+  agent writes them, so that means the G0B1 lost them).
+
+2230 only while reg 70 bit 8 is set; a mode left out is written once the bit
+is back. Never reg 53 or 75, so it never starts or stops the heater. Held
+while a heater command is pending, at most once per 10 s, 60 s after a refused
+write or after a mismatch the last write-back didn't fix. Code:
+`gobi-agent/files/heater_host.c`. To set these registers by hand on a bench
+with the agent running, send a command (or delete the file first): the agent
+puts back what it remembers.
+
 For the complete register map, bit-field definitions, and safety invariants, consult:
 - **Spec:** [`docs/superpowers/specs/2026-09-03-vevor-heater-control-design.md`](./superpowers/specs/2026-09-03-vevor-heater-control-design.md) — Register table, Component F1.d
 - **Firmware plan:** [`docs/superpowers/plans/2026-09-03-vevor-heater-firmware.md`](./superpowers/plans/2026-09-03-vevor-heater-firmware.md) — Implementation details & safety semantics

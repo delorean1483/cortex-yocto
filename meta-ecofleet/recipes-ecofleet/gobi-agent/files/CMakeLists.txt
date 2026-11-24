@@ -50,6 +50,7 @@ target_sources(gobi-agent PRIVATE
     heater_fields.c
     heater_ext.c
     heater_cmd.c
+    heater_host.c
     apu_command.c
     ota_status.c
     ota_offer.c
