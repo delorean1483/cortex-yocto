@@ -51,6 +51,8 @@ target_sources(gobi-agent PRIVATE
     heater_ext.c
     heater_cmd.c
     heater_host.c
+    tmp05.c
+    tmp05_gpio.c
     apu_command.c
     ota_status.c
     ota_offer.c

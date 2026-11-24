@@ -168,6 +168,12 @@ cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
    -I"$files" -I"$cjson/include" \
    "$here/test_heater_host.c" "$files/heater_host.c" \
    -L"$cjson/lib" -lcjson -o "$here/test_heater_host"
+
+# Cab temperature from the TMP05 PWM (pure conversion; the GPIO sampler in
+# tmp05_gpio.c is Linux-only and not built here).
+cc -std=c11 -Wall -Wextra -Wpedantic -g -fsanitize=address,undefined \
+   -I"$files" "$here/test_tmp05.c" "$files/tmp05.c" -o "$here/test_tmp05"
+"$here/test_tmp05"
 "$here/test_heater_host"
 
 # On-panel "Check for updates": the manifest fetch runs off the telemetry
